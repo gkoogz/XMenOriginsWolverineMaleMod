@@ -1,0 +1,213 @@
+# Shared project context
+
+Updated 2026-09-15. Both agents/accounts must update this document when handing
+off. Relative workspace paths below are relative to the parent of this Git repo.
+
+## State and user intent
+
+- Historical Git `617e815`, tag v0.5: package revision154 (Weapon X safe), runtime157.
+- User authorized packaging and committing restored Revision161 as a release.
+  Release v0.6 contains character161/runtime161; payload DLL and reconstructed
+  package match the restored installed hashes below. Revision162/163 excluded.
+  Local release ZIP: `release/BigDickLoganMod-v0.6.zip` (ignored by Git).
+  `tools/Test-Release.ps1` passed in an isolated fixture: package reconstruction,
+  matching DLL, existing settings preservation, both checkpoint config edits,
+  and byte-exact uninstall restoration. Known collar shimmer is disclosed in
+  README/CHANGELOG. No remote publication was requested by this release task.
+- Functional reference: `work/hd/revision154-weaponx-safe/atlas/mesh.json`,
+  its `final/WGame/CookedPC/CH_Wolverine_Natural_SF.xxx`, and `work/hd/runtime157`.
+- Installed at last verification: **Revision161 restored on 2026-09-15 at
+  17:33 local**, after the user closed the game. Package SHA256 remains
+  `970D5F99F3DE8E9EA2EC4D4EEECFB0E430C21018BB449B486D6586B59F1E76E6`;
+  DLL SHA256 is
+  `72B5ABD7BA007C3F207BE0EAF1130F4964DE2E59720AAA3CAD22CC631C2C648E`.
+  Live INI SHA256
+  `14F4A8686B9B8BEFA529B4418385E819534A7EAC4171CA60D1EB28DA85E38DB8`
+  and the package were verified unchanged during the DLL restore.
+- Game: `C:/Games/X-Men Origins Wolverine`; runtime in `Binaries/d3d9.dll`.
+- User's 06:09–06:10 screenshots confirm 161 STILL shimmers/crinkles, including
+  Overall55/Width57 and Overall100/Width100. User explicitly says 157 also fails.
+- Current authorization: fix the Revision161 collar shimmer surgically. Do not
+  broaden the donor field, reshape the silhouette, or rearchitect dilation.
+  Avoid excessive token expenditure and broad tests.
+- Revision162 failed its first in-game playtest and is **not installed**.
+
+## Revision163 surgical tangent fix
+
+- **REJECTED by playtest 2026-09-15 17:20; reverted at 17:33 after game exit.**
+  Rejected DLL, current INI and package were preserved at
+  `C:/Games/X-Men Origins Wolverine/_ModBackups/Rejected_Revision163_20260915-173333`.
+  User reports worse rendering; screenshot shows conspicuous shaft highlights.
+  The earlier attribution of torso damage to tangent corruption was unverified
+  (the game also renders body damage). Do not retry this change unchanged.
+- Source: `work/hd/runtime163`, copied from runtime161. The package, topology,
+  morphs, physics, vertex positions, collar fairing, and Weapon X materials are
+  byte-for-byte Revision161. Only `d3d9_proxy.cpp` tangent selection changed.
+- Diagnostic rationale: Revision161 introduced `collarTangentSums`, which welded
+  tangents by geometric position across duplicated collar UV vertices. Normals
+  should be shared across coincident weld copies, but tangents belong to each UV
+  chart. Revision161 also retained each vertex's original packed W handedness;
+  assigning a position-averaged XYZ tangent with a different orientation can
+  invert the normal map on isolated triangles, matching the reported white
+  shimmer. Revision160/157 used per-vertex UV tangents instead.
+- Fix: retain Revision161's unified geometric normals, but use the final-position
+  UV derivative tangent accumulated per graft vertex. Orthogonalize it against
+  the unified normal, fall back to the original runtime tangent if degenerate,
+  and sign-align it to that original tangent so the untouched packed W
+  handedness remains valid. No vertex is moved by Revision163.
+- Verification: runtime163 builds cleanly. Its D3D9 proxy harness exits0 with
+  correct Revision161 50915-vertex buffer detection, shaft and ball motion,
+  lobe RMS0.00000 and maximum relative distortion0.00001.
+- Revision161 backup before the DLL-only install:
+  `C:/Games/X-Men Origins Wolverine/_ModBackups/Revision161_before_Revision163_20260915-110826`.
+- Restore completed and DLL hash verified against the exact Revision161 backup.
+  Exact next step: await user direction; the current request was only to revert.
+- Failure lesson: using the already-skinned runtime packed tangent as a sign
+  reference is unsafe here; its basis/packing convention is not equivalent to
+  the reconstructed object-space UV derivative, and preserving W did not make
+  them compatible. The mismatch corrupted normal mapping across the character.
+
+## Revision162 implementation and evidence
+
+- **REJECTED:** At Overall100 / Width50 / other controls50, the user's 10:10
+  screenshots show the collar expanding into a huge, nearly horizontal pelvic
+  apron/torus spanning the entire crotch. This is substantially worse than
+  Revision161's localized shimmer. The exact rejected installation is backed up
+  at `C:/Games/X-Men Origins Wolverine/_ModBackups/Rejected_Revision162_20260915-101843`.
+- Root cause: the runtime's final shaft-ring cylinder and broad pelvis-control
+  recruitment were validated only for local triangle validity. Those checks
+  proved watertightness/non-inversion but placed no bound on the collar's global
+  silhouette, thickness, or geodesic donor extent. Overall alone drives
+  `PelvisCollarGrowth()` through the multiplicative diameter ratio, while the
+  6-11 unit body radius plus the 53-lane outer footprint turns the collar into
+  a broad annular shelf. This candidate must not be reinstalled unchanged.
+- Any successor must add silhouette/envelope assertions: bound displacement of
+  every body donor from its original surface, bound collar X/Z/Y extents relative
+  to the live shaft radius, and explicitly test Overall100/Width50 (the failure
+  case), not just max/max and moderate pairs. Prefer a much narrower donor field
+  or leave the pelvis mesh fixed and solve only the immediate seam normals/ring.
+
+- Sources: `work/hd/build_revision162_collar.py`,
+  `work/hd/runtime162/d3d9_proxy.cpp`, and generated files under
+  `work/hd/revision162-parametric-collar/build` / `work/hd/runtime162`.
+- Topology: graft base47090, graft count2567, total VB50955, section7 index
+  start249924. The replacement is an open anatomical collar with 53 matched
+  lanes and six longitudinal rows (outer boundary, four interior bands, shaft
+  boundary). Forty body-side edge-split vertices preserve exact chunk-local
+  skin palettes. This is a modest replacement, not a high-poly radial shell.
+- Both endpoints use one fixed spatial correspondence for positions, UVs,
+  morphs, skin weights, physics weights, normals and runtime support. The old
+  Revision161 zipper patch is removed. Alternating band diagonals replace star
+  or fan topology; the lower inner-thigh sector remains outside the donor field.
+- Runtime evaluates bounded Hermite lanes from the final body boundary to the
+  final shaft boundary before rest-frame construction, after tube preservation,
+  and again after physics. The shaft-side ring is forced to the live cylinder;
+  neighboring shaft vertices follow a compact smooth support field. Final
+  normals/tangents are rebuilt after the last position solve.
+- Shaft-side angular positions are regularized 15% toward even spacing while
+  preserving 85% of the anatomical pelvis correspondence. Raw pelvis angles
+  had nearly coincident lanes that created skinny shimmering wedges; stronger
+  (45%) regularization folded one maximum-width outer transition, so it was
+  rejected. This 15% version has zero opposed or degenerate patch faces in all
+  sampled cases.
+- Physical angle is clamped to -20..+55 degrees via `EffectiveShaftAngle()`;
+  rotation occurs at the pubic root and the collar is regenerated around the
+  posed shaft. This is the user-authorized inward endpoint clamp.
+- Production-position harness cases: saved preset50/50/50, reported
+  Overall55/Width57/Angle52, Overall100/Width100/Angle52, maximum width at each
+  clamped angle endpoint, and Overall10/Width10. All six have zero degenerate
+  faces, zero opposed adjacent patch pairs, and weld coincidence error <=
+  1.53e-5. See `build/final-audit.json` and `build/runtime-collars.png`.
+  Neighbor face-angle maxima are still 59-74 degrees, concentrated mostly at
+  the two open splice ends and one high-angle inner band; dynamic welded
+  normals reduce shading discontinuity, but only the game can decide whether
+  those local transitions are visually acceptable.
+- The actual D3D9 proxy harness passed with exit0: correct 50955-vertex buffer
+  detection, base47090 attachment, shaft/ball motion, lobe RMS0.00000,
+  lobe maximum relative distortion0.00001. UModel exported the injected mesh
+  successfully (its missing-import/TFC warnings are the known standalone-package
+  baseline). Package validation confirms both Weapon X materials still parent
+  `MAT_Gore_WolverineBase` with permutation1.
+- Revision161 backup:
+  `C:/Games/X-Men Origins Wolverine/_ModBackups/Revision161_before_Revision162_20260915-093413`.
+  `work/hd/revision162-parametric-collar/backup-path.txt` records the same path.
+- Exact next step: begin from restored Revision161, not Revision162. Diagnose
+  Revision161's small shimmer locally. Do not reuse Revision162's broad pelvis
+  recruitment without strict envelope constraints and an Overall100/Width50
+  regression test.
+
+## Architectural dependencies
+
+- Mesh package and proxy-generated tables are a matched set. 161 uses graft
+  first vertex47050, count2388, stride32, full VB50915 vertices, section7 index
+  start249804. 157 uses count2304. Changes to topology require regenerating morph,
+  physics, graft normals, pelvis control and collar headers plus updating runtime
+  and harness buffer/count/signature constants. Hardcoded draw signatures have
+  previously broken character transform detection.
+- UE3 uses chunks with local bone-index palettes. Moving vertices between
+  chunks requires palette translation. Indices are 16-bit (<65536 vertices).
+- Body sections4/6 and graft7 have duplicated weld vertices. Coincidence alone
+  does not ensure tangent continuity, valid faces, UV continuity, or smooth light.
+- Runtime changes positions after skeletal buffer preparation; normals/tangents
+  must be rebuilt from FINAL positions, including physics. Geometry passes before
+  physics are insufficient evidence of the final surface.
+- Weapon X overrides MAT_Electrodes and MAT_Wolverine_TankMarkings must retain
+  MAT_Gore_WolverineBase parent/permutation1. Start package injection from154.
+- UI1–100 is mapped piecewise around the user's saved preset at50. Shape neutral
+  is [1.2,1.6,1.59,1.53,30,-0.7,0.400001]; angle UI52 =33.6 physical degrees.
+  Morph-grid midpoint is a DIFFERENT legacy reference (Overall1.5/Width1.15).
+- F6 toggles Big Dick Logan Mod menu, F8 resets all to50. Preserve live INI.
+  Older NORMALIZED-CONTROLS.md incorrectly says Home; source uses F8.
+
+## Failed approaches and diagnostic caveats
+
+- User rejected ultra-high-poly and radially symmetrical collars. Rings mean
+  connected bands draped over actual anatomy. Inner thighs are not general donor
+  material; dilation should favor the upper pelvis. Avoid broad body resculpting.
+- 161 removed97 faces and inserted221 using4x21 new vertices in reserved slots
+  49354–49437. Outer boundary13 / inner42 are zipper-stitched. Lower sector retained.
+- Reparameterizing each morph separately caused lanes to slide/twist; keep fixed
+  neutral correspondence for ALL geometry and weight samples. Scalar interpolation
+  in build_revision161_round_weld.py independently reverses based on scalar values:
+  this is unsafe correspondence, not a valid spatial orientation test.
+- 160–280 uniform Laplacian passes shrink the collar; later tube preservation can
+  undo its shape. Ring-only Taubin passes cannot ensure longitudinal smoothness.
+- Full-graph Taubin and mean-value geometry smoothing were tried unsuccessfully.
+  Normal smoothing or texture paint cannot fix folds, degenerate faces or overlaps.
+- The Python runtime161 audit is only an approximation: defaults use weighted
+  geometry smoothing and zero ring passes, unlike installed runtime. Match with
+  COLLAR_WEIGHT_MODE=uniform, COLLAR_RING_FAIR_PAIRS=4 and physical angle.
+  It omits tube preservation, full secondary sliders, and final physics. Its
+  'flips' count compares to neutral normals, not a robust inversion proof.
+- At O2.5/W2/angle33.6 that PARTIAL audit gave seam0, max weld42.7deg,
+  raw normal coherence min0.055. These diagnose concerns; they do not prove the
+  exact in-game culprit. Earlier reports overstated certainty about these metrics.
+- Fixed-reference normal hemisphere flips can hide invalid geometry and can be
+  inappropriate after large rotations. Validate the final surface itself.
+
+## Build / verification / install
+
+- Python with numpy: `C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe`.
+- Git: `C:/Program Files/Git/cmd/git.exe`.
+- Runtime build: build.cmd uses x86 VC BuildTools and DirectX SDK June2010.
+- Injector: work/hd/inject_hd_mesh_anatomy.ps1 -InputPackage <154 package>
+  -MeshJson <new mesh> -OutputPackage <candidate>. Validate with validate_package.ps1;
+  export/readback with work/tools/umodel/umodel.exe -export -game=xmen -all -dds.
+- Existing proxy harness tests detection and motion/ball rigidity, not a complete
+  collar render. It sends keyboard input: only run with game closed.
+- Build isolated candidates; inspect a few moderate/extreme size and angle cases.
+  Prefer actual runtime final-position dumps over reimplementing its math in Python.
+- Before installing check Wolverine process, back up package/DLL and live INI;
+  copy only intended package/DLL, verify hashes, leave saved settings intact.
+- Existing backups recorded under work/hd/revision161-round-weld/*backup-path.txt.
+  Experimental backups use game/_ModBackups; release installer uses
+  WGame/ModBackups/BigDickLoganMod-v0.5 (different systems).
+- Public repo contains a WBX1 delta requiring original game package, not the
+  original package. Update payload/manifest only when preparing an authorized release.
+
+## Maintenance requirement
+
+Next agent: read this first, verify current disk/process state, update this file
+with what you learn and the exact next action before handing off. Do not repeat
+failed approaches without a specific new reason. Do not mark a candidate visually
+fixed until in-game evidence supports that claim.

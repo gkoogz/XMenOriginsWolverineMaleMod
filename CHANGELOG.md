@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6
+
+- Package the exact restored Revision 161 character and runtime.
+- Include its rounded collar topology while preserving Weapon X handling, live controls, and physics.
+- Retain the verified installer/uninstaller workflow with version-specific backups.
+- Known issue: collar shimmer remains at some sizes and viewing angles.
+- Exclude the rejected Revision 162 and 163 experiments.
+
 ## v0.5
 
 - Packaged the Weapon X-safe character build with Revision 157 runtime behavior.

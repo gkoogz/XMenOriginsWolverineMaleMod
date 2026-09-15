@@ -38,7 +38,7 @@ static IDirect3DVertexBuffer9* seenBuffers[256];
 static UINT seenCount;
 static IDirect3DVertexBuffer9* graftBuffer;
 static UINT graftOffset;
-static const UINT graftCount=2304, graftStride=32;
+static const UINT graftCount=2388, graftStride=32;
 static const UINT graftTriangleIndexStart=249804;
 static bool menuOpen=true, shapeDirty=true;
 static int selectedSlider;
@@ -77,7 +77,7 @@ static V3 shaftRestCenters[shaftRestSampleCount];
 static bool shaftRestFrameReady;
 static V3 graftDeformedPositions[graftCount],graftDynamicNormalSums[graftNormalGroupCount],graftDynamicTangentSums[graftCount];
 static V3 collarFairA[collarFairGroupCount],collarFairB[collarFairGroupCount];
-static V3 collarNormalSums[collarFairGroupCount];
+static V3 collarNormalSums[collarFairGroupCount],collarTangentSums[collarFairGroupCount];
 static bool constraintSolverReady;static int constraintSolverState=-1;static float constraintAccumulator,constraintRestLength=24.f;
 static V3 constraintBallRest[2]={{14.30f,-2.0f,72.3f},{14.30f,2.0f,72.3f}};
 static DWORD physicsLastTick;
@@ -600,9 +600,27 @@ static void CollarFairPass(const V3* source,V3* target,float strength){
   for(UINT group=0;group<collarFairGroupCount;group++){
     UINT begin=collarFairNeighborOffsets[group],end=collarFairNeighborOffsets[group+1];
     if(begin==end||collarFairWeights[group]<=.0001f){target[group]=source[group];continue;}
+    // The broad support solve intentionally remains an umbrella average. The
+    // regular-band correction below removes diagonal-valence corrugation
+    // without letting highly irregular body triangles dominate this solve.
     V3 average{};for(UINT edge=begin;edge<end;edge++)average=average+source[collarFairNeighbors[edge]];
     average=average/(float)(end-begin);
     target[group]=source[group]+(average-source[group])*(strength*collarFairWeights[group]);
+  }
+}
+static void FairRetopologyBands(){
+  // The four new open horseshoes occupy the reserved contiguous tail of the
+  // graft.  A regular 1-D Taubin filter suppresses the alternating-diagonal
+  // sawtooth while preserving the low-frequency anatomical arc and endpoints.
+  static const UINT first=2304u,ringCount=4u,ringVertices=21u;
+  V3 source[ringVertices];
+  for(int pair=0;pair<4;pair++)for(int phase=0;phase<2;phase++){
+    float strength=phase==0?.45f:-.47f;
+    for(UINT ring=0;ring<ringCount;ring++){
+      UINT start=first+ring*ringVertices;
+      for(UINT j=0;j<ringVertices;j++)source[j]=graftDeformedPositions[start+j];
+      for(UINT j=1;j+1<ringVertices;j++)graftDeformedPositions[start+j]=source[j]+((source[j-1]+source[j+1])*.5f-source[j])*strength;
+    }
   }
 }
 static void FairUnifiedCollar(unsigned char* controlled,UINT graftFirstVertex,float growth){
@@ -616,7 +634,12 @@ static void FairUnifiedCollar(unsigned char* controlled,UINT graftFirstVertex,fl
   // at large widths; the broad anchored support field makes shrinkage local
   // and intentional here—it is the tight fillet into the shaft.
   float lambda=.24f+.012f*growth;
-  for(int iteration=0;iteration<80;iteration++){
+  // The new dorsal horseshoe bands need more convergence only as the collar
+  // recruits additional pelvis at very large diameters.  Keep the normal-size
+  // solve compact, then ramp to 280 passes at maximum growth; the support
+  // weights pin the outer field so this remains local.
+  int iterations=160+(int)(80.f*growth+.5f);
+  for(int iteration=0;iteration<iterations;iteration++){
     CollarFairPass(collarFairA,collarFairB,lambda);
     memcpy(collarFairA,collarFairB,sizeof(collarFairA));
   }
@@ -638,7 +661,14 @@ static void RebuildUnifiedCollarNormals(unsigned char* controlled,UINT graftFirs
     V3 b=ReadAnyCollarPosition(collarNormalTriangleIndices[corner+1],corner+1,controlled,graftFirstVertex);
     V3 c=ReadAnyCollarPosition(collarNormalTriangleIndices[corner+2],corner+2,controlled,graftFirstVertex);
     V3 face=Cross(c-a,b-a);
-    for(UINT q=0;q<3;q++){UINT group=collarNormalTriangleGroups[corner+q];if(group!=65535u)collarNormalSums[group]=collarNormalSums[group]+face;}
+    for(UINT q=0;q<3;q++){
+      UINT group=collarNormalTriangleGroups[corner+q];if(group==65535u)continue;
+      V3 reference={collarFairBaseNormals[group*3],collarFairBaseNormals[group*3+1],collarFairBaseNormals[group*3+2]};
+      // A highly posed triangle can cross the neutral tangent plane.  Keep
+      // every contribution in the fitted surface's stable hemisphere so
+      // opposing faces cannot cancel and flicker between specular extremes.
+      collarNormalSums[group]=collarNormalSums[group]+(Dot(face,reference)<0.f?face*-1.f:face);
+    }
   }
   for(UINT group=0;group<collarFairGroupCount;group++)collarNormalSums[group]=Unit(collarNormalSums[group]);
   // The two materials meet under the most unforgiving grazing highlights.
@@ -648,7 +678,7 @@ static void RebuildUnifiedCollarNormals(unsigned char* controlled,UINT graftFirs
     for(UINT group=0;group<collarFairGroupCount;group++){
       UINT begin=collarFairNeighborOffsets[group],end=collarFairNeighborOffsets[group+1];
       if(begin==end){collarFairA[group]=collarNormalSums[group];continue;}
-      V3 average{};for(UINT edge=begin;edge<end;edge++)average=average+collarNormalSums[collarFairNeighbors[edge]];average=Unit(average/(float)(end-begin));
+      V3 average{};float weightSum=0.f;for(UINT edge=begin;edge<end;edge++){float weight=collarFairNeighborWeights[edge];average=average+collarNormalSums[collarFairNeighbors[edge]]*weight;weightSum+=weight;}average=Unit(average/max(weightSum,1e-8f));
       float strength=.22f*Smoother01(collarFairWeights[group]);collarFairA[group]=Unit(collarNormalSums[group]*(1.f-strength)+average*strength);
     }
     memcpy(collarNormalSums,collarFairA,sizeof(collarNormalSums));
@@ -666,6 +696,28 @@ static void RebuildUnifiedCollarNormals(unsigned char* controlled,UINT graftFirs
       packedTangent[0]=PackSigned(tangent.x);packedTangent[1]=PackSigned(tangent.y);packedTangent[2]=PackSigned(tangent.z);
       packedNormal[0]=PackSigned(normal.x);packedNormal[1]=PackSigned(normal.y);packedNormal[2]=PackSigned(normal.z);
     }
+  }
+}
+static void RebuildUnifiedCollarTangents(){
+  for(UINT group=0;group<collarFairGroupCount;group++){
+    V3 normal=collarNormalSums[group];
+    V3 tangent=collarTangentSums[group]-normal*Dot(normal,collarTangentSums[group]);
+    if(Length(tangent)<1e-5f){V3 axis=fabsf(normal.y)<.85f?V3{0,1,0}:V3{0,0,1};tangent=Cross(axis,normal);}
+    collarTangentSums[group]=Unit(tangent);
+  }
+  // UV derivatives vary sharply where the old and new atlases meet. Average
+  // their direction over the same welded graph, aligning signs before every
+  // contribution so the tangent basis cannot alternate triangle by triangle.
+  for(int pass=0;pass<8;pass++){
+    for(UINT group=0;group<collarFairGroupCount;group++){
+      V3 source=collarTangentSums[group],average{};UINT begin=collarFairNeighborOffsets[group],end=collarFairNeighborOffsets[group+1];
+      if(begin==end){collarFairA[group]=source;continue;}
+      float weightSum=0.f;for(UINT edge=begin;edge<end;edge++){V3 candidate=collarTangentSums[collarFairNeighbors[edge]];float weight=collarFairNeighborWeights[edge];average=average+(Dot(candidate,source)<0.f?candidate*-1.f:candidate)*weight;weightSum+=weight;}
+      average=Unit(average/max(weightSum,1e-8f));V3 normal=collarNormalSums[group];
+      V3 tangent=source*(1.f-.20f*Smoother01(collarFairWeights[group]))+average*(.20f*Smoother01(collarFairWeights[group]));
+      collarFairA[group]=Unit(tangent-normal*Dot(normal,tangent));
+    }
+    memcpy(collarTangentSums,collarFairA,sizeof(collarTangentSums));
   }
 }
 static void ApplyFloppyCurve(float value[3],UINT i,float pitch,float yaw){
@@ -775,6 +827,7 @@ static void ApplyShape(){
   FairUnifiedCollar(controlled,graftFirstVertex,collarGrowth);
   BuildShaftRestFrame();
   PreserveShaftJunctionTube();
+  FairRetopologyBands();
   BuildShaftRestFrame();
   for(UINT i=0;i<graftCount;i++){
     V3 value=graftDeformedPositions[i];
@@ -801,6 +854,7 @@ static void ApplyShape(){
   // duplicates into shared smoothing groups.
   memset(graftDynamicNormalSums,0,sizeof(graftDynamicNormalSums));
   memset(graftDynamicTangentSums,0,sizeof(graftDynamicTangentSums));
+  memset(collarTangentSums,0,sizeof(collarTangentSums));
   for(UINT k=0;k<graftTriangleIndexCount;k+=3){
     UINT ia=graftTriangleIndices[k],ib=graftTriangleIndices[k+1],ic=graftTriangleIndices[k+2];
     V3 edge1=graftDeformedPositions[ib]-graftDeformedPositions[ia],edge2=graftDeformedPositions[ic]-graftDeformedPositions[ia];
@@ -811,16 +865,21 @@ static void ApplyShape(){
     graftDynamicNormalSums[gc]=graftDynamicNormalSums[gc]+face;
     float du1=graftUVs[ib*2]-graftUVs[ia*2],dv1=graftUVs[ib*2+1]-graftUVs[ia*2+1];
     float du2=graftUVs[ic*2]-graftUVs[ia*2],dv2=graftUVs[ic*2+1]-graftUVs[ia*2+1],det=du1*dv2-dv1*du2;
-    if(fabsf(det)>1e-8f){V3 tangent=(edge1*dv2-edge2*dv1)/det;graftDynamicTangentSums[ia]=graftDynamicTangentSums[ia]+tangent;graftDynamicTangentSums[ib]=graftDynamicTangentSums[ib]+tangent;graftDynamicTangentSums[ic]=graftDynamicTangentSums[ic]+tangent;}
+    if(fabsf(det)>1e-8f){
+      V3 tangent=(edge1*dv2-edge2*dv1)/det;graftDynamicTangentSums[ia]=graftDynamicTangentSums[ia]+tangent;graftDynamicTangentSums[ib]=graftDynamicTangentSums[ib]+tangent;graftDynamicTangentSums[ic]=graftDynamicTangentSums[ic]+tangent;
+      V3 direction=Unit(tangent);UINT groups[3]={graftCollarGroups[ia],graftCollarGroups[ib],graftCollarGroups[ic]};
+      for(int q=0;q<3;q++)if(groups[q]!=65535u)collarTangentSums[groups[q]]=collarTangentSums[groups[q]]+direction;
+    }
   }
   RebuildUnifiedCollarNormals(controlled,graftFirstVertex);
+  RebuildUnifiedCollarTangents();
   for(UINT i=0;i<graftCount;i++){
     memcpy(p+i*graftStride,&graftDeformedPositions[i],12);
     UINT collarGroup=graftCollarGroups[i];
     V3 dynamic=collarGroup!=65535u?collarNormalSums[collarGroup]:Unit(graftDynamicNormalSums[graftNormalGroup[i]]);
     V3 baseNormal={graftBaseNormals[i*3],graftBaseNormals[i*3+1],graftBaseNormals[i*3+2]};
     float lock=collarGroup!=65535u?0.f:graftSeamNormalLock[i];V3 normal=Unit(dynamic*(1.f-lock)+baseNormal*lock);
-    V3 tangent=graftDynamicTangentSums[i]-normal*Dot(normal,graftDynamicTangentSums[i]);tangent=Unit(tangent);
+    V3 tangent=collarGroup!=65535u?collarTangentSums[collarGroup]:graftDynamicTangentSums[i]-normal*Dot(normal,graftDynamicTangentSums[i]);tangent=Unit(tangent);
     unsigned char* packedTangent=p+i*graftStride+12;unsigned char* packedNormal=p+i*graftStride+16;
     packedTangent[0]=PackSigned(tangent.x);packedTangent[1]=PackSigned(tangent.y);packedTangent[2]=PackSigned(tangent.z);
     packedNormal[0]=PackSigned(normal.x);packedNormal[1]=PackSigned(normal.y);packedNormal[2]=PackSigned(normal.z);
