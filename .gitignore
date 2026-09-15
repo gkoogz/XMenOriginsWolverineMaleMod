@@ -1,0 +1,9 @@
+release/
+*.log
+*.obj
+*.exp
+*.lib
+*.obj
+proxy_harness.exe
+proxy_harness.png
+/src/runtime/d3d9.dll
