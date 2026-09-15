@@ -10,10 +10,14 @@ off. Relative workspace paths below are relative to the parent of this Git repo.
   Release v0.6 contains character161/runtime161; payload DLL and reconstructed
   package match the restored installed hashes below. Revision162/163 excluded.
   Local release ZIP: `release/BigDickLoganMod-v0.6.zip` (ignored by Git).
+  Published publicly on GitHub as release `v0.6` on 2026-09-15 at 18:18 local,
+  with the ZIP attached. Remote `main` and tag `v0.6` point to commit
+  `194ce9d5bfa0c6d09265eb5113dede2c7face380`.
   `tools/Test-Release.ps1` passed in an isolated fixture: package reconstruction,
   matching DLL, existing settings preservation, both checkpoint config edits,
   and byte-exact uninstall restoration. Known collar shimmer is disclosed in
-  README/CHANGELOG. No remote publication was requested by this release task.
+  README/CHANGELOG. Remote publication was explicitly requested and completed
+  after release validation.
 - Functional reference: `work/hd/revision154-weaponx-safe/atlas/mesh.json`,
   its `final/WGame/CookedPC/CH_Wolverine_Natural_SF.xxx`, and `work/hd/runtime157`.
 - Installed at last verification: **Revision161 restored on 2026-09-15 at
