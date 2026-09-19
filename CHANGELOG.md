@@ -1,3 +1,11 @@
+## 0.7.1 junction R2
+
+Final-pose scrotal junction fairing, broader upper attachment, adjacent ventral-row
+support and triangle redistribution. Original topology/package retained. Eleven
+matched captures, compiled-DLL smoke and both upgrade/rollback paths tested.
+Default/maximum sampled neck intersections removed; extreme-angle contacts remain.
+Live-game playtest pending.
+
 ## 0.7.1 — Pelvic ramp
 
 Final-pose constrained body/collar fairing, angular-profile radial support,

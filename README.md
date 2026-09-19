@@ -1,37 +1,29 @@
-# Wolverine Anatomy Tool 0.7.1
+# Wolverine Anatomy Tool 0.7.1 - scrotal junction R2
 
-Version 0.7.1 smooths the pelvic collar in the final runtime pose and expands the local support toward the existing shaft cross-section at larger sizes. It relaxes the existing vertex layout without changing triangle connectivity, UVs, skin weights, the character package, or the physical solver.
+This revision builds on the original 0.7.1 pelvic ramp. It replaces the pointed upper scrotal transition with a broader, smoother attachment, a gradual neck taper, and a rounded transition into the lobes. Vertex redistribution improves triangle regularity in the sampled neck region. It retains the original mesh connectivity, UV atlas, rig, character package and physical solver.
 
-## Upgrade an existing 0.7 installation
+## Upgrade from 0.7 or original 0.7.1
 
-1. Close Wolverine and extract the whole ZIP.
-2. Run `Upgrade-0.7.1.cmd`. The default game folder is `C:\Games\X-Men Origins Wolverine`.
-3. Launch the game normally. F6 displays **v0.7.1 PELVIC RAMP**.
+Close Wolverine, extract the whole archive, and run **Upgrade-Junction.cmd**. The default location is `C:\Games\X-Men Origins Wolverine`. For another location, run `Upgrade-Junction.cmd -GamePath "D:\Games\Wolverine"`.
 
-For another game folder, run `Upgrade-0.7.1.cmd -GamePath "D:\Games\Wolverine"` from a terminal.
+The upgrade verifies the released 0.7 or original 0.7.1 DLL and the exact character package, saves the previous DLL, and preserves settings. **Rollback-Junction.cmd** restores whichever supported version was present. Backups are under `WGame\ModBackups\WolverineAnatomyTool-v0.7.1-junction-r2`. F6 displays **v0.7.1 SCROTAL JUNCTION R2**.
 
-The upgrade verifies the exact 0.7 package and DLL, backs up the DLL, and leaves the package and WolverineLive.ini unchanged. Run `Rollback-0.7.1.cmd` to restore the verified 0.7 runtime. Backups remain under `WGame\ModBackups\WolverineAnatomyTool-v0.7.1`.
+For a supported unmodified game installation, use `Install.cmd` and `Uninstall.cmd`. The older `Upgrade-0.7.1.cmd` remains available for 0.7 only; prefer the Junction pair above.
 
-## Install from the supported original game package
+## Implementation
 
-Run `Install.cmd`; use `Uninstall.cmd` to undo that installation. These are the full-package installer/uninstaller. **Use the Upgrade/Rollback pair for an existing 0.7 installation.** Other modified packages are rejected rather than overwritten.
+`FinishScrotalJunction()` runs after the existing final-pose pelvic ramp and before normal/tangent reconstruction. A constrained biharmonic operator covers 902 existing welded graft groups, including the adjacent ventral shaft rows. It retains the outer body weld and the ends of the patch. Tangential redistribution improves vertex spacing; limited high-curvature relaxation reduces folded fans. A uniform displacement bound and finite/area checks guard unusual settings. The process is recomputed from the current posed surface each frame, without accumulating drift.
 
-## What changed
-
-- A constrained surface spline joins the final body and collar positions through their existing shared vertex groups.
-- A measured angular shaft profile guides local radial expansion, reducing the narrow collar at large sizes without imposing a separate circular tube.
-- Tangential relaxation redistributes collar vertices along the surface while preserving its volume better than another unconstrained shrink pass.
-- Displacement bounds and a triangle-orientation line search reduce the correction at extreme poses instead of introducing new face reversals.
-- Final normals/tangents use the corrected geometry; the existing game-compatible layout and Weapon X package remain intact.
+`tools/Generate-ScrotalJunction.py` regenerates `src/runtime/scrotal_junction.h` using Python, NumPy and SciPy. Build `src/runtime/build.cmd` with x86 Visual C++ BuildTools and the June 2010 DirectX SDK. The deterministic harness is in `tools/`.
 
 ## Validation and limits
 
-The 32-bit DLL compiled successfully and connected to the expected vertex buffer in an isolated D3D9 smoke test. Ten matched deterministic source-harness presets covered default and maximum sizes in all three states, small and mixed dimensions, and two extreme angle settings. They retained exact weld coincidence, finite positions, and no newly reversed faces relative to their matching baselines. Existing degenerate body triangles were not removed. Triangle aspect ratios are not uniformly improved: this is surface fairing, not a complete remesh.
+Eleven matched 240-frame captures cover default/maximum in all three physics states, small size, two mixed-size combinations and low/high angle. All have finite positions, zero degenerate neck triangles, exact body-weld coincidence, unchanged body donor positions and identical physics-chain nodes. Both median and fifth-percentile neck triangle quality improve in all eleven cases.
 
-Both the 0.7 upgrade/rollback and full original-package install/uninstall passed isolated-fixture tests, including settings preservation and byte-exact restoration. A 600-frame harness timing sample added approximately 2 ms per frame on the development machine; this is not an in-game FPS benchmark.
+In the default capture, median quality improves from 0.774 to 0.842; maximum improves from 0.768 to 0.859. The metric is 4*sqrt(3)*area / sum(edge length squared), where 1 is equilateral. The measured region contains 940 triangles.
 
-The review renders come from the real runtime source's output positions with matched controls, cameras and lighting. They use Blender studio shading and the original diffuse atlas, not the game's full shader. Presentation geometry is clipped from knees to navel; the game still uses the complete character. This candidate has not been installed or playtested in the live game during this task. In-game lighting and animated contacts remain to be assessed.
+Nonadjacent triangle-crossing checks involving the neck find 16 to 0 pairs at default, 36 to 0 at maximum, and 36 to 0 at maximum shaft/default scrotum. This is an intersection test on the emitted graft surface, excluding shared-edge/vertex and coplanar cases; it is not a proof of global collision-free geometry. The high-angle case still has 252 crossing pairs, down from 351. Maximum size also retains three neck edge dihedrals above 90 degrees. This is an improved existing mesh, not a uniform retopology or a claim of zero distortion across the entire slider range.
 
-## Source
+The final compiled DLL passed an isolated D3D9 smoke test. Upgrade/idempotency/rollback tests passed for both supported starting DLLs, with settings, package and read-only attributes preserved. Mean extra source-harness time was approximately 4.5 ms per frame; that is not an in-game FPS benchmark.
 
-`src/runtime/build.cmd` builds with the existing x86 Visual C++ Build Tools and DirectX June 2010 SDK paths. `pelvic_ramp.h` is generated by `tools/Generate-PelvicRamp.py` using NumPy and SciPy; the generated header is included, so rebuilding the DLL does not require Python. All game assets and the original title remain the property of their owners. This unofficial package contains a delta requiring the supported original game package, not that original package.
+The game installation was not changed. **Live-game visual, animated-contact and performance playtests remain pending.** The renders use emitted runtime coordinates and the original diffuse atlas in Blender studio lighting, not the game's shaders.

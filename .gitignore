@@ -12,3 +12,4 @@ proxy_harness.exe
 proxy_harness.png
 /src/runtime/d3d9.dll
 __pycache__/
+/tools/deterministic_harness.exe

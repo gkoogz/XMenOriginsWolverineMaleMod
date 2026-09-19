@@ -1,5 +1,35 @@
 # Shared project context
 
+## September 18, 2026 - scrotal junction R2 candidate
+
+User rejected the jagged scrotal attachment and asked for a broad attachment,
+gradual neck and even triangles. Latest work is branch
+`version-0.7.1-scrotal-junction`. Original 0.7.1 output ZIP remains untouched.
+New outputs: `outputs/v0.7.1-scrotal-junction-r2` in this workspace.
+
+`FinishScrotalJunction` follows FinishPelvicRamp before final normals. Generated
+operator covers 902 graft normal groups; exact body welds are fixed. Includes
+adjacent ventral shaft rows, which were essential to remove rear intersections.
+Do not revert to the narrow 678-group prototype: it left 16 crossings at max.
+Python generator is tools/Generate-ScrotalJunction.py. No package/UV/connectivity
+changes, and no changes to physical solver. Source capture scripts and audits
+are in work/neck*.py, work/run_neck_cases.py and work/neck-capture.
+
+All eleven cases improve neck median/p05 quality, finite with no degenerate neck
+faces, weld error zero, body positions and shaft nodes unchanged. Default/max
+nonadjacent neck crossing counts are zero. High-angle still has 252 (previously
+351); maximum has 3 sharp edge dihedrals >90 degrees. Do not call it fully free
+of intersections/distortion at all controls. Some face normals rotate >90
+degrees during repair of old folds; that alone is not a new inversion test.
+
+Compiled DLL smoke passed; Upgrade-Junction and Rollback-Junction tested against
+both release0.7 and original0.7.1, preserving settings/package/read-only bits.
+The installed game has NOT been changed. All new visuals crop knees to navel;
+32 Blender runtime-coordinate renders are not game shader screenshots. Remaining
+work for acceptance: user visual review and live-game contact/performance testing.
+The older reference screenshot/version was queried but not identified by user.
+
+
 ## Version 0.7.1 — current candidate, September 18, 2026
 
 User authorized collar/root/pelvis cleanup, stronger large-size recruitment,

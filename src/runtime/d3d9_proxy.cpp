@@ -15,6 +15,7 @@
 #include "pelvis_control.h"
 #include "collar_fairing.h"
 #include "pelvic_ramp.h"
+#include "scrotal_junction.h"
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 static HMODULE realDll;
@@ -1161,6 +1162,67 @@ static void ApplyBallRigidEnvelope(float value[3],UINT i){
   if(bw>=.82f)neckRigidity=rigidity;
   value[0]+=(target.x-value[0])*neckRigidity;value[1]+=(target.y-value[1])*neckRigidity;value[2]+=(target.z-value[2])*neckRigidity;
 }
+// Shared final-pose junction: preserve the body weld and lobe extremes while
+// fairing the mixed shaft/pouch rows as one connected surface. The sparse
+// constrained biharmonic operator uses fixed topological correspondence.
+static void FinishScrotalJunction(){
+  if(!constraintSolverReady)return;
+  static V3 input[graftNormalGroupCount],result[graftNormalGroupCount],next[graftNormalGroupCount];
+  static V3 normals[graftNormalGroupCount],faceNormals[graftTriangleIndexCount/3];
+  static unsigned counts[graftNormalGroupCount];static float risk[graftNormalGroupCount];
+  memset(input,0,sizeof(input));memset(counts,0,sizeof(counts));
+  for(UINT i=0;i<graftCount;i++){UINT g=graftNormalGroup[i];input[g]=input[g]+graftDeformedPositions[i];counts[g]++;}
+  for(UINT g=0;g<graftNormalGroupCount;g++)input[g]=input[g]/(float)max(1u,counts[g]);
+  memcpy(result,input,sizeof(result));
+  // Center the affine solve to avoid accumulated translation roundoff.
+  V3 origin=shaftNodes[0];
+  for(UINT row=0;row<neckActiveCount;row++){
+    V3 p{};for(UINT k=neckRows[row];k<neckRows[row+1];k++)p=p+(input[neckColumns[k]]-origin)*neckCoefficients[k];
+    result[neckActive[row]]=p+origin;
+  }
+  for(int pass=0;pass<56;pass++){
+    memset(normals,0,sizeof(normals));memset(risk,0,sizeof(risk));
+    for(UINT localFace=0;localFace<neckFaceCount;localFace++){
+      UINT t=neckFaces[localFace];
+      UINT a=graftNormalGroup[graftTriangleIndices[t*3]],b=graftNormalGroup[graftTriangleIndices[t*3+1]],c=graftNormalGroup[graftTriangleIndices[t*3+2]];
+      V3 n=Cross(result[b]-result[a],result[c]-result[a]);faceNormals[t]=Unit(n);
+      normals[a]=normals[a]+n;normals[b]=normals[b]+n;normals[c]=normals[c]+n;
+    }
+    if(pass>=24){
+      // Only high-curvature fans receive additional normal-direction fairing.
+      // An old folded triangle may rotate through 90 degrees while unfolding;
+      // do not confuse that rotation with a newly inverted surface.
+      for(UINT p=0;p<neckPairCount;p++){
+        UINT a=neckFacePairs[p*2],b=neckFacePairs[p*2+1];float amount=Smoother01((.5f-Dot(faceNormals[a],faceNormals[b]))/.5f);
+        if(amount<=0.f)continue;
+        for(UINT c=0;c<3;c++){UINT ga=graftNormalGroup[graftTriangleIndices[a*3+c]],gb=graftNormalGroup[graftTriangleIndices[b*3+c]];risk[ga]=max(risk[ga],amount);risk[gb]=max(risk[gb],amount);}
+      }
+    }
+    memcpy(next,result,sizeof(result));
+    for(UINT k=0;k<neckActiveCount;k++){
+      UINT g=neckActive[k],begin=neckNeighborOffsets[g],end=neckNeighborOffsets[g+1];if(begin==end)continue;
+      V3 mean{};for(UINT j=begin;j<end;j++)mean=mean+result[neckNeighbors[j]];
+      V3 delta=mean/(float)(end-begin)-result[g];float amount;
+      if(pass<24){V3 n=Unit(normals[g]);delta=delta-n*Dot(delta,n);amount=.30f*neckSupport[g];}
+      else amount=.45f*risk[g]*neckSupport[g];
+      next[g]=result[g]+delta*amount;
+    }
+    memcpy(result,next,sizeof(result));
+  }
+  // Keep unusual slider combinations within a uniform displacement envelope.
+  // One fraction for the whole patch avoids per-vertex clamping ridges.
+  float travel=0.f;for(UINT k=0;k<neckActiveCount;k++){UINT g=neckActive[k];travel=max(travel,Length(result[g]-input[g]));}
+  float limit=max(2.f,.75f*logicalShaftBodyRadius),fraction=travel>limit?limit/travel:1.f;
+  for(UINT k=0;k<neckActiveCount;k++){UINT g=neckActive[k];result[g]=input[g]+(result[g]-input[g])*fraction;}
+  for(UINT t=0;t<graftTriangleIndexCount;t+=3){
+    UINT a=graftNormalGroup[graftTriangleIndices[t]],b=graftNormalGroup[graftTriangleIndices[t+1]],c=graftNormalGroup[graftTriangleIndices[t+2]];
+    float oldArea=Length(Cross(input[b]-input[a],input[c]-input[a]));
+    float newArea=Length(Cross(result[b]-result[a],result[c]-result[a]));
+    if(!_finite(newArea)||(oldArea>1e-6f&&newArea<1e-7f))return;
+  }
+  for(UINT i=0;i<graftCount;i++)if(neckSupport[graftNormalGroup[i]]>1e-5f)graftDeformedPositions[i]=result[graftNormalGroup[i]];
+}
+
 static float SampleOverallWidthVertex(UINT q,float overall,float width){
   int oi0=overall<sliderSpecs[0].def?0:1,oi1=oi0+1,wi0=width<sliderSpecs[2].def?0:1,wi1=wi0+1;
   float omin=oi0==0?sliderSpecs[0].lo:sliderSpecs[0].def,omax=oi1==1?sliderSpecs[0].def:sliderSpecs[0].hi;
@@ -1248,6 +1310,7 @@ static void ApplyShape(){
   // mixed-weight ring from reappearing in semi/floppy motion.
   if(physicsState>0)ConstructLogicalShaftSurface(true);
   FinishPelvicRamp(controlled,graftFirstVertex);
+  FinishScrotalJunction();
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
   // follows every physics bend.  Wolverine's meshes use the opposite of the
@@ -1339,7 +1402,7 @@ static void OverlayFrame(IDirect3DDevice9* d){
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
   IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=16;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.1 PELVIC RAMP (F6 TO HIDE)":"v0.7.1 PELVIC RAMP (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.1 SCROTAL JUNCTION R2 (F6 TO HIDE)":"v0.7.1 SCROTAL JUNCTION R2 (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       if(i<7){const auto& s=sliderSpecs[i];name=s.name;value=sliderUI[i];lo=1;hi=100;sprintf_s(val,"%.0f",value);}else if(i==7){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}else{const auto& s=physSpecs[i-8];name=s.name;value=physUI[i-8];lo=1;hi=100;sprintf_s(val,"%.0f",value);}

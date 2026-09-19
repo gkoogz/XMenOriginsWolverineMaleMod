@@ -3,6 +3,6 @@
   "requiresVersion": "0.7",
   "packageSHA256": "7C5CE1F5FD45AB4F7A159F9D5455B1D40D11E72F4C2EFE7D7F18C7391AED2A64",
   "previousRuntimeSHA256": "8658C9FC5BFD22890F6EE549EE756CB684568754E619DCEBA92FC2D2680C3E80",
-  "runtimeSHA256": "08DFE9F322CD7E6B071DAD0E0D24F7718811D629E689787CF00EAB5915F2D520",
-  "scope": "Final-pose pelvic ramp and collar vertex redistribution; original package, UVs, rig and physics solver retained."
+  "runtimeSHA256": "5727176AD80668EC07790FFA48BD50C4AC630BAC39B7DC0765513A10E96C8379",
+  "scope": "Pelvic ramp plus shared scrotal junction final-pose fairing; original topology and package retained."
 }
