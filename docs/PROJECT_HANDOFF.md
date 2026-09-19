@@ -1,3 +1,7 @@
+# Current: deeper underside cut R2
+
+User requested further underside exclusion. Extends4d8d3cc: cutIn strength.085->.115 and lateral falloff.90->1.10; central boundary now.895. Other scale behavior retained; scale1unchanged. 77-81 underside vertices fixed in9poses; freecrownuniform/frenulumpinned. 23 of 27 sampled cases have no added intersections; 4 extreme-size cases have up to 2 added crossing pairs each. Existing folds and faceting remain. outputs/crown-undercut-r2 contains underside-first comparison, Blender/OBJ, compiled uninstalled DLL/audits. Scripts work/check_crown_undercut_r2.py, check_crown_undercut_r2_mask.py, crown_undercut_r2_render.py reproduce. R2 installation unchanged, user review pending.
+
 # Current: inward underside crown boundary
 
 User accepted isolated crown but notes lower boundary cuts inward and includes underside shaft incorrectly. Extends7ceae01. Added cutIn=.085*Smoother01((ventral-.25)/.60)*(1-Smoother01(seamDistance/.90)); blend starts at.78+cutIn, width.010. Narrow frenulum mask retained.42-43 underside shaft vertices fixed across9poses; central frenulum pinned and freecrownuniform; size1unchanged.27cases finite/no degenerate; same4 extreme-size cases2crossings each. outputs/crown-undercut has underside-first comparison, Blender/OBJ, compiled uninstalled DLL and audits. work/check_crown_undercut.py, check_crown_undercut_mask.py, crown_undercut_render.py reproduce. R2 installation unchanged; visual acceptance pending.

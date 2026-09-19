@@ -1199,8 +1199,8 @@ static void ScaleGlansIndependently(){
       float seamDistance=fabsf(Dot(offset,lateral))/max(.001f,logicalShaftBodyRadius);
       // The lower crown edge sweeps inward toward the frenulum. Exclude
       // the triangular shaft-side area above that edge, not just its seam.
-      cutIn=.085f*Smoother01((ventral-.25f)/.60f)
-        *(1.f-Smoother01(seamDistance/.90f));
+      cutIn=.115f*Smoother01((ventral-.25f)/.60f)
+        *(1.f-Smoother01(seamDistance/1.10f));
       // Pin the central ventral attachment; blend the neighboring crown
       // surface without enlarging the frenulum itself.
       fold=Smoother01((ventral-.45f)/.30f)
