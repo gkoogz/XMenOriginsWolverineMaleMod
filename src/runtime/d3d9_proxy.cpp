@@ -1186,10 +1186,10 @@ static void SculptVentralContourStudy(){
 static void ScaleGlansIndependently(){
   if(!constraintSolverReady)return;
   float scale=MapControl100(glansUI,1.f,1.40f,1.60f);
-  V3 anchor{},axis{};SampleShaftChain(.82f,anchor,axis);
+  V3 anchor{},axis{};SampleShaftChain(.76f,anchor,axis);
   V3 lateral=Unit(V3{0,1,0}-axis*axis.y),dorsal=Unit(Cross(axis,lateral));
   for(UINT i=0;i<graftCount;i++){
-    float t=phys_flex_coordinate[i];if(t<=.82f||suspensionWeight[i]!=0.f)continue;
+    float t=phys_flex_coordinate[i];if(t<=.70f||suspensionWeight[i]!=0.f)continue;
     V3 offset=graftDeformedPositions[i]-anchor;
     V3 radial=offset-axis*Dot(offset,axis);float radius=Length(radial);
     float fold=0.f;
@@ -1199,13 +1199,22 @@ static void ScaleGlansIndependently(){
       // Pin the central ventral attachment; blend the neighboring crown
       // surface without enlarging the frenulum itself.
       fold=Smoother01((ventral-.45f)/.30f)
-        *(1.f-Smoother01((side-.28f)/.22f))
+        *(1.f-Smoother01((side-.28f)/.40f))
         *(1.f-Smoother01((t-.91f)/.025f));
     }
-    float blend=Smoother01((t-.82f)/.035f)*(1.f-fold);
+    // Authored rim vertices start before .82. Finish the attachment blend
+    // behind their folded seam so the rim and cap receive the same scale.
+    float blend=Smoother01((t-.70f)/.040f)*(1.f-fold);
     // One scalar for every axis, about the crown base. Only the attachment
     // transition is blended; the free crown scales uniformly.
-    graftDeformedPositions[i]=graftDeformedPositions[i]+offset*((scale-1.f)*blend);
+    if(blend>0.f&&scale!=1.f){
+      // Evaluate the affine scale before rounding to the vertex buffer's
+      // floats; the existing folded rim contains nearly coincident faces.
+      V3 p=graftDeformedPositions[i];double factor=1.+double(scale-1.f)*blend;
+      graftDeformedPositions[i]={float(anchor.x+(double(p.x)-anchor.x)*factor),
+        float(anchor.y+(double(p.y)-anchor.y)*factor),
+        float(anchor.z+(double(p.z)-anchor.z)*factor)};
+    }
   }
 }
 static V3 RestBallAnchor(int side){
@@ -1630,5 +1639,3 @@ IDirect3D9* WINAPI Direct3DCreate9(UINT sdk){LoadReal();IDirect3D9* d=realCreate
 int WINAPI D3DPERF_BeginEvent(D3DCOLOR c,LPCWSTR n){LoadReal();return realBegin?realBegin(c,n):-1;}
 int WINAPI D3DPERF_EndEvent(){LoadReal();return realEnd?realEnd():-1;}
 BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");}return TRUE;}
-
-

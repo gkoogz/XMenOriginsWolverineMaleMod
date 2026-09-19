@@ -1,0 +1,7 @@
+# Preserve the crown profile across size
+
+The previous size blend (.82-.855) crossed the crown and left much of the rim underscaled. The attachment blend now finishes behind the rim (.70-.74), and scaling is centered at .76. The rim and cap use the same uniform 1/1.4/1.6 scale. This necessarily moves the short attachment transition behind the rim; shaft through .70 is unchanged. The central frenulum remains pinned, with a wider angular transition in its neighboring surface. Scale 1 is exactly unchanged from the previous candidate.
+
+27 sampled size/state/Glans Size cases: finite, no degenerate distal triangles. 26 cases have no added detected intersections relative to size 1; size100/state1/GlansSize50 adds two crossing pairs in the folded rim. This remains an unresolved extreme-pose defect. Shaft through .70, pelvis and physics nodes are fixed across the size control. Separate scale-mask checks verify pinned central frenulum vertices and uniform scaling of the rim/cap outside the attachment transition. Original faceting and existing intersections remain; not every control combination has been tested.
+
+The comparison provides matching old/new size samples from three views in solid and wireframe. Blender has its working Glans Size property, verified at 1/50/100 against runtime captures. OBJ is a static default50 export. Neutral studio renders are not gameplay screenshots. Compiled candidate is not installed or live-game tested; installed R2, mesh package and settings remain unchanged.
