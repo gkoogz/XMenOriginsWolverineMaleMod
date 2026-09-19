@@ -1,3 +1,7 @@
+# Current: rounded prominent ridge authoring pass
+
+User requested round rather than sharp ridge, retaining prominence. outputs/crown-rounded broadens C2 support 1.85 to 2.8, reduces amplitude .42 to .35, adds ridge-only Smooth .5/60 iterations with matching wire geometry. Five control sample checks pass; editable size property retained. Default/max visual review shows softer outline, but inherited seam corrugation remains substantial. Authoring only, no runtime or installation changes. See CROWN-ROUNDED.md; scripts work/round_crown_ridge.py, render_rounded_crown.py, package_rounded_crown.py.
+
 # Current: restored crown ridge authoring pass
 
 User requested more prominence after smoothing. outputs/crown-ridge-refined adds compact radial ridge projection (0.42 to 0.672 model units with size), reduces final smoothing and uses area-weighted normals. Five sample control geometry checks pass; shaft-side control coordinates unchanged. Existing seam corrugation still visible; not a completed topology cleanup or game build. Continuous Blender size control, three-view solid/wire comparisons against crown-smoothed. Scripts work/refine_crown_ridge.py, render_refined_ridge.py, package_refined_ridge.py. See CROWN-RIDGE-REFINED.md. No installation changes.
