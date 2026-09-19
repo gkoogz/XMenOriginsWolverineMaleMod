@@ -1,3 +1,7 @@
+# Latest feedback: underside unacceptable; R3 trials not delivered
+
+User says underside looks awful and unlike supplied images. Two limited shape-fit trials still fail visual review. See UNDERSIDE-R3-FAILED-TRIAL.md. Keep requested crown-rounded base and existing R2 unchanged; do not call experimental R3 a fix. No game changes.
+
 # Current: user restored crown-rounded base; modest reduction + underside pass
 
 IMPORTANT: User rejected clean-loft direction and explicitly requested crown-rounded base, slight poly reduction, underside refinement. outputs/crown-rounded-r2 uses EXACT work/crown-rounded/mesh.json control samples, with masked underside Smooth .25/12 and Decimate .90, evaluated 11298 verts/22530 triangles. Five evaluated finite/nondegenerate samples; original controls match. Existing corrugation still visible. New loft/lowpoly-loft outputs are superseded and NOT the chosen base. Preserve the rounded anatomy and do not substitute the loft again. Authoring modifiers only, no runtime/game installation; decimation per-pose correspondence unverified. See CROWN-ROUNDED-R2.md. Scripts prepare_rounded_r2.py/render_rounded_r2.py/package_rounded_r2.py.
@@ -397,3 +401,4 @@ Next agent: read this first, verify current disk/process state, update this file
 with what you learn and the exact next action before handing off. Do not repeat
 failed approaches without a specific new reason. Do not mark a candidate visually
 fixed until in-game evidence supports that claim.
+
