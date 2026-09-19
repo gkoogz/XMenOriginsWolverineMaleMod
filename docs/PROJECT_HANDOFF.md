@@ -1,3 +1,7 @@
+# Current: identified lower underside rim blend
+
+User answered clarification: LOWER RIM across underside, not shaft junction. outputs/crown-lower-rim retains reversed Y and targets authored flex .94 using .65/120 local rounding plus a compact .25*scale outward blend onto lower dome (.932–1). Prior shaft-junction seam modifier removed. Same 10% reduction/size control, five evaluated finite/nondegenerate samples. Lower edge softened but remains visible; surrounding corrugation not fixed. No runtime/install changes. See CROWN-LOWER-RIM.md; work/blend_lower_rim.py, render_lower_rim.py, package_lower_rim.py.
+
 # Current: Y reversed; transverse crease unresolved, clarification pending
 
 User said Y upside down and horizontal medial line. outputs/crown-ventral-y-r2 reflects relief parameter v=1.75-t on chosen crown-rounded base; local seam relaxation attempted but horizontal crease persists. Five sampled controls/evaluated geometry checks pass, 22530 triangles. Asked whether offending line is shaft-junction crease or lower rim of broad underside; await answer before guessing further. Do not claim line removed. No runtime/install changes. See CROWN-VENTRAL-Y-R2.md. Scripts sculpt_ventral_y_r2.py, prepare_y_r2_renderer.py, render_ventral_y_r2.py, package_y_r2.py.

@@ -1,0 +1,5 @@
+# Lower underside rim blend
+
+User clarified that the offending horizontal line is the lower rim across the underside, not the shaft junction. Projection of source coordinates into the ventral camera located that band near authored flex 0.94 (signed traced distance roughly 0.7–1.0). Removed the prior shaft-side seam relaxation and instead applied a ventral-only rounding mask centered at flex 0.941, width 0.040, Smooth factor .65/120 iterations. Adds a compact C2 outward blend on the adjacent underside from flex .932 to 1.0 (amplitude .25 at size1, .4 at size100) to reduce the abrupt step into the lower dome. Reversed Y orientation retained.
+
+The same 10% decimation and continuous size control remain. Five evaluated geometry samples are finite/nondegenerate; matching control checks pass. Visual review shows a softened lower boundary but it is still discernible, and surrounding corrugation remains. Do not describe the line as fully eliminated. No game/runtime integration, installation, collision validation or medical accuracy claim. Existing base artifacts are untouched.
