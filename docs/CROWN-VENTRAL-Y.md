@@ -1,0 +1,9 @@
+# Ventral Y junction — authoring sculpt
+
+User clarified the intended underside form: two rounded symmetrical lobes flanking a narrow central fold and shallow V/Y recess. This pass uses the requested crown-rounded control mesh and the rounded-R2 render/modifier workflow. It does not use the rejected clean loft or failed R3 fits. Adds a bilateral Gaussian relief field with two broad lobes, soft diverging branches, a narrow proximal stem and a shallow central depression. Relief scales with the original size mapping; the mask fades at the patch boundary. The relief formula is symmetric about the centerline, while the retained source mesh itself is not forced to exact bilateral symmetry.
+
+Five control samples are finite, nondegenerate at area threshold 1e-10 and exactly unchanged outside the relief mask. Maximum outward control displacement is 0.478 at size 1 and 0.764 at size 100, in model units. Five evaluated Blender samples are finite/nondegenerate and keep 22,530 triangles after the existing 10% decimation. Original atlas UVs retained. Continuous Glans Size control retained. Solid/wire views use matching geometry modifiers.
+
+Visual review confirms a Y-shaped raised junction and paired rounded volumes, but existing corrugation and the broad underside silhouette remain. This is a local sculpt, not the previously proposed full underside retopology, and does not establish medically accurate anatomy or exact correspondence with the stylized reference. No claim of complete surface cleanup or self-intersection freedom. Decimation correspondence between poses remains unverified for game morphs.
+
+Authoring preview only; no runtime code, installed game or accepted base artifacts changed. Review against rounded-R2 at the same sizes and cameras. Runtime/package integration remains outstanding.

@@ -1,3 +1,7 @@
+# Current: ventral Y junction sculpt on requested rounded base
+
+User specified two rounded lobes and soft V/Y central fold, then authorized implementation. outputs/crown-ventral-y adds bilateral broad lobe/branch/stem/recess relief to crown-rounded source, retaining rounded-R2 modifiers and 10% reduction. NOT the rejected loft or failed R3 fits. Five control samples unchanged outside patch; five evaluated samples finite/nondegenerate, 22530 triangles. Shape control continuous. Y junction visible, but preexisting corrugation/broad fan silhouette remain; this is local sculpt, not completed local retopology or medical validation. No runtime/install changes. See CROWN-VENTRAL-Y.md; scripts sculpt_ventral_y.py, render_ventral_y.py, package_ventral_y.py.
+
 # Latest feedback: underside unacceptable; R3 trials not delivered
 
 User says underside looks awful and unlike supplied images. Two limited shape-fit trials still fail visual review. See UNDERSIDE-R3-FAILED-TRIAL.md. Keep requested crown-rounded base and existing R2 unchanged; do not call experimental R3 a fix. No game changes.
