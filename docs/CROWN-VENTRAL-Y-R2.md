@@ -1,0 +1,5 @@
+# Reversed Y orientation — partial correction
+
+User reported the Y was upside down and a horizontal line cut across the underside. Reflected the longitudinal feature coordinate about 0.875 (v=1.75-t), reversing the lobe/branch/stem/recess orientation while leaving the original patch mask and selected crown-rounded base intact. Added a localized underside seam relaxation at signed traced distance 0.08, width 0.48, Smooth factor 0.55 / 45 iterations. Visual review shows the transverse crease remains; this is not claimed fixed. Asked user to distinguish shaft-junction crease from lower underside rim before further targeted work.
+
+Five control samples finite/nondegenerate and unchanged outside the sculpt mask. Five evaluated samples finite/nondegenerate, 22530 triangles; continuous size property retained. Local seam modifier can also move vertices adjacent to the sculpt mask; control-level invariance does not imply evaluated invariance there. Original UV/control mesh retained. Decimation pose correspondence and intersections unvalidated. No runtime/package/installation changes. Compare against previous Y orientation.

@@ -1,3 +1,7 @@
+# Current: Y reversed; transverse crease unresolved, clarification pending
+
+User said Y upside down and horizontal medial line. outputs/crown-ventral-y-r2 reflects relief parameter v=1.75-t on chosen crown-rounded base; local seam relaxation attempted but horizontal crease persists. Five sampled controls/evaluated geometry checks pass, 22530 triangles. Asked whether offending line is shaft-junction crease or lower rim of broad underside; await answer before guessing further. Do not claim line removed. No runtime/install changes. See CROWN-VENTRAL-Y-R2.md. Scripts sculpt_ventral_y_r2.py, prepare_y_r2_renderer.py, render_ventral_y_r2.py, package_y_r2.py.
+
 # Current: ventral Y junction sculpt on requested rounded base
 
 User specified two rounded lobes and soft V/Y central fold, then authorized implementation. outputs/crown-ventral-y adds bilateral broad lobe/branch/stem/recess relief to crown-rounded source, retaining rounded-R2 modifiers and 10% reduction. NOT the rejected loft or failed R3 fits. Five control samples unchanged outside patch; five evaluated samples finite/nondegenerate, 22530 triangles. Shape control continuous. Y junction visible, but preexisting corrugation/broad fan silhouette remain; this is local sculpt, not completed local retopology or medical validation. No runtime/install changes. See CROWN-VENTRAL-Y.md; scripts sculpt_ventral_y.py, render_ventral_y.py, package_ventral_y.py.
