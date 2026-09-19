@@ -16,6 +16,7 @@
 #include "collar_fairing.h"
 #include "pelvic_ramp.h"
 #include "scrotal_junction.h"
+#include "suspension_weights.h"
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 static HMODULE realDll;
@@ -55,6 +56,7 @@ static const float neutralShape[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
 // but map UI 1 to coherent anatomical envelopes rather than the destructive
 // legacy extremes.  The neutral and upper halves remain bit-identical.
 static const float coherentShapeLow[7]={.85f,1.0f,.95f,1.0f,-80.f,-2.f,-3.f};
+static float hangUI=50.f;
 static float sliderUI[7]={50.f,50.f,50.f,50.f,50.f,50.f,50.f};
 static float sliderValues[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
 struct PhysSpec {const char* name;float lo,hi,def,step;};
@@ -189,7 +191,8 @@ static float BallShapeScale(){return OverallShapeScale()*(sliderValues[3]/slider
 // default-sized, especially when both thigh capsules rotated inward in crouch.
 static float ShaftCollisionRadius(){return max(1.05f,2.75f*ShaftWidthScale());}
 static float BallCollisionRadius(){return max(.85f,2.70f*BallShapeScale());}
-static V3 BallAnchor(int side){float sign=side?1.f:-1.f;float shaftRadius=ShaftCollisionRadius();float base=max(1.15f,fabsf(constraintBallRest[side].y)*.78f);float desired=base+max(0.f,shaftRadius-2.75f)*.42f;return {12.55f,sign*desired,76.35f};}
+static V3 BallAnchor(int side);
+static V3 RestBallAnchor(int side);
 // Continuous ownership handoff across the donor's mixed shaft/scrotum rows.
 // A hard weight cutoff makes adjacent vertices choose different solvers and
 // turns their connecting triangles into long spokes during physics.
@@ -353,7 +356,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
   // established anti-ride-up protection.
   float relief=smallShape*(.35f+.65f*crouch);
   V3 ballAnchors[2]={BallAnchor(0),BallAnchor(1)};
-  float ballTether=max(2.45f,Length(constraintBallRest[0]-ballAnchors[0])*(.92f+.05f*BallShapeScale()))+1.10f*relief;
+  float ballTether[2];for(int b=0;b<2;b++)ballTether[b]=max(2.45f,Length(constraintBallRest[b]-RestBallAnchor(b)))+1.10f*relief;
   float restSeparation=max(2.f,fabsf(constraintBallRest[1].y-constraintBallRest[0].y));
   // Sphere-like lobe cores may touch and knock independently, but their centers
   // may not cross deeply enough for the rendered sacks to pass through.
@@ -381,7 +384,8 @@ static void StepConstraintSolver(float dt,float gait,float side){
       ResolveAnatomyCapsule(shaftNodes[i],shaftPrevious[i],rightA,rightB,thighRadius+contactRadius,.18f,.15f,Unit(V3{.36f,-.90f,-.08f}));
     }
     for(int b=0;b<2;b++){
-      SolveDistance(ballAnchors[b],ballNodes[b],ballTether,0.f,1.f);
+      ballAnchors[b]=BallAnchor(b);
+      SolveDistance(ballAnchors[b],ballNodes[b],ballTether[b],0.f,1.f);
       ResolvePelvisAndGlutes(ballNodes[b],ballPrevious[b],ballRadius,relief);
       ResolveBallCapsule(ballNodes[b],ballPrevious[b],leftA,leftB,ballThighContact,b,relief);
       ResolveBallCapsule(ballNodes[b],ballPrevious[b],rightA,rightB,ballThighContact,b,relief);
@@ -401,12 +405,10 @@ static void StepConstraintSolver(float dt,float gait,float side){
     }
     ResolvePairMinimumCompliant(ballNodes[0],ballPrevious[0],ballNodes[1],ballPrevious[1],pairMinimum);
     ResolvePairMaximumCompliant(ballNodes[0],ballPrevious[0],ballNodes[1],ballPrevious[1],pairMaximum);
-    // Coupled contacts let the scrotal lobes splay around a growing shaft.
-    // Most correction is assigned to the freely hanging lobe, while the chain
-    // still receives enough feedback to rest naturally rather than tunnelling.
+    // Skin and lobes yield to the solid shaft; contact cannot dent its core.
     for(int i=2;i<shaftNodeCount;i++)for(int b=0;b<2;b++){
       float localRadius=shaftRadius*(.62f+.38f*min(1.f,(float)i/4.f));
-      ResolvePairWeightedHistory(shaftNodes[i],shaftPrevious[i],ballNodes[b],ballPrevious[b],localRadius*.82f+ballRadius*(.88f-.12f*relief),.03f);
+      ResolvePairWeightedHistory(shaftNodes[i],shaftPrevious[i],ballNodes[b],ballPrevious[b],localRadius*.82f+ballRadius*(.88f-.12f*relief),0.f);
     }
     // A second body pass closes intersections introduced while resolving the
     // mutually coupled shaft/lobe system. Applying the same shift to Verlet
@@ -471,10 +473,11 @@ static void LoadSettings(){
     for(int i=0;i<8;i++){float legacy=neutralPhysics[i];ReadIniFloat(path,"Physics",physSpecs[i].name,physSpecs[i].lo,physSpecs[i].hi,legacy);physUI[i]=UnmapControl100(legacy,physSpecs[i].lo,neutralPhysics[i],physSpecs[i].hi);}
     settingsPending=true;settingsChangedTick=GetTickCount();
   }
+  ReadIniFloat(path,"Shape","Hang",1.f,100.f,hangUI);
   ApplyControlMapping();float state=(float)physicsState;if(ReadIniFloat(path,"Physics","State",0,2,state))physicsState=(int)(state+.5f);
   Log("1-100 controls loaded version=%d state=%d neutral shape=(%.3f %.3f %.3f %.3f %.1f %.3f %.3f)",version,physicsState,sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6]);
 }
-static void SaveSettings(){char path[MAX_PATH],value[64];SiblingPath(path,"WolverineLive.ini");WritePrivateProfileStringA("Meta","ControlScaleVersion","2",path);for(int i=0;i<7;i++){sprintf_s(value,"%.0f",sliderUI[i]);WritePrivateProfileStringA("Shape",sliderSpecs[i].name,value,path);}for(int i=0;i<8;i++){sprintf_s(value,"%.0f",physUI[i]);WritePrivateProfileStringA("Physics",physSpecs[i].name,value,path);}sprintf_s(value,"%d",physicsState);WritePrivateProfileStringA("Physics","State",value,path);settingsPending=false;Log("1-100 control settings saved to WolverineLive.ini");}
+static void SaveSettings(){char path[MAX_PATH],value[64];SiblingPath(path,"WolverineLive.ini");WritePrivateProfileStringA("Meta","ControlScaleVersion","2",path);for(int i=0;i<7;i++){sprintf_s(value,"%.0f",sliderUI[i]);WritePrivateProfileStringA("Shape",sliderSpecs[i].name,value,path);}for(int i=0;i<8;i++){sprintf_s(value,"%.0f",physUI[i]);WritePrivateProfileStringA("Physics",physSpecs[i].name,value,path);}sprintf_s(value,"%.0f",hangUI);WritePrivateProfileStringA("Shape","Hang",value,path);sprintf_s(value,"%d",physicsState);WritePrivateProfileStringA("Physics","State",value,path);settingsPending=false;Log("1-100 control settings saved to WolverineLive.ini");}
 static void QueueSettingsSave(){settingsPending=true;settingsChangedTick=GetTickCount();}
 static void FlushSettingsIfDue(){if(settingsPending&&GetTickCount()-settingsChangedTick>=700)SaveSettings();}
 static float Smooth01(float value){value=max(0.f,min(1.f,value));return value*value*(3.f-2.f*value);}
@@ -596,7 +599,7 @@ static void BuildShaftRestFrame(){
     for(UINT i=0;i<graftCount;i++){
       float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]);
       float ball=min(1.f,phys_scrotum_weight[i]);
-      if(shaft<.20f||ball>.35f)continue;
+      if(shaft<.20f||suspensionWeight[i]>0.f)continue;
       float q=phys_flex_coordinate[i]-target;
       float w=shaft*shaft*(1.f-ball)*(1.f-ball)*expf(-q*q*invTwoSigma2);
       center=center+graftDeformedPositions[i]*w;sum+=w;
@@ -639,7 +642,7 @@ static void BuildShaftRestFrame(){
   float radiusSum=0.f,weightSum=0.f;
   for(UINT i=0;i<graftCount;i++){
     float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]),ball=min(1.f,phys_scrotum_weight[i]),t=graftRestFlex[i];
-    if(shaft<.72f||ball>.05f||t<.30f||t>.70f)continue;
+    if(shaft<.72f||suspensionWeight[i]>0.f||t<.30f||t>.70f)continue;
     V3 center{},tangent{};SampleRestShaftFrame(t,center,tangent);V3 offset=graftDeformedPositions[i]-center;
     V3 radial=offset-tangent*Dot(offset,tangent);float weight=shaft*shaft;
     radiusSum+=Length(radial)*weight;weightSum+=weight;
@@ -797,9 +800,12 @@ static float LogicalShaftOwner(UINT i,float t){
   // A vertex is either shaft surface or pouch surface.  Every mixed neck row
   // remains with the independently scaled scrotal system, so the final shaft
   // transport cannot pull that broad hourglass into a narrow diagonal bridge.
-  if(shaft<.08f||ball>=.50f||t<0.f||t>.86f)return 0.f;
-  float rootFollow=Smoother01(t/.018f);
-  return rootFollow*(1.f-Smoother01((t-.80f)/.06f))*ShaftPouchBlend(ball);
+  if(shaft<.08f||suspensionWeight[i]>=1.f||t<0.f||t>.86f)return 0.f;
+  // Spread radial ownership over the proximal shaft; the old .018 takeover
+  // inflated one narrow row into a shelf at large widths. Quintic easing
+  // matches value, slope and curvature at both ends of the shared root.
+  float rootFollow=Smoother01(t/.18f);
+  return rootFollow*(1.f-Smoother01((t-.80f)/.06f))*(1.f-suspensionWeight[i]);
 }
 static float LogicalShaftRadius(float t){
   // One monotone law owns every complete shaft cross-section.  The root is the
@@ -820,6 +826,7 @@ static void ConstructLogicalShaftSurface(bool finalPose){
     float t=graftRestFlex[i],owner=LogicalShaftOwner(i,t);logicalShaftOwnership[i]=owner;if(owner<=.0001f)continue;
     V3 restCenter{},restTangent{};SampleRestShaftFrame(t,restCenter,restTangent);
     if(finalPose){
+      if(suspensionWeight[i]>0.f)continue;
       V3 liveCenter{},liveTangent{};SampleShaftChain(t,liveCenter,liveTangent);
       V3 target=liveCenter+RotateFromTo(logicalShaftRestRadial[i],restTangent,liveTangent);
       graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-owner)+target*owner;continue;
@@ -1131,37 +1138,60 @@ static void ApplyConstraintCurve(float value[3],UINT i){
   V3 fromCenter=point-restCenter;V3 radial=fromCenter-restTangent*Dot(fromCenter,restTangent);V3 target=center+RotateFromTo(radial,restTangent,tangent);
   value[0]+=(target.x-value[0])*active;value[1]+=(target.y-value[1])*active;value[2]+=(target.z-value[2])*active;
 }
-static void ApplyBallRigidEnvelope(float value[3],UINT i){
-  float bw=min(1.f,phys_scrotum_weight[i]);if(bw<=.001f||!constraintSolverReady)return;
-  float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]);
-  // The shaft owns shared junction vertices. The scrotal surface only becomes
-  // rigid once its lobe membership dominates, leaving a compliant skin neck
-  // without allowing the egg-shaped mass itself to collapse.
-  float ownership=bw/(bw+shaft+.0001f);float rigidity=Smoother01(max(0.f,min(1.f,(bw-.08f)/.48f)))*Smoother01(max(0.f,min(1.f,(ownership-.40f)/.42f)));
-  if(rigidity<=.001f)return;
-  V3 point={value[0],value[1],value[2]};int side=point.y<0.f?0:1;V3 anchor=BallAnchor(side),rest=constraintBallRest[side];
-  V3 restAxis=Unit(rest-anchor),posedAxis=Unit(ballNodes[side]-anchor),offset=point-rest;
-  V3 hardTarget=ballNodes[side]+RotateFromTo(offset,restAxis,posedAxis);
-  // The lobe cores retain one rigid transform, but a narrow band of sack skin
-  // around the anatomical midline interpolates both frames continuously. This
-  // membrane prevents adjacent rear/medial triangles from choosing opposite
-  // transforms and opening into the apparent holes seen during wide splay.
-  float membraneRadius=max(.55f,BallCollisionRadius()*.30f),membrane=1.f-Smoother01(fabsf(point.y)/membraneRadius);
-  float sideBlend=Smooth01(max(0.f,min(1.f,.5f+point.y/(2.f*membraneRadius))));V3 softTarget{};
-  for(int b=0;b<2;b++){V3 a=BallAnchor(b),r=constraintBallRest[b],ra=Unit(r-a),pa=Unit(ballNodes[b]-a),o=point-r;V3 candidate=ballNodes[b]+RotateFromTo(o,ra,pa);softTarget=softTarget+candidate*(b?sideBlend:1.f-sideBlend);}
-  V3 target=hardTarget*(1.f-membrane)+softTarget*membrane;
-  // Preserve the rigid egg-shaped core, but transition through a broad neck
-  // measured along the real anchor-to-lobe axis. This removes the sharp
-  // lateral-swing vertex without coupling the independently moving lobes.
-  float span=max(.5f,Length(rest-anchor));
-  float axial=Dot(point-anchor,restAxis);
-  float neck=Smoother01((axial-span*.05f)/(span*.45f));
-  float neckRigidity=rigidity*(.25f+.75f*neck);
-  // Preserve the rigid lobe core exactly; only the mixed-weight skin bridge
-  // receives the neck taper. That keeps the egg volume intact under motion.
-  if(bw>=.82f)neckRigidity=rigidity;
-  value[0]+=(target.x-value[0])*neckRigidity;value[1]+=(target.y-value[1])*neckRigidity;value[2]+=(target.z-value[2])*neckRigidity;
+static V3 RestBallAnchor(int side){
+  if(!shaftRestFrameReady)return {12.55f,side?2.f:-2.f,76.35f};
+  V3 center{},tangent{};SampleRestShaftFrame(.12f,center,tangent);
+  V3 lateral=Unit(V3{0,1,0}-tangent*tangent.y),down=Unit(Cross(tangent,lateral))*-1.f;
+  return center+lateral*((side?1.f:-1.f)*logicalShaftBodyRadius*.38f)+down*(logicalShaftBodyRadius*.90f);
 }
+static V3 BallAnchor(int side){
+  V3 anchor=RestBallAnchor(side);if(!constraintSolverReady||!shaftRestFrameReady)return anchor;
+  V3 rc{},rt{},lc{},lt{};SampleRestShaftFrame(.12f,rc,rt);SampleShaftChain(.12f,lc,lt);
+  return lc+RotateFromTo(anchor-rc,rt,lt);
+}
+static float HangOffset(){
+  // Low values draw the lobes closer; high values lengthen the suspension.
+  float u=hangUI<50.f?(hangUI-50.f)/49.f:(hangUI-50.f)/50.f;
+  return -u*(u<0.f?1.f:4.5f)*sqrtf(max(.35f,BallShapeScale()));
+}
+static void ApplySuspendedSkin(float value[3],UINT i){
+  float w=suspensionWeight[i];if(w<=0.f||!constraintSolverReady)return;
+  V3 point={value[0],value[1],value[2]},rc{},rt{},lc{},lt{};
+  float t=max(.035f,min(.30f,graftRestFlex[i]));SampleRestShaftFrame(t,rc,rt);SampleShaftChain(t,lc,lt);
+  V3 shaftTarget=lc+RotateFromTo(point-rc,rt,lt);
+  float radius=max(.55f,BallCollisionRadius()*.30f);
+  float sideBlend=Smooth01(.5f+point.y/(2.f*radius));V3 lobeTarget{};
+  for(int side=0;side<2;side++){
+    V3 restAxis=Unit(constraintBallRest[side]-RestBallAnchor(side));
+    V3 liveAxis=Unit(ballNodes[side]-BallAnchor(side));
+    V3 candidate=ballNodes[side]+RotateFromTo(point-constraintBallRest[side],restAxis,liveAxis);
+    lobeTarget=lobeTarget+candidate*(side?sideBlend:1.f-sideBlend);
+  }
+  // The lobe transform already tapers rotational travel toward the anchor.
+  // Compensate the second skin blend so the neck does not become a dead strip.
+  float follow=w/sqrtf(.06f+.94f*w);
+  V3 result=shaftTarget*(1.f-follow)+lobeTarget*follow;
+  value[0]=result.x;value[1]=result.y;value[2]=result.z;
+}
+static void ResolveSuspendedSkinContact(){
+  if(!constraintSolverReady)return;
+  for(UINT i=0;i<graftCount;i++){
+    if(suspensionWeight[i]<=0.f)continue;
+    V3 p=graftDeformedPositions[i],nearest{},tangent{};float best=1e30f,coordinate=0.f;
+    for(int link=0;link<6;link++){
+      V3 span=shaftNodes[link+1]-shaftNodes[link];float d=Dot(span,span);if(d<1e-8f)continue;
+      float u=max(0.f,min(1.f,Dot(p-shaftNodes[link],span)/d));V3 q=shaftNodes[link]+span*u;
+      float distance=Dot(p-q,p-q);if(distance<best){best=distance;nearest=q;tangent=Unit(span);coordinate=(link+u)/(shaftNodeCount-1);}
+    }
+    if(coordinate<.025f||coordinate>.48f)continue;
+    V3 radial=p-nearest;radial=radial-tangent*Dot(radial,tangent);float radius=Length(radial);
+    if(radius<1e-5f)continue;
+    float minimum=LogicalShaftOvalRadius(radial,tangent,LogicalShaftRadius(coordinate));
+    minimum+=(.10f+.025f*logicalShaftBodyRadius)*Smoother01(suspensionWeight[i]/.20f);
+    if(radius<minimum)graftDeformedPositions[i]=p+radial*((minimum-radius)/radius);
+  }
+}
+
 // Shared final-pose junction: preserve the body weld and lobe extremes while
 // fairing the mixed shaft/pouch rows as one connected surface. The sparse
 // constrained biharmonic operator uses fixed topological correspondence.
@@ -1286,7 +1316,9 @@ static void ApplyShape(){
   SculptConvergentVentralRaphe();
   // Cache the corrected authored cross-sections and transport them through
   // physics as a single shaft.  The scrotum remains a separate hanging system.
+  ConstructLogicalShaftSurface(false);
   CaptureLogicalShaftSurface();
+  for(UINT i=0;i<graftCount;i++)graftDeformedPositions[i].z+=HangOffset()*suspensionWeight[i];
   for(UINT i=0;i<graftCount;i++){
     V3 value=graftDeformedPositions[i];
     if(phys_flex_coordinate[i]>.98f&&phys_shaft_weight[i]>.5f){tipSum=tipSum+value;tipCount++;}
@@ -1301,16 +1333,26 @@ static void ApplyShape(){
   for(UINT i=0;i<graftCount;i++){
     float value[3]={graftDeformedPositions[i].x,graftDeformedPositions[i].y,graftDeformedPositions[i].z};
     float bw=phys_scrotum_weight[i],membership=max(phys_shaft_weight[i],phys_attachment_weight[i]);float motionWeight=membership;if(bw<.05f&&membership>.02f)motionWeight=1.f;
-    if(motionWeight>.001f)ApplyConstraintCurve(value,i);
-    if(bw>.001f)ApplyBallRigidEnvelope(value,i);
+    if(suspensionWeight[i]>0.f)ApplySuspendedSkin(value,i);
+    else if(motionWeight>.001f)ApplyConstraintCurve(value,i);
     graftDeformedPositions[i]=V3{value[0],value[1],value[2]};
   }
   // Reassert the one shaft after every physics state.  This transports the
   // cached complete cross-section through the live centerline and prevents a
   // mixed-weight ring from reappearing in semi/floppy motion.
   if(physicsState>0)ConstructLogicalShaftSurface(true);
+  // Keep the distal shaft independent of skin fairing. The proximal .40
+  // belongs to the shared pelvic ramp, whose support fades at .40. Restoring
+  // the old tube at .04-.10 would undo that ramp and recreate the shelf.
+  static V3 solidCore[graftCount];memcpy(solidCore,graftDeformedPositions,sizeof(solidCore));
   FinishPelvicRamp(controlled,graftFirstVertex);
   FinishScrotalJunction();
+  for(UINT i=0;i<graftCount;i++){
+    if(suspensionWeight[i]!=0.f||max(phys_shaft_weight[i],phys_attachment_weight[i])<.5f)continue;
+    float follow=Smoother01((graftRestFlex[i]-.30f)/.10f);
+    graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-follow)+solidCore[i]*follow;
+  }
+  ResolveSuspendedSkinContact();
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
   // follows every physics bend.  Wolverine's meshes use the opposite of the
@@ -1393,20 +1435,29 @@ static void OverlayFrame(IDirect3DDevice9* d){
   InterlockedIncrement(&renderFrameSerial);
   if(KeyEdge(VK_F6))menuOpen=!menuOpen;
   if(menuOpen){
-    const int count=16;
+    const int count=17;
     if(KeyEdge(VK_UP))selectedSlider=(selectedSlider+count-1)%count;
     if(KeyEdge(VK_DOWN))selectedSlider=(selectedSlider+1)%count;
-    if(KeyEdge(VK_F8)){for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
+    if(KeyEdge(VK_F8)){hangUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
     int dir=KeyEdge(VK_LEFT)?-1:KeyEdge(VK_RIGHT)?1:0;
-    if(dir){float mult=(GetAsyncKeyState(VK_SHIFT)&0x8000)?5.f:1.f;if(selectedSlider<7)sliderUI[selectedSlider]=max(1.f,min(100.f,sliderUI[selectedSlider]+dir*mult));else if(selectedSlider==7){physicsState=(physicsState+dir+3)%3;shaftSpring=Spring2{};}else physUI[selectedSlider-8]=max(1.f,min(100.f,physUI[selectedSlider-8]+dir*mult));ApplyControlMapping();shapeDirty=true;}
+    if(dir){float mult=(GetAsyncKeyState(VK_SHIFT)&0x8000)?5.f:1.f;
+      if(selectedSlider==4)hangUI=max(1.f,min(100.f,hangUI+dir*mult));
+      else if(selectedSlider<8){int shape=selectedSlider<4?selectedSlider:selectedSlider-1;sliderUI[shape]=max(1.f,min(100.f,sliderUI[shape]+dir*mult));}
+      else if(selectedSlider==8){physicsState=(physicsState+dir+3)%3;shaftSpring=Spring2{};}
+      else physUI[selectedSlider-9]=max(1.f,min(100.f,physUI[selectedSlider-9]+dir*mult));
+      ApplyControlMapping();shapeDirty=true;
+    }
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
-  IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=16;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.1 SCROTAL JUNCTION R2 (F6 TO HIDE)":"v0.7.1 SCROTAL JUNCTION R2 (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
+  IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=17;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.2 R2 ROOT RAMP (F6 TO HIDE)":"v0.7.2 R2 ROOT RAMP (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
-      if(i<7){const auto& s=sliderSpecs[i];name=s.name;value=sliderUI[i];lo=1;hi=100;sprintf_s(val,"%.0f",value);}else if(i==7){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}else{const auto& s=physSpecs[i-8];name=s.name;value=physUI[i-8];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
-      RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(i==7){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=(value-lo)/(hi-lo);Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
+      if(i==4){name="HANG";value=hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      else if(i<8){int shape=i<4?i:i-1;const auto& s=sliderSpecs[shape];name=s.name;value=sliderUI[shape];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      else if(i==8){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}
+      else{const auto& s=physSpecs[i-9];name=s.name;value=physUI[i-9];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(i==8){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=(value-lo)/(hi-lo);Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
     }
     DWORD transformAge=motionLastCaptureTick?GetTickCount()-motionLastCaptureTick:0xFFFFFFFFu;bool transformLive=motionCollisionBonesReady&&transformAge<=1200u;
     D3DCOLOR statusColor=transformLive?D3DCOLOR_ARGB(255,92,230,130):graftBuffer?D3DCOLOR_ARGB(255,80,190,235):D3DCOLOR_ARGB(255,255,190,70);const char* statusText=transformLive?"STATUS: CHARACTER TRANSFORM LIVE":graftBuffer?"STATUS: TRANSFORM UNAVAILABLE":"STATUS: WAITING FOR WOLVERINE";RECT status{(LONG)x+10,(LONG)statusY,(LONG)(x+w-10),(LONG)statusY+20};Text(d,statusText,status,statusColor);RECT help1{(LONG)x+10,(LONG)statusY+22,(LONG)(x+w-10),(LONG)statusY+41};Text(d,"UP/DOWN SELECT  LEFT/RIGHT ADJUST",help1,D3DCOLOR_ARGB(255,185,185,190));RECT help2{(LONG)x+10,(LONG)statusY+42,(LONG)(x+w-10),(LONG)statusY+63};Text(d,"SHIFT = COARSE  F8 = RESET ALL",help2,D3DCOLOR_ARGB(255,185,185,190));
@@ -1497,3 +1548,4 @@ IDirect3D9* WINAPI Direct3DCreate9(UINT sdk){LoadReal();IDirect3D9* d=realCreate
 int WINAPI D3DPERF_BeginEvent(D3DCOLOR c,LPCWSTR n){LoadReal();return realBegin?realBegin(c,n):-1;}
 int WINAPI D3DPERF_EndEvent(){LoadReal();return realEnd?realEnd():-1;}
 BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");}return TRUE;}
+

@@ -1,3 +1,15 @@
+# Current state — September 18, 2026: installed 0.7.2 R2
+
+Supersedes older candidate-only notes below. Branch version-0.7.2. User requested Hang, soft scrotal neck suspension from a firm shaft, then reported a large-size root shelf. 0.7.2 was installed earlier; this revision is installed now, SHA256 B835ABE6DE44C4F67A9CD63805897BBB347FA5EB4489343260E3BA82D2F573FE. INI preserved exactly including Hang65 and size100. Package unchanged.
+
+0.7.2 adds harmonic suspension_weights.h (1590 fixed,319 neck,479 lobe vertices), Hang1..100/default50 after rest-frame capture, shaft-carried BallAnchor at .12, independently moving weighted skin with follow=w/sqrt(.06+.94*w), shaft contact clearance and no ball impulse back into core. Junction generator fixes zero-suspension shaft vertices. Full radial construction remains important: minimum-only projection caused neck collisions and was rejected.
+
+Root R2 changes LogicalShaftOwner takeover from .018 to .18, and post-fairing core restoration .04–.10 to .30–.40. Merely moving the latter did not remove shelf; expanding the former did. Both use quintic easing. Do not restore the abrupt tube root. No topology/package edits.
+
+See docs/RELEASE-0.7.2-R2.md for checks and limits. work/root-ramp-fix has exact original072 before.cpp/.exe/.dll, captures and render logs; work/run_root_suite.py, audit_root_suite.py, intersect_root_suite.py reproduce29cases. outputs/v0.7.2-root-ramp-r2 has36croppedrenders and Blender comparison. All finite/weld0/neckdegenerate0. Ordinary size sweep and max/Hang65 neckcrossings0. Extreme angle686,shortwide5,tightmax1 remain; don't claim all poses perfect. Shaft nodes identical over Hang; proximal core variation max.00124. Live gameplay verification pending at this point; update below if completed.
+
+Installation backup is separate: C:/Games/X-Men Origins Wolverine/WGame/ModBackups/WolverineAnatomyTool-v0.7.2-r2. Older072backup preserved. Upgrade-0.7.2.ps1 now installs R2 and accepts072 in addition to prior versions; version and fullinstaller hashes updated. User closed game during work. No forced termination used.
+
 # Shared project context
 
 ## September 18, 2026 - scrotal junction R2 candidate

@@ -1,14 +1,14 @@
 {
   "name": "Wolverine Anatomy Tool",
-  "version": "0.7.1",
+  "version": "0.7.2-r2",
   "game": "X-Men Origins: Wolverine - Uncaged Edition (Windows PC)",
   "characterRevision": 161,
-  "runtimeRevision": "0.7.1-junction-r2",
+  "runtimeRevision": "0.7.2-r2",
   "sourcePackageSHA256": "6C7F2551F7022FE66CB2483C31DF2BF837E487B56E73DC6FC34F305E167AA79F",
   "installedPackageSHA256": "7C5CE1F5FD45AB4F7A159F9D5455B1D40D11E72F4C2EFE7D7F18C7391AED2A64",
   "patchSHA256": "2CBC03A1D4AE7D7FF6F2592399F9089BB4439BCBDAFA64C42157EDCAF0098384",
-  "runtimeSHA256": "5727176AD80668EC07790FFA48BD50C4AC630BAC39B7DC0765513A10E96C8379",
-  "provenanceArtifact": "v0.7.1-scrotal-junction-r2",
+  "runtimeSHA256": "B835ABE6DE44C4F67A9CD63805897BBB347FA5EB4489343260E3BA82D2F573FE",
+  "provenanceArtifact": "v0.7.2-r2-root-ramp",
   "patchFormat": "WBX1 (GZip-compressed XOR delta)",
   "requiresNetwork": false
 }

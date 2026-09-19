@@ -28,6 +28,10 @@ for g in range(len(groupbase)):
  if np.any(mm<47050):
   graft=mm[(mm>=47050)&(mm<49438)]-47050
   support[normalgroup[graft]]=0
+# 0.7.2: exact shaft skin is an immovable boundary for the soft junction.
+sw=arr('suspension_weights.h','suspensionWeight')
+sg=np.array([sw[i].max() for i in ids])
+support*=np.minimum(1,sg*4)
 active=np.flatnonzero(support>1e-5)
 rows=[];cols=[];vals=[]
 for g,ns in enumerate(neighbors):
