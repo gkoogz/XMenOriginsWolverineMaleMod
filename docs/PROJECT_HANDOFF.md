@@ -1,3 +1,7 @@
+# Current: clean distal loft shape study
+
+User supplied stylized AI references; asked less sharp, smoother model. Rebuilt distal surface above flex .70 with 105x96 regular loft, clipped/zipper-connected to original shaft. outputs/crown-clean-loft: new neutral Blender/OBJ, continuous size property, comparison vs crown-rounded, audits, source scripts. Eliminates previous crown corrugation but simplifies/omits detailed frenulum, raphe and meatus; shaft join still visible. UVs placeholders; no physics or runtime source correspondence. This is a PRIMARY-FORM AUTHORING STUDY, NOT medically validated or game integrated. Do not describe source images as anatomical evidence or imply exact silhouette tracing. Five finite/nondegenerate samples; new edges manifold/closed; rows axially ordered; Blender control samples agree. See CROWN-CLEAN-LOFT.md for limitations and next steps. No installation changes.
+
 # Current: rounded prominent ridge authoring pass
 
 User requested round rather than sharp ridge, retaining prominence. outputs/crown-rounded broadens C2 support 1.85 to 2.8, reduces amplitude .42 to .35, adds ridge-only Smooth .5/60 iterations with matching wire geometry. Five control sample checks pass; editable size property retained. Default/max visual review shows softer outline, but inherited seam corrugation remains substantial. Authoring only, no runtime or installation changes. See CROWN-ROUNDED.md; scripts work/round_crown_ridge.py, render_rounded_crown.py, package_rounded_crown.py.
