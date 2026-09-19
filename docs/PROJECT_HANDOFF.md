@@ -1,10 +1,14 @@
-# Current state � September 18, 2026: installed 0.7.2 R2
+# User-directed restoration to 0.7.2 R2
+
+User rejected the subsequent anatomy studies and explicitly requested return to 0.7.2 R2. Active branch restored to version-0.7.2; source baseline d36f840. Installed DLL already matched R2 SHA256 B835ABE6DE44C4F67A9CD63805897BBB347FA5EB4489343260E3BA82D2F573FE, so no game files or settings were rewritten. Harness rebuilt from restored source. Experiments preserved separately on anatomy-glans-study and in prior outputs; they are not active. Do not resume those experiments without a new request.
+
+# Current state — September 18, 2026: installed 0.7.2 R2
 
 Supersedes older candidate-only notes below. Branch version-0.7.2. User requested Hang, soft scrotal neck suspension from a firm shaft, then reported a large-size root shelf. 0.7.2 was installed earlier; this revision is installed now, SHA256 B835ABE6DE44C4F67A9CD63805897BBB347FA5EB4489343260E3BA82D2F573FE. INI preserved exactly including Hang65 and size100. Package unchanged.
 
 0.7.2 adds harmonic suspension_weights.h (1590 fixed,319 neck,479 lobe vertices), Hang1..100/default50 after rest-frame capture, shaft-carried BallAnchor at .12, independently moving weighted skin with follow=w/sqrt(.06+.94*w), shaft contact clearance and no ball impulse back into core. Junction generator fixes zero-suspension shaft vertices. Full radial construction remains important: minimum-only projection caused neck collisions and was rejected.
 
-Root R2 changes LogicalShaftOwner takeover from .018 to .18, and post-fairing core restoration .04�.10 to .30�.40. Merely moving the latter did not remove shelf; expanding the former did. Both use quintic easing. Do not restore the abrupt tube root. No topology/package edits.
+Root R2 changes LogicalShaftOwner takeover from .018 to .18, and post-fairing core restoration .04–.10 to .30–.40. Merely moving the latter did not remove shelf; expanding the former did. Both use quintic easing. Do not restore the abrupt tube root. No topology/package edits.
 
 See docs/RELEASE-0.7.2-R2.md for checks and limits. work/root-ramp-fix has exact original072 before.cpp/.exe/.dll, captures and render logs; work/run_root_suite.py, audit_root_suite.py, intersect_root_suite.py reproduce29cases. outputs/v0.7.2-root-ramp-r2 has36croppedrenders and Blender comparison. All finite/weld0/neckdegenerate0. Ordinary size sweep and max/Hang65 neckcrossings0. Extreme angle686,shortwide5,tightmax1 remain; don't claim all poses perfect. Shaft nodes identical over Hang; proximal core variation max.00124. Automated sky.launch_app returned no targetable window; refreshed window/process inventory confirmed no running game. No live gameplay verification completed. User should launch through usual shortcut; do not claim live visual acceptance.
 
@@ -42,7 +46,7 @@ work for acceptance: user visual review and live-game contact/performance testin
 The older reference screenshot/version was queried but not identified by user.
 
 
-## Version 0.7.1 — current candidate, September 18, 2026
+## Version 0.7.1 â€” current candidate, September 18, 2026
 
 User authorized collar/root/pelvis cleanup, stronger large-size recruitment,
 matched grey-wireframe and color renders cropped knee-to-navel, and an in-game
@@ -76,7 +80,7 @@ the earlier inspection outputs; all NEW render deliverables are cropped.
 Next: review the matched images and playtest the packaged candidate using the
 Upgrade/Rollback pair. Do not call the appearance user-approved until feedback.
 
-## September 18, 2026 — independent v0.7 inspection in a new workspace
+## September 18, 2026 â€” independent v0.7 inspection in a new workspace
 
 The sections below this entry are historical v0.6/161 notes, not the current
 authorization or a complete description of v0.7. Current user request: inspect
@@ -138,7 +142,7 @@ off. Relative workspace paths below are relative to the parent of this Git repo.
   `14F4A8686B9B8BEFA529B4418385E819534A7EAC4171CA60D1EB28DA85E38DB8`
   and the package were verified unchanged during the DLL restore.
 - Game: `C:/Games/X-Men Origins Wolverine`; runtime in `Binaries/d3d9.dll`.
-- User's 06:09–06:10 screenshots confirm 161 STILL shimmers/crinkles, including
+- User's 06:09â€“06:10 screenshots confirm 161 STILL shimmers/crinkles, including
   Overall55/Width57 and Overall100/Width100. User explicitly says 157 also fails.
 - Current authorization: fix the Revision161 collar shimmer surgically. Do not
   broaden the donor field, reshape the silhouette, or rearchitect dilation.
@@ -266,7 +270,7 @@ off. Relative workspace paths below are relative to the parent of this Git repo.
   physics are insufficient evidence of the final surface.
 - Weapon X overrides MAT_Electrodes and MAT_Wolverine_TankMarkings must retain
   MAT_Gore_WolverineBase parent/permutation1. Start package injection from154.
-- UI1–100 is mapped piecewise around the user's saved preset at50. Shape neutral
+- UI1â€“100 is mapped piecewise around the user's saved preset at50. Shape neutral
   is [1.2,1.6,1.59,1.53,30,-0.7,0.400001]; angle UI52 =33.6 physical degrees.
   Morph-grid midpoint is a DIFFERENT legacy reference (Overall1.5/Width1.15).
 - F6 toggles Big Dick Logan Mod menu, F8 resets all to50. Preserve live INI.
@@ -278,12 +282,12 @@ off. Relative workspace paths below are relative to the parent of this Git repo.
   connected bands draped over actual anatomy. Inner thighs are not general donor
   material; dilation should favor the upper pelvis. Avoid broad body resculpting.
 - 161 removed97 faces and inserted221 using4x21 new vertices in reserved slots
-  49354–49437. Outer boundary13 / inner42 are zipper-stitched. Lower sector retained.
+  49354â€“49437. Outer boundary13 / inner42 are zipper-stitched. Lower sector retained.
 - Reparameterizing each morph separately caused lanes to slide/twist; keep fixed
   neutral correspondence for ALL geometry and weight samples. Scalar interpolation
   in build_revision161_round_weld.py independently reverses based on scalar values:
   this is unsafe correspondence, not a valid spatial orientation test.
-- 160–280 uniform Laplacian passes shrink the collar; later tube preservation can
+- 160â€“280 uniform Laplacian passes shrink the collar; later tube preservation can
   undo its shape. Ring-only Taubin passes cannot ensure longitudinal smoothness.
 - Full-graph Taubin and mean-value geometry smoothing were tried unsuccessfully.
   Normal smoothing or texture paint cannot fix folds, degenerate faces or overlaps.
