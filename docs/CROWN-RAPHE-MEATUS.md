@@ -1,0 +1,11 @@
+# Raphe, frenular transition and meatal detail
+
+Based on crown-anatomical-rebuild. Added integrated rounded midline relief along the ventral shaft, with width and height tapering toward the frenular region. A subtle ventral channel continues from the existing V-like notch toward the tip. Added a recessed terminal slit with rounded ends and very slight paired lip relief. The slit represents the external meatal surface as a closed divot; it is not a constructed internal urethral lumen. The requested prominent raphe is a conceptual teaching/design treatment, not a claim about measured normal anatomy.
+
+The broad crown silhouette and existing Glans Size response remain. The shaft ridge does not enlarge with the glans control; the distal details scale with the crown and preserve its uniform scaling. Maximum shaft relief is about 0.38 model units. Slit depth runs from 0.30 model units at size 1 to 0.48 at size 100. These are authoring units, not physical measurements.
+
+A pre-existing near-duplicate raphe seam became problematic under the added relief. Locally joined seven paired source vertices and removed fourteen collapsed triangles. Final mesh: 10,554 vertices and 21,086 triangles. No open/nonmanifold edges in the detailed region. Forty-one intermediate size samples passed finite/nondegenerate geometry, body ring-order (excluding the intentionally recessed terminal divot) and uniform crown-scaling checks. Five BVH checks found no nonadjacent overlap pairs involving the detailed region after seam cleanup. Five Blender samples match the authored geometry within 8e-6 model units. These checks do not validate all animation, physics, or anatomy.
+
+The comparison contains 120 renders: before/after, five sizes, four views (including a dedicated tip view), and gray/wireframe/color shading. Blender includes editable Glans Size and named Raphe ridge / Meatal recess groups. OBJ is size 50. The original reconstructed model is preserved as the before version.
+
+The game was not launched, installed, or modified. This remains an authoring model with incomplete UV/rig/physics transfer for game use. The model is not medically validated, and no internal urethral anatomy is included. Some original shaft faceting remains. See REFERENCES.md and the audit JSONs.
