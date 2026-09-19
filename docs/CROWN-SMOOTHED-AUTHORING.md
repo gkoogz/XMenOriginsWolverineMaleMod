@@ -1,0 +1,7 @@
+# Smoothed crown authoring model
+
+Responds to jaggedness in crown-traced. Uses welded-position graph fairing over the crown and a 0.65-unit adjacent seam band, followed by a crown-weighted Smooth modifier (factor 0.3, 5 iterations) in Blender. The narrow adjacent shaft band is allowed to relax; shaft control vertices farther than 0.65 units behind the traced boundary remain exactly unchanged. This intentionally relaxes the previous strict shaft-side pinning to smooth the seam. The modifier also rounds the evaluated surface; it is not a shader-only change.
+
+Five size samples are finite and have no zero-area control triangles at threshold 1e-10. Mean graph roughness falls approximately 82–87 percent relative to the reconstructed pre-fairing samples. Blender's five unsubdivided shape-key samples match the generated control geometry within 0.0001 units. The continuous Glans Size property remains editable. Before/after uses matching cameras and lighting. Significant seam irregularity and uneven control triangles remain; the smoothing request is NOT fully resolved, especially at extreme size; collision freedom and game rig performance are not established.
+
+This is an authoring preview and editable Blender model, not a game build. No runtime or installed game files changed. The high-density mesh still needs game package and runtime table integration. OBJ exports the default size with surface modifiers. model-data.json contains the control mesh and sample positions, not the modifier-evaluated export.
