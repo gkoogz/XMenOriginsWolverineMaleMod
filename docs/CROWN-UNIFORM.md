@@ -1,0 +1,7 @@
+# Uniform crown scaling
+
+Glans Size now applies a single scalar to all axes about the crown base at authored coordinate .82. Range 1/50/100 maps to scale 1.0/1.4/1.6. Only tissue forward of .82 is eligible; the .82-.855 attachment blends into the full scale. The central ventral frenulum region is pinned through .91, with angular and distal falloff in the neighboring crown surface. The free crown scales uniformly; the necessary attachment transition is locally blended. The upper-shaft groove and all other controls are retained.
+
+27 size/state/Glans Size cases: finite, no degenerate distal triangles, no added intersections versus size 1 in the same pose. Shaft through .82, pelvis and physics nodes are identical across the size control. Separate scale-mask checks confirm 44-45 central frenulum vertices remain exactly fixed and 194 distal crown vertices follow the uniform scale to within 0.000008 model units in all nine size/state combinations. Existing folds/faceting remain. No claim that every control combination was tested.
+
+The comparison shows matching old/new size samples in three views, solid or wireframe. Blender includes the working Glans Size custom property; 1/50/100 were verified against runtime captures. OBJ is a static default50 export. Renders use neutral studio lighting, not game shaders. The compiled runtime candidate is not installed or live-game tested. Installed R2, package and settings are unchanged.

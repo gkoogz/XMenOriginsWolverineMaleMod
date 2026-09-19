@@ -1185,20 +1185,27 @@ static void SculptVentralContourStudy(){
 }
 static void ScaleGlansIndependently(){
   if(!constraintSolverReady)return;
-  float width=MapControl100(glansUI,1.f,1.40f,1.60f);
-  V3 anchor{},axis{};SampleShaftChain(.79f,anchor,axis);
+  float scale=MapControl100(glansUI,1.f,1.40f,1.60f);
+  V3 anchor{},axis{};SampleShaftChain(.82f,anchor,axis);
   V3 lateral=Unit(V3{0,1,0}-axis*axis.y),dorsal=Unit(Cross(axis,lateral));
   for(UINT i=0;i<graftCount;i++){
-    float t=phys_flex_coordinate[i];if(t<=.79f||suspensionWeight[i]!=0.f)continue;
+    float t=phys_flex_coordinate[i];if(t<=.82f||suspensionWeight[i]!=0.f)continue;
     V3 offset=graftDeformedPositions[i]-anchor;
-    float blend=Smoother01((t-.79f)/.055f);
-    float growth=(width-1.f)*blend;
-    // Broad shoulders and a narrower rounded apex come from the authored
-    // head. Broaden its shoulders, extend the rounded apex and add less depth.
-    graftDeformedPositions[i]=graftDeformedPositions[i]
-      +lateral*(Dot(offset,lateral)*growth)
-      +dorsal*(Dot(offset,dorsal)*growth*.65f)
-      +axis*(Dot(offset,axis)*growth*1.50f);
+    V3 radial=offset-axis*Dot(offset,axis);float radius=Length(radial);
+    float fold=0.f;
+    if(radius>1e-4f){
+      V3 direction=radial/radius;
+      float ventral=-Dot(direction,dorsal),side=fabsf(Dot(direction,lateral));
+      // Pin the central ventral attachment; blend the neighboring crown
+      // surface without enlarging the frenulum itself.
+      fold=Smoother01((ventral-.45f)/.30f)
+        *(1.f-Smoother01((side-.28f)/.22f))
+        *(1.f-Smoother01((t-.91f)/.025f));
+    }
+    float blend=Smoother01((t-.82f)/.035f)*(1.f-fold);
+    // One scalar for every axis, about the crown base. Only the attachment
+    // transition is blended; the free crown scales uniformly.
+    graftDeformedPositions[i]=graftDeformedPositions[i]+offset*((scale-1.f)*blend);
   }
 }
 static V3 RestBallAnchor(int side){
@@ -1623,4 +1630,5 @@ IDirect3D9* WINAPI Direct3DCreate9(UINT sdk){LoadReal();IDirect3D9* d=realCreate
 int WINAPI D3DPERF_BeginEvent(D3DCOLOR c,LPCWSTR n){LoadReal();return realBegin?realBegin(c,n):-1;}
 int WINAPI D3DPERF_EndEvent(){LoadReal();return realEnd?realEnd():-1;}
 BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");}return TRUE;}
+
 
