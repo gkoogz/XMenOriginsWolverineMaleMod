@@ -57,6 +57,7 @@ static const float neutralShape[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
 // legacy extremes.  The neutral and upper halves remain bit-identical.
 static const float coherentShapeLow[7]={.85f,1.0f,.95f,1.0f,-80.f,-2.f,-3.f};
 static float hangUI=50.f;
+static float glansUI=50.f;
 static float sliderUI[7]={50.f,50.f,50.f,50.f,50.f,50.f,50.f};
 static float sliderValues[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
 struct PhysSpec {const char* name;float lo,hi,def,step;};
@@ -474,10 +475,11 @@ static void LoadSettings(){
     settingsPending=true;settingsChangedTick=GetTickCount();
   }
   ReadIniFloat(path,"Shape","Hang",1.f,100.f,hangUI);
+  ReadIniFloat(path,"Shape","Glans Size",1.f,100.f,glansUI);
   ApplyControlMapping();float state=(float)physicsState;if(ReadIniFloat(path,"Physics","State",0,2,state))physicsState=(int)(state+.5f);
   Log("1-100 controls loaded version=%d state=%d neutral shape=(%.3f %.3f %.3f %.3f %.1f %.3f %.3f)",version,physicsState,sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6]);
 }
-static void SaveSettings(){char path[MAX_PATH],value[64];SiblingPath(path,"WolverineLive.ini");WritePrivateProfileStringA("Meta","ControlScaleVersion","2",path);for(int i=0;i<7;i++){sprintf_s(value,"%.0f",sliderUI[i]);WritePrivateProfileStringA("Shape",sliderSpecs[i].name,value,path);}for(int i=0;i<8;i++){sprintf_s(value,"%.0f",physUI[i]);WritePrivateProfileStringA("Physics",physSpecs[i].name,value,path);}sprintf_s(value,"%.0f",hangUI);WritePrivateProfileStringA("Shape","Hang",value,path);sprintf_s(value,"%d",physicsState);WritePrivateProfileStringA("Physics","State",value,path);settingsPending=false;Log("1-100 control settings saved to WolverineLive.ini");}
+static void SaveSettings(){char path[MAX_PATH],value[64];SiblingPath(path,"WolverineLive.ini");WritePrivateProfileStringA("Meta","ControlScaleVersion","2",path);for(int i=0;i<7;i++){sprintf_s(value,"%.0f",sliderUI[i]);WritePrivateProfileStringA("Shape",sliderSpecs[i].name,value,path);}for(int i=0;i<8;i++){sprintf_s(value,"%.0f",physUI[i]);WritePrivateProfileStringA("Physics",physSpecs[i].name,value,path);}sprintf_s(value,"%.0f",hangUI);WritePrivateProfileStringA("Shape","Hang",value,path);sprintf_s(value,"%.0f",glansUI);WritePrivateProfileStringA("Shape","Glans Size",value,path);sprintf_s(value,"%d",physicsState);WritePrivateProfileStringA("Physics","State",value,path);settingsPending=false;Log("1-100 control settings saved to WolverineLive.ini");}
 static void QueueSettingsSave(){settingsPending=true;settingsChangedTick=GetTickCount();}
 static void FlushSettingsIfDue(){if(settingsPending&&GetTickCount()-settingsChangedTick>=700)SaveSettings();}
 static float Smooth01(float value){value=max(0.f,min(1.f,value));return value*value*(3.f-2.f*value);}
@@ -1176,6 +1178,24 @@ static void SculptVentralContourStudy(){
     graftDeformedPositions[i]=point+direction*(logicalShaftBodyRadius*detail);
   }
 }
+static void ScaleGlansIndependently(){
+  if(!constraintSolverReady)return;
+  float width=MapControl100(glansUI,1.f,1.40f,1.60f);
+  V3 anchor{},axis{};SampleShaftChain(.79f,anchor,axis);
+  V3 lateral=Unit(V3{0,1,0}-axis*axis.y),dorsal=Unit(Cross(axis,lateral));
+  for(UINT i=0;i<graftCount;i++){
+    float t=phys_flex_coordinate[i];if(t<=.79f||suspensionWeight[i]!=0.f)continue;
+    V3 offset=graftDeformedPositions[i]-anchor;
+    float blend=Smoother01((t-.79f)/.055f);
+    float growth=(width-1.f)*blend;
+    // Broad shoulders and a narrower rounded apex come from the authored
+    // head. Broaden its shoulders, extend the rounded apex and add less depth.
+    graftDeformedPositions[i]=graftDeformedPositions[i]
+      +lateral*(Dot(offset,lateral)*growth)
+      +dorsal*(Dot(offset,dorsal)*growth*.65f)
+      +axis*(Dot(offset,axis)*growth*1.50f);
+  }
+}
 static V3 RestBallAnchor(int side){
   if(!shaftRestFrameReady)return {12.55f,side?2.f:-2.f,76.35f};
   V3 center{},tangent{};SampleRestShaftFrame(.12f,center,tangent);
@@ -1391,6 +1411,7 @@ static void ApplyShape(){
     graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-follow)+solidCore[i]*follow;
   }
   SculptVentralContourStudy();
+  ScaleGlansIndependently();
   ResolveSuspendedSkinContact();
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
@@ -1469,34 +1490,44 @@ static void Text(IDirect3DDevice9* d,const char* text,RECT r,D3DCOLOR c,DWORD fl
   }}
   if(v.empty())return;d->SetTexture(0,nullptr);d->SetVertexShader(nullptr);d->SetPixelShader(nullptr);d->SetFVF(D3DFVF_XYZRHW|D3DFVF_DIFFUSE);d->SetTextureStageState(0,D3DTSS_COLOROP,D3DTOP_SELECTARG1);d->SetTextureStageState(0,D3DTSS_COLORARG1,D3DTA_DIFFUSE);d->SetTextureStageState(0,D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);d->SetTextureStageState(0,D3DTSS_ALPHAARG1,D3DTA_DIFFUSE);d->SetRenderState(D3DRS_ZENABLE,FALSE);d->SetRenderState(D3DRS_ZWRITEENABLE,FALSE);d->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);d->SetRenderState(D3DRS_ALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_COLORWRITEENABLE,0xF);HRESULT hr=d->DrawPrimitiveUP(D3DPT_TRIANGLELIST,(UINT)v.size()/3,v.data(),sizeof(OV));if(InterlockedCompareExchange(&overlayLogged,1,0)==0)Log("HUD bitmap text DrawPrimitiveUP=%08X vertices=%u",hr,(unsigned)v.size());
 }
+static void ResetStudyControls(){hangUI=glansUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
+static void AdjustStudyControl(int index,int dir,float mult){
+  int control=index<3?index:index-1;
+  if(index==3)glansUI=max(1.f,min(100.f,glansUI+dir*mult));
+  else{
+      if(control==4)hangUI=max(1.f,min(100.f,hangUI+dir*mult));
+      else if(control<8){int shape=control<4?control:control-1;sliderUI[shape]=max(1.f,min(100.f,sliderUI[shape]+dir*mult));}
+      else if(control==8){physicsState=(physicsState+dir+3)%3;shaftSpring=Spring2{};}
+      else physUI[control-9]=max(1.f,min(100.f,physUI[control-9]+dir*mult));
+  }
+  ApplyControlMapping();shapeDirty=true;
+}
 static void OverlayFrame(IDirect3DDevice9* d){
   if(inOverlay)return;inOverlay=true;
   InterlockedIncrement(&renderFrameSerial);
   if(KeyEdge(VK_F6))menuOpen=!menuOpen;
   if(menuOpen){
-    const int count=17;
+    const int count=18;
     if(KeyEdge(VK_UP))selectedSlider=(selectedSlider+count-1)%count;
     if(KeyEdge(VK_DOWN))selectedSlider=(selectedSlider+1)%count;
-    if(KeyEdge(VK_F8)){hangUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
+    if(KeyEdge(VK_F8))ResetStudyControls();
     int dir=KeyEdge(VK_LEFT)?-1:KeyEdge(VK_RIGHT)?1:0;
     if(dir){float mult=(GetAsyncKeyState(VK_SHIFT)&0x8000)?5.f:1.f;
-      if(selectedSlider==4)hangUI=max(1.f,min(100.f,hangUI+dir*mult));
-      else if(selectedSlider<8){int shape=selectedSlider<4?selectedSlider:selectedSlider-1;sliderUI[shape]=max(1.f,min(100.f,sliderUI[shape]+dir*mult));}
-      else if(selectedSlider==8){physicsState=(physicsState+dir+3)%3;shaftSpring=Spring2{};}
-      else physUI[selectedSlider-9]=max(1.f,min(100.f,physUI[selectedSlider-9]+dir*mult));
-      ApplyControlMapping();shapeDirty=true;
+      AdjustStudyControl(selectedSlider,dir,mult);
     }
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
-  IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=17;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.2 R2 CONTOUR STUDY (F6 TO HIDE)":"v0.7.2 R2 CONTOUR STUDY (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
+  IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=18;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.2 R2 GLANS STUDY (F6 TO HIDE)":"v0.7.2 R2 GLANS STUDY (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
-      if(i==4){name="HANG";value=hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
-      else if(i<8){int shape=i<4?i:i-1;const auto& s=sliderSpecs[shape];name=s.name;value=sliderUI[shape];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
-      else if(i==8){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}
-      else{const auto& s=physSpecs[i-9];name=s.name;value=physUI[i-9];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
-      RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(i==8){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=(value-lo)/(hi-lo);Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
+      int control=i<3?i:i-1;
+      if(i==3){name="GLANS SIZE";value=glansUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      else if(control==4){name="HANG";value=hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      else if(control<8){int shape=control<4?control:control-1;const auto& s=sliderSpecs[shape];name=s.name;value=sliderUI[shape];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      else if(control==8){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}
+      else{const auto& s=physSpecs[control-9];name=s.name;value=physUI[control-9];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(control==8){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=(value-lo)/(hi-lo);Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
     }
     DWORD transformAge=motionLastCaptureTick?GetTickCount()-motionLastCaptureTick:0xFFFFFFFFu;bool transformLive=motionCollisionBonesReady&&transformAge<=1200u;
     D3DCOLOR statusColor=transformLive?D3DCOLOR_ARGB(255,92,230,130):graftBuffer?D3DCOLOR_ARGB(255,80,190,235):D3DCOLOR_ARGB(255,255,190,70);const char* statusText=transformLive?"STATUS: CHARACTER TRANSFORM LIVE":graftBuffer?"STATUS: TRANSFORM UNAVAILABLE":"STATUS: WAITING FOR WOLVERINE";RECT status{(LONG)x+10,(LONG)statusY,(LONG)(x+w-10),(LONG)statusY+20};Text(d,statusText,status,statusColor);RECT help1{(LONG)x+10,(LONG)statusY+22,(LONG)(x+w-10),(LONG)statusY+41};Text(d,"UP/DOWN SELECT  LEFT/RIGHT ADJUST",help1,D3DCOLOR_ARGB(255,185,185,190));RECT help2{(LONG)x+10,(LONG)statusY+42,(LONG)(x+w-10),(LONG)statusY+63};Text(d,"SHIFT = COARSE  F8 = RESET ALL",help2,D3DCOLOR_ARGB(255,185,185,190));
