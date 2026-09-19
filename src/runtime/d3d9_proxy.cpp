@@ -1189,7 +1189,7 @@ static void ScaleGlansIndependently(){
   V3 anchor{},axis{};SampleShaftChain(.76f,anchor,axis);
   V3 lateral=Unit(V3{0,1,0}-axis*axis.y),dorsal=Unit(Cross(axis,lateral));
   for(UINT i=0;i<graftCount;i++){
-    float t=phys_flex_coordinate[i];if(t<=.70f||suspensionWeight[i]!=0.f)continue;
+    float t=phys_flex_coordinate[i];if(t<=.78f||suspensionWeight[i]!=0.f)continue;
     V3 offset=graftDeformedPositions[i]-anchor;
     V3 radial=offset-axis*Dot(offset,axis);float radius=Length(radial);
     float fold=0.f;
@@ -1203,9 +1203,9 @@ static void ScaleGlansIndependently(){
         *(1.f-Smoother01((seamDistance-.055f)/.125f))
         *(1.f-Smoother01((t-.91f)/.025f));
     }
-    // Authored rim vertices start before .82. Finish the attachment blend
-    // behind their folded seam so the rim and cap receive the same scale.
-    float blend=Smoother01((t-.70f)/.040f)*(1.f-fold);
+    // Keep the distal shaft fixed. Finish this short attachment transition
+    // before the coronal crest, rather than scaling the preceding shaft band.
+    float blend=Smoother01((t-.78f)/.010f)*(1.f-fold);
     // One scalar for every axis, about the crown base. Only the attachment
     // transition is blended; the free crown scales uniformly.
     if(blend>0.f&&scale!=1.f){
