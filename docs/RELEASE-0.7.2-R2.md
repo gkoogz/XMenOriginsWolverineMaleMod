@@ -13,3 +13,5 @@ Known limits: tight maximum and rigid-tight each retain one detected crossing; t
 The game’s original 0.7.2 DLL and settings are backed up under `WGame/ModBackups/WolverineAnatomyTool-v0.7.2-r2`. Saved settings including Hang65 were preserved byte for byte. The earlier 0.7.2 backup remains intact.
 
 The upgrade ZIP targets an existing v0.7 package. Close the game, extract the ZIP, run Upgrade-0.7.2.cmd. Rollback-0.7.2.cmd restores the preceding DLL without changing settings. Upgrade, repeat-install, rollback, read-only preservation and package/settings preservation were tested in an isolated fixture.
+
+Live verification: the automated launcher did not expose a game window, and the follow-up process/window check found no running game. Installation is hash-verified, but this revision has not been visually verified during live gameplay. Launch through your usual shortcut.
