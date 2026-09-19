@@ -1,3 +1,7 @@
+# Current: local crown reconstruction delivered for review
+
+User requested a stronger correction using their contour and additional anatomical references. outputs/crown-anatomical-rebuild replaces only the failed distal patch from crown-rounded (cut at authored flex .74), preserving the retained proximal source poses. 21,100 fixed triangles / 10,561 vertices; rounded rolled corona, convex cap, inward ventral notch and paired surfaces. Soft Y/delta remains stylized. Removed ring-order reversal causing an artificial transverse fold. 41 size samples ordered/nondegenerate, uniform crown scaling; five Blender samples agree; five BVH checks zero nonadjacent overlaps involving new patch; no new open/nonmanifold edges. Three-view five-size solid/wire/color comparison rendered from actual before/after objects. See CROWN-ANATOMICAL-REBUILD.md and REFERENCES.md. No game install/runtime changes. New UV patch needs atlas and rig/physics transfer. Meatal/internal anatomy omitted; not medically validated. Prior accepted artifacts preserved.
+
 # Current: corrected lobe silhouette received; trial failed visual review
 
 User supplied a red side-profile outline requesting a fuller rounded lobe, tucked-under transition, and retained underside Y. Saved outputs/crown-rounded-lobe/corrected-silhouette.png. Current experiments did not achieve it; no new comparison published, accepted crown-lower-rim left unchanged, game unchanged. See ROUNDED-LOBE-FAILED-TRIAL.md. Do not claim trial is complete or use its mixed-size diagnostic renders as a validated comparison.
