@@ -1,0 +1,11 @@
+# Ventral contour study from 0.7.2 R2
+
+An isolated, neutral model study based on the agreed contour cues: a projecting coronal lip tapering toward the ventral attachment, a substantial central crest narrowing distally, and shallow grooves separating the localized fold from the surrounding surface. These are sculpting choices, not validated clinical measurements. The source images were used to interpret shape intent, not as textures or reproduced scenes.
+
+The coronal addition varies around the circumference and sweeps slightly toward the tip as it approaches the underside. Its central ventral projection fades strongly. The ventral crest narrows from .36 to .18 in normalized lateral coordinates, with distinct shaft and fold support. Geometry retains R2 topology/UVs. No replacement dome, global smoothing or remeshing. The semi/floppy transport correction preserves the distal axial offsets that R2 otherwise compresses.
+
+Comparison: left is accepted0.7.2R2, right is this study. Three views, solid and wireframe, twelve1100px renders at default50 controls/state2 after240frames. They show actual runtime-emitted vertices under Blender lighting, not gameplay screenshots. Static editable Blender and OBJ models are included; they have no skeletal rig. Upper body excluded.
+
+Checks:10cases, sizes1/50/100 across states0/1/2 with motion plus neutral default. All positions finite,0degenerate triangles in the tested1860-triangle shaft/head region,0added intersection pairs relative toR2. Existing intersections remain: neutral94→46, maximum movingstate2 152→68. Proximal coordinates<=.40, pelvis and solver nodes remain identical. These sampled checks exclude adjacent/coplanar intersections and do not establish perfect geometry. Faceting remains visible; state0 has more sharp face pairs and some quality metrics worsen. This is a reviewable contour study, not a finished retopology or medically validated asset.
+
+The DLL compiled and is labelled0.7.2 R2 CONTOUR STUDY. It is saved in runtime-preview, not installed or live-game tested. The installed game remains accepted0.7.2R2 with settings/package unchanged. build.json records hashes; study.patch and runtime.cpp record source; geometry-audit.json records case metrics.

@@ -1134,9 +1134,47 @@ static void ApplyConstraintCurve(float value[3],UINT i){
   // Spread constraint influence well beyond the sparse first shaft rings so
   // the root, semi, and floppy states share one continuous bend gradient.
   float t=max(0.f,min(1.f,phys_flex_coordinate[i]));active*=Smoother01(t/.78f);
+  // Keep the authored head offsets during semi/floppy transport, rather than
+  // collapsing the lip back onto a series of centerline cross-sections.
+  float distal=physicsState>0?Smoother01((phys_flex_coordinate[i]-.67f)/.10f):0.f;
+  t=t*(1.f-distal)+graftRestFlex[i]*distal;
   V3 point={value[0],value[1],value[2]},center{},tangent{},restCenter{},restTangent{};SampleShaftChain(t,center,tangent);SampleRestShaftFrame(t,restCenter,restTangent);
-  V3 fromCenter=point-restCenter;V3 radial=fromCenter-restTangent*Dot(fromCenter,restTangent);V3 target=center+RotateFromTo(radial,restTangent,tangent);
+  V3 fromCenter=point-restCenter;V3 radial=fromCenter-restTangent*Dot(fromCenter,restTangent);V3 target=center+RotateFromTo(radial+(fromCenter-radial)*distal,restTangent,tangent);
   value[0]+=(target.x-value[0])*active;value[1]+=(target.y-value[1])*active;value[2]+=(target.z-value[2])*active;
+}
+static void SculptVentralContourStudy(){
+  if(!constraintSolverReady||!shaftRestFrameReady)return;
+  for(UINT i=0;i<graftCount;i++){
+    float t=phys_flex_coordinate[i];
+    if(t<=.40f||t>=.97f||suspensionWeight[i]!=0.f)continue;
+    V3 center{},tangent{};SampleShaftChain(t,center,tangent);
+    V3 point=graftDeformedPositions[i],offset=point-center;
+    V3 radial=offset-tangent*Dot(offset,tangent);float radius=Length(radial);
+    if(radius<1e-4f)continue;
+    V3 direction=radial/radius,lateral=Unit(V3{0,1,0}-tangent*tangent.y);
+    V3 dorsal=Unit(Cross(tangent,lateral));
+    float side=fabsf(Dot(direction,lateral)),ventral=-Dot(direction,dorsal);
+    float underside=Smoother01((ventral-.25f)/.60f);
+    float delta=underside*CompactProfile(side,.68f);
+    // The lip's wings lose projection as they approach the ventral fold.
+    // Its crest also sweeps distally there, avoiding a uniform circular flange.
+    float lipCenter=.820f+.012f*delta;
+    float lip=FirmProfile(fabsf(t-lipCenter),.004f,.036f);
+    float lipHeight=.160f*(1.f-.92f*delta);
+    float headSupport=Smoother01((t-.79f)/.025f)*(1.f-Smoother01((t-.93f)/.04f));
+    // A rounded ventral crest narrows into the localized attachment. Shallow
+    // flanking relief separates the fold from the surrounding wings.
+    float convergence=Smoother01((t-.61f)/.29f);
+    float halfWidth=.36f*(1.f-convergence)+.18f*convergence;
+    float crest=FirmProfile(side,halfWidth*.20f,halfWidth)*underside;
+    float shaftSupport=Smoother01((t-.40f)/.12f)*(1.f-Smoother01((t-.68f)/.065f));
+    float fold=CompactProfile(fabsf(t-.858f),.075f)*headSupport;
+    float channels=CompactProfile(fabsf(side-halfWidth*1.12f),.09f)*underside;
+    float detail=lipHeight*lip*headSupport
+      +crest*(.065f*shaftSupport+.130f*fold)
+      -channels*(.012f*shaftSupport+.020f*fold);
+    graftDeformedPositions[i]=point+direction*(logicalShaftBodyRadius*detail);
+  }
 }
 static V3 RestBallAnchor(int side){
   if(!shaftRestFrameReady)return {12.55f,side?2.f:-2.f,76.35f};
@@ -1352,6 +1390,7 @@ static void ApplyShape(){
     float follow=Smoother01((graftRestFlex[i]-.30f)/.10f);
     graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-follow)+solidCore[i]*follow;
   }
+  SculptVentralContourStudy();
   ResolveSuspendedSkinContact();
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
@@ -1450,7 +1489,7 @@ static void OverlayFrame(IDirect3DDevice9* d){
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
   IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=17;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.2 R2 ROOT RAMP (F6 TO HIDE)":"v0.7.2 R2 ROOT RAMP (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.2 R2 CONTOUR STUDY (F6 TO HIDE)":"v0.7.2 R2 CONTOUR STUDY (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       if(i==4){name="HANG";value=hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
