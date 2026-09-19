@@ -1,3 +1,6 @@
+# Current: corrected lobe silhouette received; trial failed visual review
+
+User supplied a red side-profile outline requesting a fuller rounded lobe, tucked-under transition, and retained underside Y. Saved outputs/crown-rounded-lobe/corrected-silhouette.png. Current experiments did not achieve it; no new comparison published, accepted crown-lower-rim left unchanged, game unchanged. See ROUNDED-LOBE-FAILED-TRIAL.md. Do not claim trial is complete or use its mixed-size diagnostic renders as a validated comparison.
 # Current: identified lower underside rim blend
 
 User answered clarification: LOWER RIM across underside, not shaft junction. outputs/crown-lower-rim retains reversed Y and targets authored flex .94 using .65/120 local rounding plus a compact .25*scale outward blend onto lower dome (.932–1). Prior shaft-junction seam modifier removed. Same 10% reduction/size control, five evaluated finite/nondegenerate samples. Lower edge softened but remains visible; surrounding corrugation not fixed. No runtime/install changes. See CROWN-LOWER-RIM.md; work/blend_lower_rim.py, render_lower_rim.py, package_lower_rim.py.
@@ -413,4 +416,5 @@ Next agent: read this first, verify current disk/process state, update this file
 with what you learn and the exact next action before handing off. Do not repeat
 failed approaches without a specific new reason. Do not mark a candidate visually
 fixed until in-game evidence supports that claim.
+
 
