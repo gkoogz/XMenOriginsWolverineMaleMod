@@ -1,3 +1,6 @@
+# Current: user requested restoration to 0.7.2 R2 again
+
+The user requested "revert to7.1.2R2", interpreted consistently as accepted0.7.2R2. Active branch restored to version-0.7.2, source baseline79bc194. All subsequent enhancements are preserved on enhance-072-r2 at22e43da and are no longer active. InstalledDLL verified SHA256 B835ABE6DE44C4F67A9CD63805897BBB347FA5EB4489343260E3BA82D2F573FE; it already matched R2, so no game files/settings were changed. Local ignored src/runtime/d3d9.dll refreshed from that installedR2binary, and deterministic_harness.exe rebuilt from restored source to remove the experimental executable. Original outputs/v0.7.2-root-ramp-r2/comparison.html reopened. Do not resume sculpt/enhancement candidates without a new request.
 # User-directed restoration to 0.7.2 R2
 
 User rejected the subsequent anatomy studies and explicitly requested return to 0.7.2 R2. Active branch restored to version-0.7.2; source baseline d36f840. Installed DLL already matched R2 SHA256 B835ABE6DE44C4F67A9CD63805897BBB347FA5EB4489343260E3BA82D2F573FE, so no game files or settings were rewritten. Harness rebuilt from restored source. Experiments preserved separately on anatomy-glans-study and in prior outputs; they are not active. Do not resume those experiments without a new request.
