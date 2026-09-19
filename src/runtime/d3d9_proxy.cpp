@@ -1192,11 +1192,15 @@ static void ScaleGlansIndependently(){
     float t=phys_flex_coordinate[i];if(t<=.78f||suspensionWeight[i]!=0.f)continue;
     V3 offset=graftDeformedPositions[i]-anchor;
     V3 radial=offset-axis*Dot(offset,axis);float radius=Length(radial);
-    float fold=0.f;
+    float fold=0.f,cutIn=0.f;
     if(radius>1e-4f){
       V3 direction=radial/radius;
       float ventral=-Dot(direction,dorsal);
       float seamDistance=fabsf(Dot(offset,lateral))/max(.001f,logicalShaftBodyRadius);
+      // The lower crown edge sweeps inward toward the frenulum. Exclude
+      // the triangular shaft-side area above that edge, not just its seam.
+      cutIn=.085f*Smoother01((ventral-.25f)/.60f)
+        *(1.f-Smoother01(seamDistance/.90f));
       // Pin the central ventral attachment; blend the neighboring crown
       // surface without enlarging the frenulum itself.
       fold=Smoother01((ventral-.45f)/.30f)
@@ -1205,7 +1209,7 @@ static void ScaleGlansIndependently(){
     }
     // Keep the distal shaft fixed. Finish this short attachment transition
     // before the coronal crest, rather than scaling the preceding shaft band.
-    float blend=Smoother01((t-.78f)/.010f)*(1.f-fold);
+    float blend=Smoother01((t-(.78f+cutIn))/.010f)*(1.f-fold);
     // One scalar for every axis, about the crown base. Only the attachment
     // transition is blended; the free crown scales uniformly.
     if(blend>0.f&&scale!=1.f){

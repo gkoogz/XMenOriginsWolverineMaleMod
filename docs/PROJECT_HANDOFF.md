@@ -1,3 +1,7 @@
+# Current: inward underside crown boundary
+
+User accepted isolated crown but notes lower boundary cuts inward and includes underside shaft incorrectly. Extends7ceae01. Added cutIn=.085*Smoother01((ventral-.25)/.60)*(1-Smoother01(seamDistance/.90)); blend starts at.78+cutIn, width.010. Narrow frenulum mask retained.42-43 underside shaft vertices fixed across9poses; central frenulum pinned and freecrownuniform; size1unchanged.27cases finite/no degenerate; same4 extreme-size cases2crossings each. outputs/crown-undercut has underside-first comparison, Blender/OBJ, compiled uninstalled DLL and audits. work/check_crown_undercut.py, check_crown_undercut_mask.py, crown_undercut_render.py reproduce. R2 installation unchanged; visual acceptance pending.
+
 # Current: isolate crown scaling from distal shaft
 
 User accepted uniform crown growth but reports shaft dragged into it. Extends0a4ad1b. Moved selection start from.70 to.78 and blend from.70-.74 to.78-.79; shaft<=.78 is exactly fixed. Full crown scalar and narrow frenulum mask retained. Scale1unchanged. 23 of 27 sampled cases have no added intersections; 4 extreme-size cases have up to 2 added crossing pairs each. Existing folds and faceting remain. Allfinite/no degenerate; pelvis/nodes unchanged. outputs/crown-isolated contains matched before/after, Blender/OBJ, compiled uninstalled DLL and audits. work/check_crown_isolated.py, check_crown_isolated_mask.py, crown_isolated_render.py reproduce. InstalledR2hash verified; visual approval/live-game testing pending.
