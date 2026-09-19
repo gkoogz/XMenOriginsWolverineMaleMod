@@ -46,6 +46,13 @@ static int selectedSlider;
 // 133 preset is exactly 50; sliderValues/physValues remain the legacy physical
 // units consumed by the established morph and solver code.
 static const float neutralShape[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
+// The authored low morphs predate independent 1-100 controls.  Driving several
+// of them to their raw endpoints multiplies their shrinkage: Overall+Width
+// reduces the shaft to a near-line, Overall+Length crushes the glans axially,
+// and Overall+Scrotum collapses the pouch.  Keep every UI control fully usable,
+// but map UI 1 to coherent anatomical envelopes rather than the destructive
+// legacy extremes.  The neutral and upper halves remain bit-identical.
+static const float coherentShapeLow[7]={.85f,1.0f,.95f,1.0f,-80.f,-2.f,-3.f};
 static float sliderUI[7]={50.f,50.f,50.f,50.f,50.f,50.f,50.f};
 static float sliderValues[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
 struct PhysSpec {const char* name;float lo,hi,def,step;};
@@ -74,6 +81,10 @@ static const int shaftNodeCount=12;
 static V3 shaftNodes[shaftNodeCount],shaftPrevious[shaftNodeCount],ballNodes[2],ballPrevious[2];
 static const int shaftRestSampleCount=18;
 static V3 shaftRestCenters[shaftRestSampleCount];
+static float graftRestFlex[graftCount];
+static V3 logicalShaftRestRadial[graftCount];
+static float logicalShaftOwnership[graftCount];
+static float logicalShaftBodyRadius;
 static bool shaftRestFrameReady;
 static V3 graftDeformedPositions[graftCount],graftDynamicNormalSums[graftNormalGroupCount],graftDynamicTangentSums[graftCount];
 static V3 collarFairA[collarFairGroupCount],collarFairB[collarFairGroupCount];
@@ -177,7 +188,14 @@ static float BallShapeScale(){return OverallShapeScale()*(sliderValues[3]/slider
 static float ShaftCollisionRadius(){return max(1.05f,2.75f*ShaftWidthScale());}
 static float BallCollisionRadius(){return max(.85f,2.70f*BallShapeScale());}
 static V3 BallAnchor(int side){float sign=side?1.f:-1.f;float shaftRadius=ShaftCollisionRadius();float base=max(1.15f,fabsf(constraintBallRest[side].y)*.78f);float desired=base+max(0.f,shaftRadius-2.75f)*.42f;return {12.55f,sign*desired,76.35f};}
+// Continuous ownership handoff across the donor's mixed shaft/scrotum rows.
+// A hard weight cutoff makes adjacent vertices choose different solvers and
+// turns their connecting triangles into long spokes during physics.
+static float ShaftPouchBlend(float ball){return 1.f-Smoother01((ball-.02f)/.48f);}
 static void SampleRestShaftFrame(float t,V3& center,V3& tangent);
+static float LogicalShaftOwner(UINT i,float t);
+static V3 RotateFromTo(V3 value,V3 from,V3 to);
+static void SampleShaftChain(float t,V3& center,V3& tangent);
 static void InitializeConstraintSolver(){
   V3 root=ShaftRoot(),dir=RestShaftDirection();float segment=constraintRestLength/(shaftNodeCount-1);
   for(int i=0;i<shaftNodeCount;i++)shaftNodes[i]=shaftPrevious[i]=root+dir*(segment*i);
@@ -439,7 +457,7 @@ static void SiblingPath(char* path,const char* name){GetModuleFileNameA((HMODULE
 static bool ReadIniFloat(const char* path,const char* section,const char* key,float lo,float hi,float& value){char text[64]{};GetPrivateProfileStringA(section,key,"",text,sizeof(text),path);if(!text[0])return false;char* end=nullptr;float parsed=strtof(text,&end);if(end==text||!std::isfinite(parsed)||parsed<lo||parsed>hi)return false;value=parsed;return true;}
 static float MapControl100(float ui,float lo,float neutral,float hi){ui=max(1.f,min(100.f,ui));return ui<=50.f?lo+(neutral-lo)*((ui-1.f)/49.f):neutral+(hi-neutral)*((ui-50.f)/50.f);}
 static float UnmapControl100(float value,float lo,float neutral,float hi){value=max(lo,min(hi,value));return value<=neutral?1.f+49.f*(value-lo)/max(1e-6f,neutral-lo):50.f+50.f*(value-neutral)/max(1e-6f,hi-neutral);}
-static void ApplyControlMapping(){for(int i=0;i<7;i++)sliderValues[i]=MapControl100(sliderUI[i],sliderSpecs[i].lo,neutralShape[i],sliderSpecs[i].hi);for(int i=0;i<8;i++)physValues[i]=MapControl100(physUI[i],physSpecs[i].lo,neutralPhysics[i],physSpecs[i].hi);}
+static void ApplyControlMapping(){for(int i=0;i<7;i++)sliderValues[i]=MapControl100(sliderUI[i],coherentShapeLow[i],neutralShape[i],sliderSpecs[i].hi);for(int i=0;i<8;i++)physValues[i]=MapControl100(physUI[i],physSpecs[i].lo,neutralPhysics[i],physSpecs[i].hi);}
 static void LoadSettings(){
   if(settingsLoaded)return;settingsLoaded=true;char path[MAX_PATH];SiblingPath(path,"WolverineLive.ini");
   int version=GetPrivateProfileIntA("Meta","ControlScaleVersion",0,path);
@@ -480,6 +498,30 @@ static void ApplyPelvisCollar(float value[3],float distance,float growth,bool gr
   value[0]+=seamLift*influence;
   value[1]*=radialScale;
   value[2]=84.3f+(value[2]-84.3f)*radialScale;
+
+  // Maximum-size playtesting exposed a shallow dorsal waist: the accepted
+  // shaft crown is wider than the last supported collar row.  Fill only that
+  // upper collar sector.  The field starts farther out on the pelvis than on
+  // the graft, so the abdomen eases into the weld while the shaft body keeps
+  // its existing radius law.  The lower/inter-leg arc receives no supplement.
+  float maximum=Smoother01(growth/1.5f);
+  // The previous field was too narrow and too weak after unified fairing.  At
+  // O100/W100 its final supported row still fell below both the abdomen and
+  // shaft crown, leaving the exact saddle seen in the user's L100 floppy
+  // capture.  Start the dorsal blend below the weld and recruit a wider body
+  // arc, but retain the zero-valued lower sector through `upper`.
+  float upper=Smoother01((value[2]-80.80f)/8.20f);
+  float fillRadius=(graftSide?6.75f:8.75f)+(graftSide?3.75f:6.0f)*growth;
+  float fill=1.f-Smoother01(distance/max(.5f,fillRadius));
+  float support=maximum*upper*fill;
+  if(support>.0001f){
+    // Lift the local minimum primarily in dorsal radius and secondarily in
+    // forward projection.  This enlarges the collar/ramp, not the shaft body.
+    float upperRadial=1.f+.360f*growth*support;
+    value[0]+=.50f*growth*support;
+    value[1]*=1.f+.070f*growth*support;
+    value[2]=84.3f+(value[2]-84.3f)*upperRadial;
+  }
 }
 static float ShaftPhysicsTaper(float flex){
   // Flex is a geometry-derived axial coordinate shared by every vertex around
@@ -524,12 +566,26 @@ static void FlareAttachment(float value[3],UINT i){
   // Y and local Z are the true cross-section.  The former basis scaled X at
   // zero angle and was the source of the longitudinal buttress-like ridges.
   float axial=ca*dx-sa*dz,radial=sa*dx+ca*dz;
-  // The old fixed 16% bell created a secondary raised ring. The pelvis now
-  // supplies the flare; retain only a shallow graft-side continuation.
-  float scale=1.f+(.055f+.035f*PelvisCollarGrowth())*influence;
+  // This is only a shallow precursor for the common section solver below.
+  // It must not define an independent collar crown: stacking an attachment
+  // bell on top of a separately scaled shaft caused the dorsal-left kink.
+  float dorsal=Smoother01(max(0.f,min(1.f,radial/max(.5f,2.52f*ShaftWidthScale()))));
+  float collarGrowth=PelvisCollarGrowth();
+  float growthExtra=.035f*collarGrowth*(1.f-.82f*dorsal);
+  float scale=1.f+(.042f+growthExtra)*influence;
   radial*=scale;value[1]*=scale;
   value[0]=12.65f+ca*axial+sa*radial;
   value[2]=84.3f-sa*axial+ca*radial;
+}
+static float ClosestRestShaftFlex(V3 point){
+  float bestDistance=1e30f,bestT=0.f;
+  for(int segment=0;segment<shaftRestSampleCount-1;segment++){
+    V3 a=shaftRestCenters[segment],ab=shaftRestCenters[segment+1]-a;float denominator=Dot(ab,ab);
+    float q=denominator>1e-8f?max(0.f,min(1.f,Dot(point-a,ab)/denominator)):0.f;
+    V3 nearest=a+ab*q;float distance=Dot(point-nearest,point-nearest);
+    if(distance<bestDistance){bestDistance=distance;bestT=(segment+q)/(shaftRestSampleCount-1);}
+  }
+  return bestT;
 }
 static void BuildShaftRestFrame(){
   const float sigma=.082f,invTwoSigma2=1.f/(2.f*sigma*sigma);
@@ -556,7 +612,37 @@ static void BuildShaftRestFrame(){
     for(int i=1;i<shaftRestSampleCount-1;i++)shaftRestCenters[i]=copy[i]+((copy[i-1]+copy[i+1])*.5f-copy[i])*.34f;
   }
   shaftRestCenters[0]=ShaftRoot();
-  for(int i=1;i<shaftRestSampleCount;i++)shaftRestCenters[i].x=max(shaftRestCenters[i].x,shaftRestCenters[i-1].x+.10f);
+  // The scrotal donor contaminates the measured proximal centers.  The root
+  // and first free shaft must share one centerline; otherwise even matching
+  // radii read as a kink when adjacent rings drift vertically.  Re-project the
+  // proximal samples onto the authored axis with a C2 release into the stable
+  // body.  Full physics already uses a straight rest chain, so retain that
+  // exact architecture for moving states.
+  if(physicsState==0){
+    V3 root=ShaftRoot(),axis=RestShaftDirection();float previous=0.f;
+    for(int i=1;i<shaftRestSampleCount;i++){
+      float t=(float)i/(shaftRestSampleCount-1),axial=max(previous+.10f,Dot(shaftRestCenters[i]-root,axis));previous=axial;
+      V3 line=root+axis*axial;
+      float follow=1.f-Smoother01(max(0.f,(t-.07f)/.53f));
+      shaftRestCenters[i]=shaftRestCenters[i]*(1.f-follow)+line*follow;
+    }
+  }else{
+    V3 axisEnd=shaftRestCenters[shaftRestSampleCount-1],axisSpan=axisEnd-ShaftRoot();axisSpan.y=0.f;
+    if(Length(axisSpan)<8.f)axisSpan=RestShaftDirection()*constraintRestLength;
+    for(int i=0;i<shaftRestSampleCount;i++)shaftRestCenters[i]=ShaftRoot()+axisSpan*((float)i/(shaftRestSampleCount-1));
+  }
+  for(UINT i=0;i<graftCount;i++)graftRestFlex[i]=ClosestRestShaftFlex(graftDeformedPositions[i]);
+  // Derive one body radius only from pure shaft skin.  Width and Overall may
+  // change this value, while the independently scaled pouch is excluded.
+  float radiusSum=0.f,weightSum=0.f;
+  for(UINT i=0;i<graftCount;i++){
+    float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]),ball=min(1.f,phys_scrotum_weight[i]),t=graftRestFlex[i];
+    if(shaft<.72f||ball>.05f||t<.30f||t>.70f)continue;
+    V3 center{},tangent{};SampleRestShaftFrame(t,center,tangent);V3 offset=graftDeformedPositions[i]-center;
+    V3 radial=offset-tangent*Dot(offset,tangent);float weight=shaft*shaft;
+    radiusSum+=Length(radial)*weight;weightSum+=weight;
+  }
+  logicalShaftBodyRadius=weightSum>1e-5f?radiusSum/weightSum:2.52f*ShaftWidthScale();
   float arc=0.f;for(int i=1;i<shaftRestSampleCount;i++)arc+=Length(shaftRestCenters[i]-shaftRestCenters[i-1]);
   float measured=max(8.f,min(60.f,arc));constraintRestLength=shaftRestFrameReady?constraintRestLength*.82f+measured*.18f:measured;
   shaftRestFrameReady=true;
@@ -567,10 +653,129 @@ static void SampleRestShaftFrame(float t,V3& center,V3& tangent){
   V3 before=shaftRestCenters[max(0,i-1)],after=shaftRestCenters[min(shaftRestSampleCount-1,i+2)];
   tangent=Unit(after-before);
 }
-static void PreserveShaftJunctionTube(){
-  // Maintain a single monotone proximal tube. The previous fixed-radius
-  // correction entered and left over short axial bands, exposing a second
-  // circumferential ridge just beyond the scrotal junction.
+static void RegularizeSharedRootProfile(){
+  // One angular profile owns the collar and the first free shaft.  Sample the
+  // uncontaminated shaft downstream, then carry that same shape back to the
+  // pelvis with a slight root flare.  This replaces the old logical stair-step
+  // between attachment, scrotal junction and shaft systems.
+  const int sectors=24;float radiusSum[sectors]{},weightSum[sectors]{},collarSum[sectors]{},collarWeight[sectors]{};float globalSum=0.f,globalWeight=0.f;
+  for(UINT i=0;i<graftCount;i++){
+    float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]),ball=min(1.f,phys_scrotum_weight[i]),t=graftRestFlex[i];
+    bool stable=t>=.52f&&t<=.72f,collar=t>=.025f&&t<=.16f;
+    if(shaft<.62f||ball>.05f||(!stable&&!collar))continue;
+    V3 center{},tangent{};SampleRestShaftFrame(t,center,tangent);V3 offset=graftDeformedPositions[i]-center;
+    V3 radial=offset-tangent*Dot(offset,tangent);float radius=Length(radial);if(radius<1e-4f)continue;
+    V3 lateral={0.f,1.f,0.f};lateral=Unit(lateral-tangent*Dot(lateral,tangent));V3 vertical=Unit(Cross(tangent,lateral));
+    float angle=atan2f(Dot(radial,vertical),Dot(radial,lateral));if(angle<0.f)angle+=6.283185307f;
+    int sector=min(sectors-1,(int)(angle*(sectors/6.283185307f)));float weight=shaft*shaft*(1.f-ball)*(1.f-ball);
+    if(stable){radiusSum[sector]+=radius*weight;weightSum[sector]+=weight;globalSum+=radius*weight;globalWeight+=weight;}
+    if(collar){collarSum[sector]+=radius*weight;collarWeight[sector]+=weight;}
+  }
+  float fallback=globalWeight>1e-5f?globalSum/globalWeight:logicalShaftBodyRadius;
+  float sectorRadius[sectors]{};
+  for(int sector=0;sector<sectors;sector++)sectorRadius[sector]=weightSum[sector]>1e-5f?radiusSum[sector]/weightSum[sector]:fallback;
+  // Circularly fill sparse sectors from their nearest populated neighbors.
+  for(int sector=0;sector<sectors;sector++)if(weightSum[sector]<=1e-5f){
+    float sum=0.f,weights=0.f;
+    for(int distance=1;distance<sectors/2;distance++){
+      int left=(sector-distance+sectors)%sectors,right=(sector+distance)%sectors;
+      if(weightSum[left]>1e-5f){sum+=sectorRadius[left]/distance;weights+=1.f/distance;}
+      if(weightSum[right]>1e-5f){sum+=sectorRadius[right]/distance;weights+=1.f/distance;}
+      if(weights>0.f&&distance>=3)break;
+    }
+    if(weights>0.f)sectorRadius[sector]=sum/weights;
+  }
+  float growth=Smoother01(PelvisCollarGrowth()/1.5f),rootBoost=.012f+.030f*growth;
+  float correctionStrength=.42f+.54f*growth;
+  for(UINT i=0;i<graftCount;i++){
+    float t=graftRestFlex[i];if(t>.60f)continue;
+    float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]),ball=min(1.f,phys_scrotum_weight[i]);
+    // The pouch hangs from the solved tube; it never supplies the tube shape.
+    // Keep the complete mixed-weight neck on the pouch side of the ownership
+    // boundary.  Projecting even its lightest ball-weighted rows back onto the
+    // shaft pinched the hourglass and stretched the bridge triangles.
+    if(shaft<.08f||ball>=.50f)continue;
+    float owner=LogicalShaftOwner(i,t);if(owner<=.0001f)continue;
+    V3 center{},tangent{};SampleRestShaftFrame(t,center,tangent);V3 point=graftDeformedPositions[i],offset=point-center;
+    V3 radial=offset-tangent*Dot(offset,tangent);float radius=Length(radial);if(radius<1e-4f)continue;
+    V3 lateral={0.f,1.f,0.f};lateral=Unit(lateral-tangent*Dot(lateral,tangent));V3 vertical=Unit(Cross(tangent,lateral));
+    float angle=atan2f(Dot(radial,vertical),Dot(radial,lateral));if(angle<0.f)angle+=6.283185307f;
+    float u=angle*(sectors/6.283185307f),base=floorf(u);int a=((int)base)%sectors,b=(a+1)%sectors;float q=u-base;
+    q=Smooth01(q);float reference=sectorRadius[a]*(1.f-q)+sectorRadius[b]*q;
+    // A monotone, sector-aware envelope: broadest at the collar, easing to the
+    // regular shaft without a local minimum or a compensating downstream lump.
+    float collarA=collarWeight[a]>1e-5f?collarSum[a]/collarWeight[a]:reference;
+    float collarB=collarWeight[b]>1e-5f?collarSum[b]/collarWeight[b]:reference;
+    float collarReference=collarA*(1.f-q)+collarB*q;
+    float rootReference=max(reference*(1.f+rootBoost),collarReference*.985f);
+    float rootFade=1.f-Smoother01(max(0.f,(t-.055f)/.505f));
+    float desired=reference+(rootReference-reference)*rootFade;
+    float change=max(-reference*.12f,min(reference*.12f,desired-radius));
+    float seamFollow=Smoother01(t/.14f);
+    float blend=owner*seamFollow*correctionStrength*(1.f-Smoother01(max(0.f,(t-.50f)/.10f)));
+    graftDeformedPositions[i]=point+radial*(change*blend/radius);
+  }
+}
+static float CompactProfile(float distance,float radius){
+  if(radius<=1e-5f)return 0.f;
+  return 1.f-Smoother01(distance/radius);
+}
+static float FirmProfile(float distance,float innerRadius,float outerRadius){
+  if(outerRadius<=innerRadius+1e-5f)return distance<=innerRadius?1.f:0.f;
+  if(distance<=innerRadius)return 1.f;
+  return 1.f-Smoother01((distance-innerRadius)/(outerRadius-innerRadius));
+}
+static void SculptConvergentVentralRaphe(){
+  // The ventral structure is a firm, broad subcutaneous tube rather than a
+  // soft mound or triangular fin. A low rounded plateau and steep C2 shoulders
+  // give it structural definition; two narrow troughs lock its flanks into the
+  // shaft. It stays nearly parallel through the body, then both narrows and
+  // sinks into the shaft as it approaches the urethral endpoint.
+  float dilation=Smoother01((ShaftWidthScale()-.90f)/1.55f);
+  for(UINT i=0;i<graftCount;i++){
+    float t=graftRestFlex[i];
+    float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]);
+    float ball=min(1.f,phys_scrotum_weight[i]);
+    if(t<.10f||t>.965f||shaft<.20f||ball>.36f)continue;
+    float shaftOwner=Smoother01((shaft-.20f)/.62f);
+    float pouchExclusion=1.f-Smoother01((ball-.025f)/.31f);
+    float proximal=Smoother01((t-.10f)/.17f);
+    float convergence=1.f-Smoother01((t-.61f)/.345f);
+    float longitudinal=shaftOwner*pouchExclusion*proximal*convergence;
+    if(longitudinal<=1e-5f)continue;
+
+    V3 center{},tangent{};SampleRestShaftFrame(t,center,tangent);
+    V3 point=graftDeformedPositions[i],offset=point-center;
+    V3 radial=offset-tangent*Dot(offset,tangent);float radius=Length(radial);
+    if(radius<1e-4f)continue;
+    V3 lateral={0.f,1.f,0.f};lateral=Unit(lateral-tangent*Dot(lateral,tangent));
+    V3 dorsal=Unit(Cross(tangent,lateral));V3 direction=radial/radius;
+    float ventral=-Dot(direction,dorsal);
+    float ventralGate=Smoother01((ventral-.10f)/.52f);
+    if(ventralGate<=1e-5f)continue;
+
+    float lateralCoordinate=Dot(radial,lateral)/radius;
+    float distal=Smoother01((t-.56f)/.395f);
+    float halfWidth=.49f*(1.f-.68f*distal);
+    float centerProfile=FirmProfile(fabsf(lateralCoordinate),halfWidth*.34f,halfWidth);
+    float grooveCenter=halfWidth*1.07f;
+    float grooveHalfWidth=max(.045f,halfWidth*.19f);
+    float grooveLeft=FirmProfile(fabsf(lateralCoordinate-grooveCenter),grooveHalfWidth*.12f,grooveHalfWidth);
+    float grooveRight=FirmProfile(fabsf(lateralCoordinate+grooveCenter),grooveHalfWidth*.12f,grooveHalfWidth);
+    float grooveProfile=max(grooveLeft,grooveRight);
+
+    float ridgeAmplitude=radius*(.055f+.145f*dilation);
+    float grooveAmplitude=radius*(.018f+.060f*dilation);
+    float displacement=(ridgeAmplitude*centerProfile-grooveAmplitude*grooveProfile)
+      *ventralGate*longitudinal;
+    // Bound every vertex displacement.  This makes triangle quality depend on
+    // the smooth field gradient rather than a few high-amplitude outliers.
+    float bound=radius*(.060f+.150f*dilation);
+    displacement=max(-bound*.50f,min(bound,displacement));
+    graftDeformedPositions[i]=point+direction*displacement;
+  }
+}
+static void PreserveV062StaticShaftJunctionTube(){
   float rootRadius=2.52f*ShaftWidthScale();
   for(UINT i=0;i<graftCount;i++){
     float t=phys_flex_coordinate[i];if(t>.72f)continue;
@@ -578,12 +783,57 @@ static void PreserveShaftJunctionTube(){
     float ownership=shaft/(shaft+ball+.0001f);if(shaft<.30f||ownership<.58f)continue;
     V3 center{},tangent{};SampleRestShaftFrame(t,center,tangent);
     V3 point=graftDeformedPositions[i],offset=point-center,radial=offset-tangent*Dot(offset,tangent);float radius=Length(radial);
-    // A C2, axisymmetric support floor holds the full shaft circumference
-    // through the root and eases only seven percent into the regular tube.
     float support=1.f-Smoother01(t/.72f),targetRadius=rootRadius*(.93f+.07f*support);
     if(radius<1e-4f||radius>=targetRadius)continue;
     float correction=min(targetRadius-radius,rootRadius*.14f)*Smoother01((ownership-.58f)/.42f);
     graftDeformedPositions[i]=point+radial*(correction/radius);
+  }
+}
+static float LogicalShaftOwner(UINT i,float t){
+  float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]);
+  float ball=min(1.f,phys_scrotum_weight[i]);
+  // A vertex is either shaft surface or pouch surface.  Every mixed neck row
+  // remains with the independently scaled scrotal system, so the final shaft
+  // transport cannot pull that broad hourglass into a narrow diagonal bridge.
+  if(shaft<.08f||ball>=.50f||t<0.f||t>.86f)return 0.f;
+  float rootFollow=Smoother01(t/.018f);
+  return rootFollow*(1.f-Smoother01((t-.80f)/.06f))*ShaftPouchBlend(ball);
+}
+static float LogicalShaftRadius(float t){
+  // One monotone law owns every complete shaft cross-section.  The root is the
+  // broad end and the body tapers only five percent before the protected glans.
+  float u=max(0.f,min(1.f,(t-.24f)/(.78f-.24f)));
+  return logicalShaftBodyRadius*(1.025f-.050f*u);
+}
+static float LogicalShaftOvalRadius(V3 radial,V3 tangent,float bodyRadius){
+  V3 lateral={0.f,1.f,0.f};lateral=lateral-tangent*Dot(lateral,tangent);
+  if(Length(lateral)<1e-4f)lateral={0.f,0.f,1.f};
+  lateral=Unit(lateral);V3 vertical=Unit(Cross(tangent,lateral));V3 direction=Unit(radial);
+  float lateralSemi=bodyRadius*1.02f,verticalSemi=bodyRadius*.99f;
+  float ly=Dot(direction,lateral),vz=Dot(direction,vertical);
+  return 1.f/sqrtf((ly*ly)/(lateralSemi*lateralSemi)+(vz*vz)/(verticalSemi*verticalSemi));
+}
+static void ConstructLogicalShaftSurface(bool finalPose){
+  for(UINT i=0;i<graftCount;i++){
+    float t=graftRestFlex[i],owner=LogicalShaftOwner(i,t);logicalShaftOwnership[i]=owner;if(owner<=.0001f)continue;
+    V3 restCenter{},restTangent{};SampleRestShaftFrame(t,restCenter,restTangent);
+    if(finalPose){
+      V3 liveCenter{},liveTangent{};SampleShaftChain(t,liveCenter,liveTangent);
+      V3 target=liveCenter+RotateFromTo(logicalShaftRestRadial[i],restTangent,liveTangent);
+      graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-owner)+target*owner;continue;
+    }
+    V3 point=graftDeformedPositions[i],offset=point-restCenter,radial=offset-restTangent*Dot(offset,restTangent);float radius=Length(radial);
+    if(radius<1e-4f)continue;
+    float desired=LogicalShaftOvalRadius(radial,restTangent,LogicalShaftRadius(t));
+    V3 target=restCenter+restTangent*Dot(offset,restTangent)+radial*(desired/radius);
+    graftDeformedPositions[i]=point*(1.f-owner)+target*owner;
+  }
+}
+static void CaptureLogicalShaftSurface(){
+  for(UINT i=0;i<graftCount;i++){
+    float t=graftRestFlex[i],owner=LogicalShaftOwner(i,t);logicalShaftOwnership[i]=owner;logicalShaftRestRadial[i]={0,0,0};if(owner<=.0001f)continue;
+    V3 center{},tangent{};SampleRestShaftFrame(t,center,tangent);V3 offset=graftDeformedPositions[i]-center;
+    logicalShaftRestRadial[i]=offset-tangent*Dot(offset,tangent);
   }
 }
 static V3 ReadCollarMember(UINT globalIndex,unsigned char* controlled,UINT graftFirstVertex){
@@ -634,11 +884,12 @@ static void FairUnifiedCollar(unsigned char* controlled,UINT graftFirstVertex,fl
   // at large widths; the broad anchored support field makes shrinkage local
   // and intentional here—it is the tight fillet into the shaft.
   float lambda=.24f+.012f*growth;
-  // The new dorsal horseshoe bands need more convergence only as the collar
-  // recruits additional pelvis at very large diameters.  Keep the normal-size
-  // solve compact, then ramp to 280 passes at maximum growth; the support
-  // weights pin the outer field so this remains local.
-  int iterations=160+(int)(80.f*growth+.5f);
+  // Excess diffusion was erasing the newly recruited dorsal support at the
+  // exact maximum-size/full-floppy case and recreating a local minimum at the
+  // first attachment rows.  Keep enough convergence to unify the seam, but do
+  // not average the collar back into the pelvis after its support field has
+  // been applied.
+  int iterations=160+(int)(20.f*growth+.5f);
   for(int iteration=0;iteration<iterations;iteration++){
     CollarFairPass(collarFairA,collarFairB,lambda);
     memcpy(collarFairA,collarFairB,sizeof(collarFairA));
@@ -755,7 +1006,12 @@ static void SampleShaftChain(float t,V3& center,V3& tangent){
 }
 static void ApplyConstraintCurve(float value[3],UINT i){
   if(!constraintSolverReady||!shaftRestFrameReady)return;float bw=min(1.f,phys_scrotum_weight[i]),membership=max(phys_shaft_weight[i],phys_attachment_weight[i]);
+  // Shaft motion is owned only by shaft skin.  The independently simulated
+  // pouch follows through its attachment and never supplies a second radius.
+  // Fade the solver across the shared skin instead of switching at one row.
+  float shaftPouchBlend=ShaftPouchBlend(bw);if(shaftPouchBlend<=.001f)return;
   float ownership=membership/(membership+bw+.0001f);float active=membership*Smoother01(max(0.f,min(1.f,(ownership-.34f)/.50f)));if(bw<.05f&&membership>.02f)active=1.f;if(active<=.001f)return;
+  active*=shaftPouchBlend;
   // Zero motion at the welded seam.  The first shaft ring is already near
   // t=.278, so the former .14 transition made solver influence jump straight
   // from zero to one.  A longer C2 ramp distributes deformation through the
@@ -798,6 +1054,15 @@ static void ApplyBallRigidEnvelope(float value[3],UINT i){
   if(bw>=.82f)neckRigidity=rigidity;
   value[0]+=(target.x-value[0])*neckRigidity;value[1]+=(target.y-value[1])*neckRigidity;value[2]+=(target.z-value[2])*neckRigidity;
 }
+static float SampleOverallWidthVertex(UINT q,float overall,float width){
+  int oi0=overall<sliderSpecs[0].def?0:1,oi1=oi0+1,wi0=width<sliderSpecs[2].def?0:1,wi1=wi0+1;
+  float omin=oi0==0?sliderSpecs[0].lo:sliderSpecs[0].def,omax=oi1==1?sliderSpecs[0].def:sliderSpecs[0].hi;
+  float wmin=wi0==0?sliderSpecs[2].lo:sliderSpecs[2].def,wmax=wi1==1?sliderSpecs[2].def:sliderSpecs[2].hi;
+  float ot=(overall-omin)/(omax-omin),wt=(width-wmin)/(wmax-wmin);
+  float a=overallWidthTargets[oi0][wi0][q]*(1.f-wt)+overallWidthTargets[oi0][wi1][q]*wt;
+  float b=overallWidthTargets[oi1][wi0][q]*(1.f-wt)+overallWidthTargets[oi1][wi1][q]*wt;
+  return a*(1.f-ot)+b*ot;
+}
 static void ApplyShape(){
   if(!graftBuffer)return;bool report=shapeDirty;void* raw=nullptr;
   const UINT graftFirstVertex=graftOffset/graftStride;
@@ -806,9 +1071,6 @@ static void ApplyShape(){
   if(FAILED(hr)){Log("live shape lock failed %08X",hr);return;}
   auto* controlled=(unsigned char*)raw;
   auto* p=controlled+(graftFirstVertex-pelvisControlFirstVertex)*graftStride;
-  int oi0=sliderValues[0]<sliderSpecs[0].def?0:1,oi1=oi0+1,wi0=sliderValues[2]<sliderSpecs[2].def?0:1,wi1=wi0+1;
-  float omin=oi0==0?sliderSpecs[0].lo:sliderSpecs[0].def,omax=oi1==1?sliderSpecs[0].def:sliderSpecs[0].hi,wmin=wi0==0?sliderSpecs[2].lo:sliderSpecs[2].def,wmax=wi1==1?sliderSpecs[2].def:sliderSpecs[2].hi;
-  float ot=(sliderValues[0]-omin)/(omax-omin),wt=(sliderValues[2]-wmin)/(wmax-wmin);
   float collarGrowth=PelvisCollarGrowth();
   for(UINT i=0;i<pelvisControlCount;i++){
     float value[3]={pelvisControlBasePositions[i*3],pelvisControlBasePositions[i*3+1],pelvisControlBasePositions[i*3+2]};
@@ -818,17 +1080,44 @@ static void ApplyShape(){
   }
   V3 tipSum{},ballSum[2]{};int tipCount=0,ballCount[2]{};
   for(UINT i=0;i<graftCount;i++){
-    float value[3];for(UINT axis=0;axis<3;axis++){UINT q=i*3+axis;float a=overallWidthTargets[oi0][wi0][q]*(1-wt)+overallWidthTargets[oi0][wi1][q]*wt,b=overallWidthTargets[oi1][wi0][q]*(1-wt)+overallWidthTargets[oi1][wi1][q]*wt;value[axis]=a*(1-ot)+b*ot;for(int s=1;s<7;s++){if(s==2||s==4)continue;const auto& spec=sliderSpecs[s];float v=sliderValues[s];if(v<spec.def)value[axis]+=(spec.low[q]-morph_base[q])*(spec.def-v)/(spec.def-spec.lo);else if(v>spec.def)value[axis]+=(spec.high[q]-morph_base[q])*(v-spec.def)/(spec.hi-spec.def);}}
+    float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]),ball=min(1.f,phys_scrotum_weight[i]);
+    // Lobe cores scale independently, but the broad upper neck must open with
+    // the shaft it hangs from.  The former early pouch takeover stranded the
+    // mixed rows at neutral width during large shaft dilation and stretched
+    // their triangles into a narrow fan.  This later C2 handoff preserves the
+    // independent sack while recruiting its throat into the supporting tube.
+    float pouchOwner=Smoother01((ball-.18f)/.60f)*Smoother01((ball-shaft+.18f)/.70f);
+    float value[3];for(UINT axis=0;axis<3;axis++){
+      UINT q=i*3+axis;
+      float shaftValue=SampleOverallWidthVertex(q,sliderValues[0],sliderValues[2]);
+      float pouchValue=SampleOverallWidthVertex(q,sliderValues[0],neutralShape[2]);
+      value[axis]=shaftValue*(1.f-pouchOwner)+pouchValue*pouchOwner;
+      for(int s=1;s<7;s++){
+        if(s==2||s==4)continue;const auto& spec=sliderSpecs[s];float v=sliderValues[s],delta=0.f;
+        if(v<spec.def)delta=(spec.low[q]-morph_base[q])*(spec.def-v)/(spec.def-spec.lo);
+        else if(v>spec.def)delta=(spec.high[q]-morph_base[q])*(v-spec.def)/(spec.hi-spec.def);
+        // Scrotum scale is pouch-only.  It cannot alter any shaft-owned ring.
+        value[axis]+=delta*(s==3?pouchOwner:1.f);
+      }
+    }
     ApplyPelvisCollar(value,graftCollarDistances[i],collarGrowth,true);
     ApplyShaftPoseAngle(value,i);
     FlareAttachment(value,i);
     graftDeformedPositions[i]=V3{value[0],value[1],value[2]};
   }
   FairUnifiedCollar(controlled,graftFirstVertex,collarGrowth);
-  BuildShaftRestFrame();
-  PreserveShaftJunctionTube();
   FairRetopologyBands();
   BuildShaftRestFrame();
+  RegularizeSharedRootProfile();
+  // Refit after the profile correction so capture and physics use the
+  // corrected common centerline rather than the donor's scrotal-biased frame.
+  // A second radial projection would over-constrain the irregular donor
+  // tessellation and needlessly worsen its least-regular triangles.
+  BuildShaftRestFrame();
+  SculptConvergentVentralRaphe();
+  // Cache the corrected authored cross-sections and transport them through
+  // physics as a single shaft.  The scrotum remains a separate hanging system.
+  CaptureLogicalShaftSurface();
   for(UINT i=0;i<graftCount;i++){
     V3 value=graftDeformedPositions[i];
     if(phys_flex_coordinate[i]>.98f&&phys_shaft_weight[i]>.5f){tipSum=tipSum+value;tipCount++;}
@@ -847,6 +1136,10 @@ static void ApplyShape(){
     if(bw>.001f)ApplyBallRigidEnvelope(value,i);
     graftDeformedPositions[i]=V3{value[0],value[1],value[2]};
   }
+  // Reassert the one shaft after every physics state.  This transports the
+  // cached complete cross-section through the live centerline and prevents a
+  // mixed-weight ring from reappearing in semi/floppy motion.
+  if(physicsState>0)ConstructLogicalShaftSurface(true);
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
   // follows every physics bend.  Wolverine's meshes use the opposite of the
@@ -938,7 +1231,7 @@ static void OverlayFrame(IDirect3DDevice9* d){
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
   IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=16;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"BIG DICK LOGAN MOD (F6 TO HIDE)":"BIG DICK LOGAN MOD (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.6t61t62t63t65t67t68t69t70 FIRM RAPHE (F6 TO HIDE)":"v0.6t61t62t63t65t67t68t69t70 FIRM RAPHE (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       if(i<7){const auto& s=sliderSpecs[i];name=s.name;value=sliderUI[i];lo=1;hi=100;sprintf_s(val,"%.0f",value);}else if(i==7){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}else{const auto& s=physSpecs[i-8];name=s.name;value=physUI[i-8];lo=1;hi=100;sprintf_s(val,"%.0f",value);}

@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title Big Dick Logan Mod v0.5 Installer
+title Wolverine Anatomy Tool v0.7 Installer
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install.ps1" -Mode Install
 if errorlevel 1 (
   echo.
@@ -8,4 +8,3 @@ if errorlevel 1 (
 )
 echo.
 pause
-

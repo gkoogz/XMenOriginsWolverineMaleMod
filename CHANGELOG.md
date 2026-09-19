@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.7
+
+- Promote the installed, hash-verified runtime from artifact `v0.6t61t62t63t65t67t68t69t70`.
+- Rebuild the WBX1 package delta against the exact installed Revision 161 package.
+- Preserve the transactional installer, settings, checkpoint handling, and reversible backups under a version-specific v0.7 path.
+- Publish neutral postgraduate medical-education documentation while retaining the runtime provenance identifier for reproducibility.
+
 ## v0.6
 
 - Package the exact restored Revision 161 character and runtime.
@@ -12,6 +19,6 @@
 
 - Packaged the Weapon X-safe character build with Revision 157 runtime behavior.
 - Included remodeled body and anatomy, live morph controls, physics, collision constraints, and persistent settings.
-- Renamed the overlay to **Big Dick Logan Mod** with explicit F6 show/hide text.
+- Renamed the overlay to a concise anatomy-tool label with explicit F6 show/hide text.
 - Moved Reset All from Home to F8.
 - Added transactional one-click installation and verified one-click uninstallation.
