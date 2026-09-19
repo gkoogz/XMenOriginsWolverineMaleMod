@@ -1,0 +1,7 @@
+# Crown-rounded R2 — user-selected base restored
+
+User explicitly rejected the new loft/reconstruction direction and selected outputs/crown-rounded/comparison.html. This pass loads that exact crown-rounded control mesh and size samples. No clean-loft or lowpoly-loft geometry is used. Original rounded crest, UVs and shape keys remain in the Blender control mesh.
+
+Adds a small Smooth modifier (0.25, 12 iterations) to a softly weighted underside region, respecting the existing crown influence mask. Adds a non-destructive Decimate modifier at 0.90 ratio with triangulation. Solid and wire overlays share geometry, weights and modifier parameters. Evaluated mesh has 11,298 vertices / 22,530 triangles at all five tested sizes, approximately 10% fewer than the prior 25,034 raw triangles. Existing underside corrugation is still visible; no claim of complete cleanup.
+
+Five evaluated samples have finite positions and no zero-area faces at threshold 1e-10. Original control samples still match within 0.0001 model units. The continuous size property remains. Identical face counts across poses do not guarantee identical decimation correspondence, so this authoring modifier is not a runtime morph solution. The default-size OBJ is an evaluated static export. No game package, runtime or installation changes. All prior outputs preserved; the clean-loft direction is superseded by the user's requested base.
