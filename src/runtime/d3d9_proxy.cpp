@@ -1195,11 +1195,12 @@ static void ScaleGlansIndependently(){
     float fold=0.f;
     if(radius>1e-4f){
       V3 direction=radial/radius;
-      float ventral=-Dot(direction,dorsal),side=fabsf(Dot(direction,lateral));
+      float ventral=-Dot(direction,dorsal);
+      float seamDistance=fabsf(Dot(offset,lateral))/max(.001f,logicalShaftBodyRadius);
       // Pin the central ventral attachment; blend the neighboring crown
       // surface without enlarging the frenulum itself.
       fold=Smoother01((ventral-.45f)/.30f)
-        *(1.f-Smoother01((side-.28f)/.40f))
+        *(1.f-Smoother01((seamDistance-.055f)/.125f))
         *(1.f-Smoother01((t-.91f)/.025f));
     }
     // Authored rim vertices start before .82. Finish the attachment blend
