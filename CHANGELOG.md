@@ -1,3 +1,11 @@
+## 0.7.1 — Pelvic ramp
+
+Final-pose constrained body/collar fairing, angular-profile radial support,
+tangential vertex redistribution and bounded, orientation-checked correction.
+Existing package, connectivity, UVs, rig and physical solver are preserved.
+Added verified 0.7 upgrade/rollback. Both installer paths and ten matched geometry
+cases passed isolated checks. Live-game visual playtest remains pending.
+
 # Changelog
 
 ## v0.7

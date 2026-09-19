@@ -1,5 +1,72 @@
 # Shared project context
 
+## Version 0.7.1 — current candidate, September 18, 2026
+
+User authorized collar/root/pelvis cleanup, stronger large-size recruitment,
+matched grey-wireframe and color renders cropped knee-to-navel, and an in-game
+build named 0.7.1. This supersedes the inspection-only scope immediately below.
+
+Implemented in the new workspace clone on branch `version-0.7.1`:
+`FinishPelvicRamp()` runs after final physics surface construction and before
+normal/tangent reconstruction. A generated constrained spline uses the existing
+weld groups, measured angular shaft radius, bounded donor displacement,
+tangential redistribution and a final orientation line search. Topology and the
+0.7 package are unchanged. Source generator is `tools/Generate-PelvicRamp.py`;
+header regeneration was byte-identical. No inherited experiment was installed.
+
+Candidate DLL SHA256: 08DFE9F322CD7E6B071DAD0E0D24F7718811D629E689787CF00EAB5915F2D520.
+Ten deterministic geometry cases: finite positions, zero added face reversals,
+zero weld separation. Some triangle aspect statistics increase; do not describe
+this as a complete retopology or uniformly better triangle quality. Existing
+degenerate body faces persist. Extreme poses automatically weaken the edit.
+Isolated released-DLL D3D9 smoke test and both installer paths passed.
+Live game and settings were not changed; in-game playtest remains pending.
+
+Deliverables are in the new workspace's `outputs/v0.7.1`. `work/v0.7.1-capture`
+contains deterministic before/after dumps, nodes, geometry audit and timing.
+`work/final_renders.py` renders the emitted coordinates and original diffuse UV
+atlas in Blender; it clips the presentation only, welds coincident render vertices,
+and computes smooth normals. Renders are not game-shader screenshots. Four views
+at default (all50) and maximum (O/L/W/S100, others50), full-floppy state, 240 fixed
+60-Hz frames are matched between versions. Uncropped original work remains in
+the earlier inspection outputs; all NEW render deliverables are cropped.
+
+Next: review the matched images and playtest the packaged candidate using the
+Upgrade/Rollback pair. Do not call the appearance user-approved until feedback.
+
+## September 18, 2026 — independent v0.7 inspection in a new workspace
+
+The sections below this entry are historical v0.6/161 notes, not the current
+authorization or a complete description of v0.7. Current user request: inspect
+v0.7, parse its implementation, open and understand the 3D model before future
+physics/model improvements. No modifications or installation were requested.
+
+Working copy: `C:/Users/Administrator/Documents/Codex/2026-09-18/i-am-an-educator-working-as/work/wolverine-v0.7`,
+tag v0.7 / commit f7811dc24cfb0e3ce1f2ab1c91a9c800a1b15bc5. The installed DLL and
+package match this release's manifest (DLL 8658C9FC..., package 7C5CE1F5...).
+The released source matches the local t70 provenance archive after newline
+normalization. No source rebuild-to-binary equivalence was claimed.
+
+Observed: UModel exported the actual installed package successfully. Blender
+import contains 47,030 vertices, 87,854 triangles, 128 bones, and 116 vertex
+groups; section 7 has 4,596 triangles matching graft_normals.h. The runtime
+still addresses 2,388 graft slots starting at GPU vertex 47,050 in a 50,915
+vertex buffer. Do not confuse imported PSK indices with GPU indices.
+
+An isolated shape harness, compiled with its synthetic keyboard events removed,
+ran the unchanged release DLL at all UI sliders 50 / state 2 for 240 frames.
+It captured 2,844 positions with HRESULT 0; no animated bone input was supplied.
+Its graft and package-rest previews were visually inspected. Triangle checks
+show finite coordinates and very thin triangle outliers, but this is not an
+in-game shading, collision or full-envelope validation. No fixes were attempted.
+
+Openable Blender scene, inspection renders and detailed source map are in the
+new workspace's `outputs/`; scripts, logs, geometry-audit.json, exported PSK and
+the isolated harness are in `work/`. The Blender file holds both the rigged
+package mesh and a disabled collection with an exact-order runtime graft dump.
+Installed game and settings were not modified. Next: obtain the concrete first
+model/physics change, then make a separate candidate from the verified v0.7.
+
 Updated 2026-09-15. Both agents/accounts must update this document when handing
 off. Relative workspace paths below are relative to the parent of this Git repo.
 

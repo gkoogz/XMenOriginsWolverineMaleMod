@@ -8,11 +8,11 @@ param(
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2
-$version='0.7'
+$version='0.7.1'
 $sourceHash='6C7F2551F7022FE66CB2483C31DF2BF837E487B56E73DC6FC34F305E167AA79F'
 $targetHash='7C5CE1F5FD45AB4F7A159F9D5455B1D40D11E72F4C2EFE7D7F18C7391AED2A64'
 $patchHash='2CBC03A1D4AE7D7FF6F2592399F9089BB4439BCBDAFA64C42157EDCAF0098384'
-$runtimeHash='8658C9FC5BFD22890F6EE549EE756CB684568754E619DCEBA92FC2D2680C3E80'
+$runtimeHash='08DFE9F322CD7E6B071DAD0E0D24F7718811D629E689787CF00EAB5915F2D520'
 
 function Hash([string]$Path) {
     (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
@@ -56,7 +56,7 @@ $defaultCheckpoints=[IO.Path]::GetFullPath((Join-Path $GamePath 'WGame\Config\De
 $playerCheckpoints=[IO.Path]::GetFullPath((Join-Path $DocumentsPath 'Wolverine\WGame\Config\WCheckpoints.ini'))
 $patchSource=Join-Path $PSScriptRoot 'payload\Natural.wbx'
 $runtimeSource=Join-Path $PSScriptRoot 'payload\d3d9.dll'
-$backupRoot=[IO.Path]::GetFullPath((Join-Path $GamePath 'WGame\ModBackups\WolverineAnatomyTool-v0.7'))
+$backupRoot=[IO.Path]::GetFullPath((Join-Path $GamePath 'WGame\ModBackups\WolverineAnatomyTool-v0.7.1'))
 $statePath=Join-Path $backupRoot 'state.json'
 
 if(-not $packageTarget.StartsWith($GamePath,[StringComparison]::OrdinalIgnoreCase) -or
@@ -66,10 +66,10 @@ if(-not $packageTarget.StartsWith($GamePath,[StringComparison]::OrdinalIgnoreCas
 }
 
 if($Mode -eq 'Uninstall') {
-    if(-not(Test-Path -LiteralPath $statePath)){throw "No v0.7 installer state exists at $backupRoot."}
+    if(-not(Test-Path -LiteralPath $statePath)){throw "No v0.7.1 installer state exists at $backupRoot."}
     $state=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
     if($state.Version -ne $version -or [IO.Path]::GetFullPath($state.GamePath) -ne $GamePath){throw 'Backup state belongs to a different version or game folder.'}
-    if($state.Status -eq 'Uninstalled'){Write-Output 'Wolverine Anatomy Tool v0.7 is already uninstalled. Backups were retained.';return}
+    if($state.Status -eq 'Uninstalled'){Write-Output 'Wolverine Anatomy Tool v0.7.1 is already uninstalled. Backups were retained.';return}
     foreach($record in @($state.Files)) {
         $target=[string]$record.Target
         $backup=[string]$record.Backup
@@ -96,13 +96,13 @@ if($Mode -eq 'Uninstall') {
     }
     $state.Status='Uninstalled'
     $state | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statePath -Encoding UTF8
-    Write-Output 'Wolverine Anatomy Tool v0.7 uninstalled. Original files restored; verified backups retained.'
+    Write-Output 'Wolverine Anatomy Tool v0.7.1 uninstalled. Original files restored; verified backups retained.'
     return
 }
 
 if(-not(Test-Path -LiteralPath $packageTarget -PathType Leaf)){throw "Missing Natural character package: $packageTarget"}
 if((Hash $packageTarget) -ne $sourceHash){
-    if((Hash $packageTarget) -eq $targetHash){throw 'The v0.7 character package is already present, but no matching installer state exists. Restore the original package before using this installer.'}
+    if((Hash $packageTarget) -eq $targetHash){throw 'The v0.7.1 character package is already present, but no matching installer state exists. Restore the original package before using this installer.'}
     throw 'Unsupported or modified Natural character package. Verify/restore the original PC game file before installing.'
 }
 foreach($payload in @($patchSource,$runtimeSource,(Join-Path $PSScriptRoot 'tools\PatchCodec.cs'))){if(-not(Test-Path -LiteralPath $payload -PathType Leaf)){throw "Release payload is incomplete: $payload"}}
@@ -110,7 +110,7 @@ if((Hash $patchSource) -ne $patchHash){throw 'Character patch checksum failed. D
 if((Hash $runtimeSource) -ne $runtimeHash){throw 'Runtime checksum failed. Download or extract a fresh release.'}
 if(Test-Path -LiteralPath $statePath){
     $old=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-    if($old.Status -eq 'Installed'){throw 'Installer state says v0.7 is already installed.'}
+    if($old.Status -eq 'Installed'){throw 'Installer state says v0.7.1 is already installed.'}
     if($old.Status -ne 'Uninstalled' -or [IO.Path]::GetFullPath($old.GamePath) -ne $GamePath){throw "An incompatible or interrupted backup exists at $backupRoot. Retain it and resolve that installation before retrying."}
     Write-Output 'A verified prior uninstall was found; retained originals will be reused.'
 }
@@ -197,7 +197,7 @@ try {
         $state | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statePath -Encoding UTF8
         throw $failure
     }
-    Write-Output 'Wolverine Anatomy Tool v0.7 installed. Launch normally and press F6 for the menu.'
+    Write-Output 'Wolverine Anatomy Tool v0.7.1 installed. Launch normally and press F6 for the menu.'
     Write-Output "Verified backups: $backupRoot"
 } finally {
     $tempFile=Join-Path $stage 'CH_Wolverine_Natural_SF.xxx'

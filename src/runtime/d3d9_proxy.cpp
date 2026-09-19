@@ -14,6 +14,7 @@
 #include "graft_normals.h"
 #include "pelvis_control.h"
 #include "collar_fairing.h"
+#include "pelvic_ramp.h"
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 static HMODULE realDll;
@@ -846,6 +847,112 @@ static void WriteCollarMember(UINT globalIndex,V3 value,unsigned char* controlle
   if(globalIndex>=graftFirstVertex&&globalIndex<graftFirstVertex+graftCount){graftDeformedPositions[globalIndex-graftFirstVertex]=value;return;}
   float packed[3]={value.x,value.y,value.z};memcpy(controlled+(globalIndex-pelvisControlFirstVertex)*graftStride,packed,12);
 }
+// v0.7.1: finish the body/root as one constrained surface in the final pose.
+// The fixed spline correspondence never changes vertex IDs, UVs or skin palettes.
+// It preserves the outer body and pouch, while sharing every weld position.
+static V3 RampRadialFrame(V3 point,float& radius,float& theta){
+  float best=1e30f;V3 radial{},tangent=RestShaftDirection();
+  for(int link=0;link<shaftNodeCount-1;link++){
+    V3 span=shaftNodes[link+1]-shaftNodes[link];float length2=Dot(span,span);
+    if(length2<1e-8f)continue;
+    float t=max(link==0?-10.f:0.f,min(1.f,Dot(point-shaftNodes[link],span)/length2));
+    V3 offset=point-(shaftNodes[link]+span*t);float distance=Dot(offset,offset);
+    if(distance<best){best=distance;radial=offset;tangent=Unit(span);}
+  }
+  V3 lateral=Unit(V3{0,1,0}-tangent*tangent.y),dorsal=Unit(Cross(tangent,lateral));
+  radius=Length(radial);theta=atan2f(Dot(radial,dorsal),Dot(radial,lateral));return radial;
+}
+static void FinishPelvicRamp(unsigned char* controlled,UINT graftFirstVertex){
+  if(!constraintSolverReady)return;
+  const int sectors=24;float sum[sectors]{},mass[sectors]{},profile[sectors]{};
+  // Follow the existing shaft's angular profile, not a circular cylinder.
+  for(UINT i=0;i<graftCount;i++){
+    if(max(phys_shaft_weight[i],phys_attachment_weight[i])<=.72f||phys_scrotum_weight[i]>=.05f||phys_flex_coordinate[i]<=.38f||phys_flex_coordinate[i]>=.64f)continue;
+    float radius,theta;RampRadialFrame(graftDeformedPositions[i],radius,theta);
+    for(int s=0;s<sectors;s++){
+      float delta=theta-s*(6.283185307f/sectors);
+      while(delta>3.141592654f)delta-=6.283185307f;while(delta< -3.141592654f)delta+=6.283185307f;
+      float w=expf(-.5f*delta*delta/(.28f*.28f));sum[s]+=radius*w;mass[s]+=w;
+    }
+  }
+  for(int s=0;s<sectors;s++)profile[s]=mass[s]>1e-6f?sum[s]/mass[s]:logicalShaftBodyRadius;
+  static V3 input[collarFairGroupCount],target[collarFairGroupCount],result[collarFairGroupCount];
+  for(UINT group=0;group<collarFairGroupCount;group++){
+    V3 p{};UINT begin=collarFairMemberOffsets[group],end=collarFairMemberOffsets[group+1];
+    for(UINT m=begin;m<end;m++)p=p+ReadCollarMember(collarFairMembers[m],controlled,graftFirstVertex);
+    p=p/(float)(end-begin);input[group]=target[group]=p;
+    if(rampSupport[group]<=1e-5f)continue;
+    float radius,theta;V3 radial=RampRadialFrame(p,radius,theta);if(radius<1e-5f)continue;
+    if(theta<0)theta+=6.283185307f;float u=theta*(sectors/6.283185307f);int a=min(sectors-1,(int)u);float f=u-a;
+    float goal=(profile[a]*(1-f)+profile[(a+1)%sectors]*f)*1.025f;
+    float expansion=max(0.f,goal-radius)*rampSupport[group];
+    target[group]=p+radial*(expansion/radius);
+  }
+  for(UINT group=0;group<collarFairGroupCount;group++){
+    UINT begin=rampRowOffsets[group],end=rampRowOffsets[group+1];
+    if(begin==end){result[group]=input[group];continue;}
+    V3 p{};for(UINT k=begin;k<end;k++)p=p+target[rampColumns[k]]*rampCoefficients[k];
+    V3 delta=p-input[group];float length=Length(delta),limit=min(3.f,.50f+.50f*logicalShaftBodyRadius);
+    // Bound donor travel even at unusual control combinations; no broad apron.
+    if(length>limit)delta=delta*(limit/length);
+    result[group]=input[group]+delta;
+  }
+  // Redistribute vertices along the fitted surface. Removing only tangential
+  // irregularity improves triangle spacing without another shrink-to-center pass.
+  static V3 normals[collarFairGroupCount],next[collarFairGroupCount];
+  for(int pass=0;pass<12;pass++){
+    memset(normals,0,sizeof(normals));
+    for(UINT t=0;t<collarNormalTriangleCount;t++){
+      V3 p[3];UINT g[3];
+      for(int c=0;c<3;c++){UINT k=t*3+c;g[c]=collarNormalTriangleGroups[k];p[c]=g[c]!=65535u?result[g[c]]:V3{collarNormalTriangleBasePositions[k*3],collarNormalTriangleBasePositions[k*3+1],collarNormalTriangleBasePositions[k*3+2]};}
+      V3 face=Cross(p[1]-p[0],p[2]-p[0]);for(int c=0;c<3;c++)if(g[c]!=65535u)normals[g[c]]=normals[g[c]]+face;
+    }
+    for(UINT g=0;g<collarFairGroupCount;g++){
+      UINT begin=collarFairNeighborOffsets[g],end=collarFairNeighborOffsets[g+1];next[g]=result[g];if(begin==end||rampSupport[g]<=1e-5f)continue;
+      V3 average{};for(UINT k=begin;k<end;k++)average=average+result[collarFairNeighbors[k]];
+      V3 delta=average/(float)(end-begin)-result[g],normal=Unit(normals[g]);delta=delta-normal*Dot(delta,normal);
+      next[g]=result[g]+delta*(.25f*rampSupport[g]);
+    }
+    memcpy(result,next,sizeof(result));
+  }
+  // Surface fairing must not reintroduce the waist that recruitment removed.
+  // A C1 positive-part projection restores the measured angular envelope,
+  // fading continuously into the untouched outer body and downstream shaft.
+  for(UINT g=0;g<collarFairGroupCount;g++){
+    if(rampSupport[g]<=1e-5f)continue;float radius,theta;V3 radial=RampRadialFrame(result[g],radius,theta);if(radius<1e-5f)continue;
+    if(theta<0)theta+=6.283185307f;float u=theta*(sectors/6.283185307f);int a=min(sectors-1,(int)u);float f=u-a;
+    float goal=(profile[a]*(1-f)+profile[(a+1)%sectors]*f)*1.025f;
+    float gap=goal-radius,epsilon=max(.03f,goal*.025f),correction=gap>=epsilon?gap:gap<=-epsilon?0.f:(gap+epsilon)*(gap+epsilon)/(4.f*epsilon);
+    result[g]=result[g]+radial*(.35f*correction*rampSupport[g]/radius);
+  }
+  for(UINT group=0;group<collarFairGroupCount;group++){
+    if(rampSupport[group]<=1e-5f){result[group]=input[group];continue;}
+    V3 delta=result[group]-input[group];float length=Length(delta),limit=min(3.f,.50f+.50f*logicalShaftBodyRadius);
+    if(length>limit)result[group]=input[group]+delta*(limit/length);
+  }
+  // A global line search retains a smooth field at extreme angle/size settings.
+  // Never reverse a formerly valid face or crush its projected area below 20%.
+  float fraction=1.f;
+  for(int attempt=0;attempt<9;attempt++){
+    bool valid=true;
+    for(UINT t=0;t<collarNormalTriangleCount&&valid;t++){
+      V3 original[3],candidate[3];
+      for(int c=0;c<3;c++){
+        UINT k=t*3+c,g=collarNormalTriangleGroups[k],id=collarNormalTriangleIndices[k];
+        V3 fixed=id>=graftFirstVertex&&id<graftFirstVertex+graftCount?graftDeformedPositions[id-graftFirstVertex]:V3{collarNormalTriangleBasePositions[k*3],collarNormalTriangleBasePositions[k*3+1],collarNormalTriangleBasePositions[k*3+2]};
+        original[c]=g!=65535u?input[g]:fixed;candidate[c]=g!=65535u?input[g]+(result[g]-input[g])*fraction:fixed;
+      }
+      V3 a=Cross(original[1]-original[0],original[2]-original[0]),b=Cross(candidate[1]-candidate[0],candidate[2]-candidate[0]);
+      float area2=Dot(a,a);if(area2>1e-14f&&Dot(a,b)<.20f*area2)valid=false;
+    }
+    if(valid)break;fraction=attempt==8?0.f:fraction*.5f;
+  }
+  for(UINT group=0;group<collarFairGroupCount;group++){
+    if(rampSupport[group]<=1e-5f)continue;
+    V3 p=input[group]+(result[group]-input[group])*fraction;
+    for(UINT m=collarFairMemberOffsets[group];m<collarFairMemberOffsets[group+1];m++)WriteCollarMember(collarFairMembers[m],p,controlled,graftFirstVertex);
+  }
+}
 static void CollarFairPass(const V3* source,V3* target,float strength){
   for(UINT group=0;group<collarFairGroupCount;group++){
     UINT begin=collarFairNeighborOffsets[group],end=collarFairNeighborOffsets[group+1];
@@ -1140,6 +1247,7 @@ static void ApplyShape(){
   // cached complete cross-section through the live centerline and prevents a
   // mixed-weight ring from reappearing in semi/floppy motion.
   if(physicsState>0)ConstructLogicalShaftSurface(true);
+  FinishPelvicRamp(controlled,graftFirstVertex);
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
   // follows every physics bend.  Wolverine's meshes use the opposite of the
@@ -1231,7 +1339,7 @@ static void OverlayFrame(IDirect3DDevice9* d){
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
   IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=16;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.6t61t62t63t65t67t68t69t70 FIRM RAPHE (F6 TO HIDE)":"v0.6t61t62t63t65t67t68t69t70 FIRM RAPHE (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.1 PELVIC RAMP (F6 TO HIDE)":"v0.7.1 PELVIC RAMP (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       if(i<7){const auto& s=sliderSpecs[i];name=s.name;value=sliderUI[i];lo=1;hi=100;sprintf_s(val,"%.0f",value);}else if(i==7){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}else{const auto& s=physSpecs[i-8];name=s.name;value=physUI[i-8];lo=1;hi=100;sprintf_s(val,"%.0f",value);}

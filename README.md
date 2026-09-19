@@ -1,56 +1,37 @@
-# Wolverine Anatomy Tool
+# Wolverine Anatomy Tool 0.7.1
 
-Version 0.7 for **X-Men Origins: Wolverine — Uncaged Edition** on Windows PC.
+Version 0.7.1 smooths the pelvic collar in the final runtime pose and expands the local support toward the existing shaft cross-section at larger sizes. It relaxes the existing vertex layout without changing triangle connectivity, UVs, skin weights, the character package, or the physical solver.
 
-This release installs the current adult-anatomy visualization runtime from the verified v0.6 lineage. It is intended for postgraduate medical-education demonstration, geometric analysis, and biomechanical experimentation. It includes the remodeled Natural body, Weapon X-safe handling, live shape and pose controls, saved settings, movement-responsive external-genital anatomy, collision constraints, and checkpoint outfit changes that use the Natural body throughout the game.
+## Upgrade an existing 0.7 installation
 
-## One-click installation
+1. Close Wolverine and extract the whole ZIP.
+2. Run `Upgrade-0.7.1.cmd`. The default game folder is `C:\Games\X-Men Origins Wolverine`.
+3. Launch the game normally. F6 displays **v0.7.1 PELVIC RAMP**.
 
-1. Close the game.
-2. Download and extract the entire release. Do not run the installer from inside a ZIP preview.
-3. Double-click **Install.cmd**.
-4. If the game is not detected, paste the folder containing `Binaries` and `WGame`.
-5. Launch the game normally.
+For another game folder, run `Upgrade-0.7.1.cmd -GamePath "D:\Games\Wolverine"` from a terminal.
 
-The installer supports the documented original PC Natural package. It verifies the original file, reconstructs the modded package locally, verifies the result, backs up every changed file, and rolls back automatically if installation fails. It does not require Internet access, Python, a mod manager, or developer tools.
+The upgrade verifies the exact 0.7 package and DLL, backs up the DLL, and leaves the package and WolverineLive.ini unchanged. Run `Rollback-0.7.1.cmd` to restore the verified 0.7 runtime. Backups remain under `WGame\ModBackups\WolverineAnatomyTool-v0.7.1`.
 
-## One-click uninstallation
+## Install from the supported original game package
 
-Close the game and double-click **Uninstall.cmd**. The uninstaller verifies and restores the exact files recorded during installation. Backups remain under:
+Run `Install.cmd`; use `Uninstall.cmd` to undo that installation. These are the full-package installer/uninstaller. **Use the Upgrade/Rollback pair for an existing 0.7 installation.** Other modified packages are rejected rather than overwritten.
 
-`WGame\ModBackups\WolverineAnatomyTool-v0.7`
+## What changed
 
-If a managed file was changed after installation, the uninstaller stops instead of silently destroying the newer change.
+- A constrained surface spline joins the final body and collar positions through their existing shared vertex groups.
+- A measured angular shaft profile guides local radial expansion, reducing the narrow collar at large sizes without imposing a separate circular tube.
+- Tangential relaxation redistributes collar vertices along the surface while preserving its volume better than another unconstrained shrink pass.
+- Displacement bounds and a triangle-orientation line search reduce the correction at extreme poses instead of introducing new face reversals.
+- Final normals/tangents use the corrected geometry; the existing game-compatible layout and Weapon X package remain intact.
 
-## In-game controls
+## Validation and limits
 
-- **F6:** show or hide the anatomy-tool menu
-- **Up / Down:** select a control
-- **Left / Right:** adjust it
-- **Shift + Left / Right:** coarse adjustment
-- **F8:** reset all controls to defaults
+The 32-bit DLL compiled successfully and connected to the expected vertex buffer in an isolated D3D9 smoke test. Ten matched deterministic source-harness presets covered default and maximum sizes in all three states, small and mixed dimensions, and two extreme angle settings. They retained exact weld coincidence, finite positions, and no newly reversed faces relative to their matching baselines. Existing degenerate body triangles were not removed. Triangle aspect ratios are not uniformly improved: this is surface fairing, not a complete remesh.
 
-Settings save automatically to `Binaries\WolverineLive.ini`.
+Both the 0.7 upgrade/rollback and full original-package install/uninstall passed isolated-fixture tests, including settings preservation and byte-exact restoration. A 600-frame harness timing sample added approximately 2 ms per frame on the development machine; this is not an in-game FPS benchmark.
 
-## Compatibility
+The review renders come from the real runtime source's output positions with matched controls, cameras and lighting. They use Blender studio shading and the original diffuse atlas, not the game's full shader. Presentation geometry is clipped from knees to navel; the game still uses the complete character. This candidate has not been installed or playtested in the live game during this task. In-game lighting and animated contacts remain to be assessed.
 
-- Intended for X-Men Origins: Wolverine — Uncaged Edition on Windows PC.
-- Other Natural-body replacements conflict with the character package.
-- Other Direct3D 9 proxy mods using `Binaries\d3d9.dll` may conflict. The installer backs up an existing DLL and restores it on uninstall.
-- The Weapon X handling included here prevents the Natural-body replacement from turning into the level's electrode geometry.
-- Uninstall the previous release using its own uninstaller before installing v0.7. Keep each release’s backup folder until you no longer need it.
+## Source
 
-## Known issue
-
-Revision 161 retains some collar shimmer at certain sizes and viewing angles. This release preserves that accepted baseline; the rejected Revision 162 and 163 experiments are not included.
-
-## Repository layout
-
-- `payload/` contains the verified binary patch and compiled Revision 161 runtime.
-- `src/runtime/` contains the runtime source and generated mesh/physics tables used by the verified v0.6 lineage.
-- `tools/PatchCodec.cs` documents and implements the small WBX1 delta format.
-- `Install.ps1` contains the transactional installer and uninstaller.
-
-## Legal
-
-This repository does not contain the original game package, executable, ISO, save, or crack. `Natural.wbx` is a binary delta that requires a supported original game file. X-Men, Wolverine, and original game assets belong to their respective owners. This is an unofficial educational visualization tool and is not endorsed by them. It is not a diagnostic or clinical-decision system.
+`src/runtime/build.cmd` builds with the existing x86 Visual C++ Build Tools and DirectX June 2010 SDK paths. `pelvic_ramp.h` is generated by `tools/Generate-PelvicRamp.py` using NumPy and SciPy; the generated header is included, so rebuilding the DLL does not require Python. All game assets and the original title remain the property of their owners. This unofficial package contains a delta requiring the supported original game package, not that original package.

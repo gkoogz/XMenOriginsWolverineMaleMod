@@ -1,0 +1,8 @@
+{
+  "version": "0.7.1",
+  "requiresVersion": "0.7",
+  "packageSHA256": "7C5CE1F5FD45AB4F7A159F9D5455B1D40D11E72F4C2EFE7D7F18C7391AED2A64",
+  "previousRuntimeSHA256": "8658C9FC5BFD22890F6EE549EE756CB684568754E619DCEBA92FC2D2680C3E80",
+  "runtimeSHA256": "08DFE9F322CD7E6B071DAD0E0D24F7718811D629E689787CF00EAB5915F2D520",
+  "scope": "Final-pose pelvic ramp and collar vertex redistribution; original package, UVs, rig and physics solver retained."
+}
