@@ -1,3 +1,7 @@
+# Current: restored crown ridge authoring pass
+
+User requested more prominence after smoothing. outputs/crown-ridge-refined adds compact radial ridge projection (0.42 to 0.672 model units with size), reduces final smoothing and uses area-weighted normals. Five sample control geometry checks pass; shaft-side control coordinates unchanged. Existing seam corrugation still visible; not a completed topology cleanup or game build. Continuous Blender size control, three-view solid/wire comparisons against crown-smoothed. Scripts work/refine_crown_ridge.py, render_refined_ridge.py, package_refined_ridge.py. See CROWN-RIDGE-REFINED.md. No installation changes.
+
 # Current: smoothed crown authoring preview
 
 User requested smoothing of crown-traced. See CROWN-SMOOTHED-AUTHORING.md. outputs/crown-smoothed contains constrained fairing plus crown-weighted Blender smoothing, continuous size control, OBJ, five-sample three-view solid/wire comparison. Adjacent shaft band now relaxes through -0.65 signed distance; farther shaft control vertices fixed exactly. Finite/no degenerate control faces; five Blender control samples match. Residual seam irregularity remains. No runtime source or installation changes; still authoring-only, not game ready. Scripts work/smooth_traced_crown.py and render_smoothed_crown.py reproduce.
