@@ -1175,6 +1175,11 @@ static void SculptVentralContourStudy(){
     float detail=lipHeight*lip*headSupport
       +crest*(.065f*shaftSupport+.130f*fold)
       -channels*(.012f*shaftSupport+.020f*fold);
+    // Shallow dorsal groove with a long shaft-side approach and a short
+    // return into the crown; preserve the folded coronal seam itself.
+    float upper=Smoother01((Dot(direction,dorsal)+.15f)/1.0f);
+    float groove=CompactProfile(fabsf(t-.700f),t<.700f?.055f:.040f);
+    detail-=.080f*groove*upper;
     graftDeformedPositions[i]=point+direction*(logicalShaftBodyRadius*detail);
   }
 }

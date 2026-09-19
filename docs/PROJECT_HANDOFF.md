@@ -1,3 +1,7 @@
+# Current: shallow dorsal coronal approach
+
+User requested a slight groove in the upper shaft leading to the crown. Extends77825ab on glans-size-study. SculptVentralContourStudy now adds an 8% radius dorsal relief centered.700, proximal width.055/distal.040, underside faded. Direct relief across the existing folded seam (.75-.78) introduced crossings; discarded. Final.645-.740 approach passes27 matched cases against77825ab: no added crossings/degenerates, finite, proximal<=.645/pelvis/nodes unchanged. Compiled candidate not installed; game R2 hash verified. outputs/coronal-groove contains matched-size before/after previews, editable size-controlled Blender model, OBJ, DLL/source/patch/audit. work/check_coronal_groove.py and coronal_groove_render.py reproduce results. Visual review pending; existing faceting remains.
+
 # Current: independent Glans Size study
 
 User requested broad spade-shaped head and separate size slider, supplied adult anatomical photo. New branch glans-size-study extends551b6c7. ScaleGlansIndependently afterSculptVentralContourStudy beforecontact/normals, uses liveframe anchor.79; authored.79-.845 blend. Range1..100 default50, width1/1.4/1.6, depth1+.65growth,axial1+1.5growth. Earlylarger2x/1.8x ranges and altered transitions introducedcrossings; final1.6bound passes27cases. No originalimageembedded/textured; neutral anatomical design study.
