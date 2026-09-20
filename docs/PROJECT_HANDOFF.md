@@ -1,3 +1,7 @@
+# Current: narrower underside V R9
+
+User marked lower crown arc as too open; requested bringing sides closer. outputs/crown-oblique-raphe-r9 applies localized lateral narrowing up to24% to R8 lower crown, protecting centerline/slit/raphe, shaft and dorsal surface. Only local lateral coordinates change: length and axial/ventral profile preserved. Same10,554verts/21,086tris.41geometry samples and fiveBVH samples pass; actualR8 baseline,120renders, preview control checks. Includes latest sketch. Faint old terminal transition retained; this pass only narrows. Pending user review. See CROWN-OBLIQUE-RAPHE-R9.md and audits. Preserve custom normals. DO NOT LAUNCH GAME; no game modifications or integration.
+
 # Current: lower shelf and softer terminal convergence R8
 
 User requested lower shelf, walls converging as height vanishes, and removal of pre-tip raphe dip. outputs/crown-oblique-raphe-r8 reduces dorsal shelf by up to .23, advances diminishing sweep endpoint to 5.65, applies a conservative profile guide and terminal fairing. R7 length preserved, same 10,554 vertices / 21,086 triangles. 41 geometry sizes and five BVH samples pass; maximum one significant radial peak. Actual R7 comparison, 120 renders and continuous Blender size control. A faint curved terminal transition remains under cavity lighting; convergence and silhouette are pending user review, not claimed perfect. See CROWN-OBLIQUE-RAPHE-R8.md and output audits. Preserve custom normals. DO NOT LAUNCH GAME; no game changes or integration.
