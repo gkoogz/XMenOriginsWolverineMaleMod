@@ -1,3 +1,7 @@
+# Rejected after gameplay test
+
+User reports reduced camera-dependent sheen and dark scribble unchanged in both F9 modes. Removed from active runtime in the R14 capture build. Historical implementation/tests below are not evidence of a successful fix.
+
 # R14 skin basis correction — installed; gameplay confirmation pending
 
 2026-09-20: User reports persistent bright collar glyph and dark distal scribbles, fixed to surface positions as camera rotates. Current R14 gameplay confirmed by screenshots. User confirmed game closed; verified process absent and installed the tested candidate at 02:23 EDT. Did not launch game.
