@@ -1,3 +1,7 @@
+# Current: R14 fuller underside arc and curled flare
+
+User supplied1123123.PNG for fuller underside wrap and Capture111.PNG for increased flare curling under. outputs/crown-oblique-raphe-r14 starts fromR13. Adds~.28radial flare, shallow proximal radial return and up to.09proximal curl. Broad ventral lobe fill nominal.24 tapers away fromcenter/slit,16local fairing iterations. Shaft/terminal/overalllength unchanged. Same10,554verts/21,086tris;41geometry and5BVH checks pass;actualR13 before,120renders,controls verified. Latest sketches included. Fine cavity-light facets remain. R14 pending review;R12 explicitly approved baseline preserved. See CROWN-OBLIQUE-RAPHE-R14.md. Preserve custom normals. DO NOT LAUNCH GAME;no installation/integration.
+
 # Current: R13 slight flare enhancement — R12 approved
 
 User explicitly approved R12 ("Much better, very good") and requested only slight extra flare into the rounded curl. outputs/crown-oblique-raphe-r13 starts from R12, adds local radial expansion up to.23 around smoothed existing crest, broader glans-side approach and shorter rounded shaft-side return. Reduced underside strength preserves accepted V path, fades at tip. No axial or length change;shaft/terminal unchanged. Same10,554verts/21,086tris;41geometry and5BVH checks pass. ActualR12 before,120renders, controls verified. R12 remains user-approved baseline;R13 pending review. See CROWN-OBLIQUE-RAPHE-R13.md. Preserve custom normals. DO NOT LAUNCH GAME;no installation/integration.
