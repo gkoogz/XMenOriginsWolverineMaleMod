@@ -75,7 +75,7 @@ static HRESULT DrawR14(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original,UINT
   if(FAILED(d->GetIndices(&ib)))return E_FAIL;
   HRESULT hr=d->SetStreamSource(0,r14VB,0,32);
   if(SUCCEEDED(hr))hr=d->SetIndices(r14IB);
-  if(SUCCEEDED(hr))hr=origDIP(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3);
+  if(SUCCEEDED(hr))hr=DrawWithSkinBasis(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3);
   d->SetStreamSource(0,original,offset,stride);d->SetIndices(ib);if(ib)ib->Release();
   if(SUCCEEDED(hr)){if(r14SuccessfulDraws++==0)Log("R14 replacement draw active: %u vertices, %u triangles",r14Count,r14IndexCount/3);}
   return hr;
