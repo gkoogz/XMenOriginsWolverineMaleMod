@@ -1,3 +1,7 @@
+# Current: converging underside sweep R10
+
+User provided red V sketch requiring curves sweep inward and converge immediately before/into tip. outputs/crown-oblique-raphe-r10 applies progressive inner-ventral lateral reparameterization to R9, maximum68% locally, smoothly fading laterally and into terminal rows. Outer lobes largely retained; shaft/dorsal/terminal>=5.88 unchanged. Axial/ventral coordinates and centerline unchanged. More concentrated inner crease/highlight. Same10,554verts/21,086tris;41geometry samples and fiveBVH samples pass, actualR9 comparison,120renders, controls verified. Latest sketch included. Pending user review. See CROWN-OBLIQUE-RAPHE-R10.md. Preserve custom normals. DO NOT LAUNCH GAME; no game modifications/integration.
+
 # Current: narrower underside V R9
 
 User marked lower crown arc as too open; requested bringing sides closer. outputs/crown-oblique-raphe-r9 applies localized lateral narrowing up to24% to R8 lower crown, protecting centerline/slit/raphe, shaft and dorsal surface. Only local lateral coordinates change: length and axial/ventral profile preserved. Same10,554verts/21,086tris.41geometry samples and fiveBVH samples pass; actualR8 baseline,120renders, preview control checks. Includes latest sketch. Faint old terminal transition retained; this pass only narrows. Pending user review. See CROWN-OBLIQUE-RAPHE-R9.md and audits. Preserve custom normals. DO NOT LAUNCH GAME; no game modifications or integration.
