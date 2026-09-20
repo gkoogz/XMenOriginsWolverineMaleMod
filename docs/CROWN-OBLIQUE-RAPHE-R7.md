@@ -1,0 +1,17 @@
+# Single continuous coronal shelf and restored R5 length — R7
+
+The user clarified that the underside should be one continuous coronal margin wrapping from the dorsal flare around the sides and into a V, with decreasing prominence toward its ventral termination. R6's layered groove interpretation was rejected; its extra length was also rejected.
+
+R7 rebuilds the ventral radial surface using the intact dorsal crown as the sole rim profile. A shape-preserving parameter sweep advances that profile around each side toward the ventral termination. Its influence decreases continuously toward the centerline, blending with the smooth raphe/frenular contour. This replaces the old ventral surface instead of adding another pair of cuts or a raised bridge. The legacy additive ventral_v_cut and frenulum_bridge fields are cleared; single_shelf_crest_parameter and single_shelf_strength describe the new construction. Other inherited relief fields are historical metadata and do not by themselves reverse the rebuilt surface.
+
+The terminal surface is rejoined to the lower slit with a fitted cap envelope to avoid leaving an old crosswise transition seam. R6's shaft geometry correction and fitted normals remain. The glans stays part of the existing connected mesh; no separate rim objects or shells are added.
+
+Subtracts the previous 0.88-unit length increment. Default maximum axial extent is approximately9.55808, versus R5's9.55887 and R6's10.44166; the restored length differs from R5 by less than0.001 authoring units. This restores length, not all earlier R5 shaping.
+
+Validation: unchanged10,554 vertices /21,086 triangles; 41 geometry/scale samples pass finite/nondegenerate faces, ordered body rings and uniform fully weighted crown scaling. Intentional terminal recess rows are excluded from axial ordering. No edited open/nonmanifold edges. Five BVH samples find no nonadjacent intersections involving edited faces. A default-size radial-profile audit across all96 meridians, over parameter0.85–5.70 with prominence threshold0.08, finds at most one significant peak per meridian (81 have one;15 have none where the rim diminishes). This is a mesh-profile check, not a guarantee of subjective appearance or clinical accuracy.
+
+The actual delivered R6 blend is the comparison baseline. Five matched sizes, four views and three shading modes produce120 renders; Blender control coordinates are checked for both models. Preview controls, all60 combinations, links and reset are verified. Mapping stays0=0.85x,50=1.00x,100=1.60x. Blender control is continuous; OBJ is default50. Some fine triangular shading remains visible under cavity lighting, particularly at large size.
+
+Preserve custom normals in Blender/OBJ or use the included renderer when reconstructing from model-data.json. The fitted shaft-normal band has zero morph weight; the changing crown keeps automatic normals. Sources require the existing workspace inputs. See geometry-audit.json, intersection-audit.json, change-audit.json, shaft-normal-check.json, blender-control-check.json, before-control-check.json and preview-ui-check.json.
+
+This remains an authoring preview pending user review. Lower slit is an external recess; no internal urethral lumen is included. Previous outputs are preserved. No game launch, installation or game-file modification. UV/rig transfer, animation, physics and game integration remain unfinished.
