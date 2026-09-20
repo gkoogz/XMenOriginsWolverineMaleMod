@@ -78,7 +78,7 @@ static HRESULT DrawR14(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original,UINT
   if(SUCCEEDED(hr)){
     bool capture=captureRemaining>0&&captureDraw<16;
     if(capture){CaptureDraw(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3,r14Packed,sizeof(r14Packed),r14Indices,sizeof(r14Indices));CaptureSurface(d,"before");}
-    hr=origDIP(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3);
+    hr=capture?origDIP(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3):DrawWithLightingDirections(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3);
     if(capture)CaptureSurface(d,"after");
   }
   d->SetStreamSource(0,original,offset,stride);d->SetIndices(ib);if(ib)ib->Release();
