@@ -1,3 +1,11 @@
+# Current: R12 retry from R10 — rounded side and defined crest
+
+User authorized retry after rejecting R11. outputs/crown-oblique-raphe-r12 starts from R10 directly. Local positive lip (.22 nominal) and shallow return (-.095 nominal) along smoothed existing crest path, blends to original dorsal crown, final taper parameter5.40–5.80. Side lobe arc-length fairing32iterations smooths old angular transition. Not the rejected radial reconstruction. Same10,554verts/21,086tris;shaft/terminal/length unchanged;41geometry and5BVH samples pass. ActualR10 comparison,120renders, control checks. Fine cavity-light facets remain; user review pending. R11 rejected and R10 preserved. Both sketches included. See CROWN-OBLIQUE-RAPHE-R12.md. Preserve custom normals. DO NOT LAUNCH GAME;no installation/integration.
+
+# R11 attempt rejected — stop; R10 remains baseline
+
+User explicitly rejected the attempted R11 crest/side shaping with "THAT LOOKS HORRIBLE OMG NO!". Stopped immediately and requested R10 preview reopen. R10 files are intact. R11 working files and trial renders are rejected experiments, not a delivered revision; do not package, install, or continue them without new direction. Initial reconstruction produced spikes/intersections; a later local lip trial was generated but not delivered/accepted. No game launch or changes.
+
 # Current: converging underside sweep R10
 
 User provided red V sketch requiring curves sweep inward and converge immediately before/into tip. outputs/crown-oblique-raphe-r10 applies progressive inner-ventral lateral reparameterization to R9, maximum68% locally, smoothly fading laterally and into terminal rows. Outer lobes largely retained; shaft/dorsal/terminal>=5.88 unchanged. Axial/ventral coordinates and centerline unchanged. More concentrated inner crease/highlight. Same10,554verts/21,086tris;41geometry samples and fiveBVH samples pass, actualR9 comparison,120renders, controls verified. Latest sketch included. Pending user review. See CROWN-OBLIQUE-RAPHE-R10.md. Preserve custom normals. DO NOT LAUNCH GAME; no game modifications/integration.
