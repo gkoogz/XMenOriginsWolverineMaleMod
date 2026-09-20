@@ -1,7 +1,8 @@
 #ifndef RUNTIME_SOURCE
-#define RUNTIME_SOURCE "../src/runtime/d3d9_proxy.cpp"
+#define RUNTIME_SOURCE "../../src/runtime/d3d9_proxy.cpp"
 #endif
 #include RUNTIME_SOURCE
+#include "render_test.h"
 static LRESULT CALLBACK HarnessProc(HWND h,UINT m,WPARAM w,LPARAM l){return DefWindowProc(h,m,w,l);}
 int main(int argc,char** argv){
   if(argc==2&&strcmp(argv[1],"--glans-controls-test")==0){
@@ -36,7 +37,7 @@ int main(int argc,char** argv){
   HINSTANCE hi=GetModuleHandleA(nullptr);WNDCLASSA wc{};wc.lpfnWndProc=HarnessProc;wc.hInstance=hi;wc.lpszClassName="V071Inspection";RegisterClassA(&wc);
   HWND hw=CreateWindowA(wc.lpszClassName,"V0.7.1 inspection",WS_OVERLAPPEDWINDOW,0,0,320,240,nullptr,nullptr,hi,nullptr);
   LoadReal();IDirect3D9* d9=realCreate9(D3D_SDK_VERSION);if(!d9)return 10;
-  D3DPRESENT_PARAMETERS pp{};pp.Windowed=TRUE;pp.SwapEffect=D3DSWAPEFFECT_DISCARD;pp.hDeviceWindow=hw;pp.BackBufferWidth=320;pp.BackBufferHeight=240;pp.BackBufferFormat=D3DFMT_A8R8G8B8;
+  D3DPRESENT_PARAMETERS pp{};pp.Windowed=TRUE;pp.SwapEffect=D3DSWAPEFFECT_DISCARD;pp.hDeviceWindow=hw;pp.BackBufferWidth=1000;pp.BackBufferHeight=750;pp.BackBufferFormat=D3DFMT_A8R8G8B8;pp.EnableAutoDepthStencil=TRUE;pp.AutoDepthStencilFormat=D3DFMT_D16;
   IDirect3DDevice9* dev=nullptr;if(FAILED(d9->CreateDevice(0,D3DDEVTYPE_HAL,hw,D3DCREATE_SOFTWARE_VERTEXPROCESSING,&pp,&dev)))return 11;
   if(FAILED(dev->CreateVertexBuffer(50915*32,D3DUSAGE_DYNAMIC,0,D3DPOOL_DEFAULT,&graftBuffer,nullptr)))return 12;
   graftOffset=47050*32;void* raw=nullptr;graftBuffer->Lock(0,0,&raw,0);memset(raw,0,50915*32);
@@ -58,5 +59,8 @@ int main(int argc,char** argv){
   char nodesFile[MAX_PATH];sprintf_s(nodesFile,"%s.nodes",argv[1]);fopen_s(&fp,nodesFile,"wb");fwrite(shaftNodes,sizeof(V3),shaftNodeCount,fp);fclose(fp);
   sprintf_s(nodesFile,"%s.balls",argv[1]);fopen_s(&fp,nodesFile,"wb");fwrite(ballNodes,sizeof(V3),2,fp);V3 anchors[2]={BallAnchor(0),BallAnchor(1)};fwrite(anchors,sizeof(V3),2,fp);fclose(fp);
   sprintf_s(nodesFile,"%s.trace",argv[1]);fopen_s(&fp,nodesFile,"wb");fwrite(trace.data(),sizeof(V3),trace.size(),fp);fclose(fp);
-  graftBuffer->Release();graftBuffer=nullptr;dev->Release();d9->Release();DestroyWindow(hw);return 0;
+  sprintf_s(nodesFile,"%s.r14",argv[1]);fopen_s(&fp,nodesFile,"wb");fwrite(r14Positions,sizeof(V3),r14Count,fp);fclose(fp);
+  sprintf_s(nodesFile,"%s.packed",argv[1]);fopen_s(&fp,nodesFile,"wb");fwrite(r14Packed,1,sizeof(r14Packed),fp);fclose(fp);
+  bool renderOK=TestR14Draw(dev,argv[1],pp);
+  ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}dev->Release();d9->Release();DestroyWindow(hw);return renderOK?0:71;
 }

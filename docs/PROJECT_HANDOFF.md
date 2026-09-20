@@ -1,3 +1,17 @@
+# Current: approved R14 installed for user play test
+
+User approved R14 and requested game integration. Installed runtime SHA256
+43103535473C9215137C173D3478E00BE8F7C4B8105BB4332421020D04204E7F
+at C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll. Original package and live
+INI unchanged. Backup: C:\Games\X-Men Origins Wolverine\WGame\ModBackups\R14-integration-20260920-014457.
+Game not launched; user will try it. F6 menu says R14 INTEGRATED. Glans Size
+0..100, default50. Original final physics cage drives new draw mesh; UV/skin
+transfer, fitted normals, reset/resource handling included. Ten final geometry
+and BVH cases passed, plus D3D9 draw/state/reset checks. Atlas diffuse render
+inspected. Gameplay confirmation pending. See R14-GAME-INTEGRATION.md and
+outputs/r14-game-integration/installation.json. Public release payloads remain
+untouched. Earlier authoring-only/no-install entries below are historical.
+
 # Current: R14 fuller underside arc and curled flare
 
 User supplied1123123.PNG for fuller underside wrap and Capture111.PNG for increased flare curling under. outputs/crown-oblique-raphe-r14 starts fromR13. Adds~.28radial flare, shallow proximal radial return and up to.09proximal curl. Broad ventral lobe fill nominal.24 tapers away fromcenter/slit,16local fairing iterations. Shaft/terminal/overalllength unchanged. Same10,554verts/21,086tris;41geometry and5BVH checks pass;actualR13 before,120renders,controls verified. Latest sketches included. Fine cavity-light facets remain. R14 pending review;R12 explicitly approved baseline preserved. See CROWN-OBLIQUE-RAPHE-R14.md. Preserve custom normals. DO NOT LAUNCH GAME;no installation/integration.

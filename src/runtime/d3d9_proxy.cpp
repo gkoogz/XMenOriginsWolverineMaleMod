@@ -475,7 +475,7 @@ static void LoadSettings(){
     settingsPending=true;settingsChangedTick=GetTickCount();
   }
   ReadIniFloat(path,"Shape","Hang",1.f,100.f,hangUI);
-  ReadIniFloat(path,"Shape","Glans Size",1.f,100.f,glansUI);
+  ReadIniFloat(path,"Shape","Glans Size",0.f,100.f,glansUI);
   ApplyControlMapping();float state=(float)physicsState;if(ReadIniFloat(path,"Physics","State",0,2,state))physicsState=(int)(state+.5f);
   Log("1-100 controls loaded version=%d state=%d neutral shape=(%.3f %.3f %.3f %.3f %.1f %.3f %.3f)",version,physicsState,sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6]);
 }
@@ -1346,6 +1346,7 @@ static float SampleOverallWidthVertex(UINT q,float overall,float width){
   float b=overallWidthTargets[oi1][wi0][q]*(1.f-wt)+overallWidthTargets[oi1][wi1][q]*wt;
   return a*(1.f-ot)+b*ot;
 }
+#include "r14_runtime.h"
 static void ApplyShape(){
   if(!graftBuffer)return;bool report=shapeDirty;void* raw=nullptr;
   const UINT graftFirstVertex=graftOffset/graftStride;
@@ -1437,7 +1438,7 @@ static void ApplyShape(){
     graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-follow)+solidCore[i]*follow;
   }
   SculptVentralContourStudy();
-  ScaleGlansIndependently();
+  // Glans Size is evaluated on the approved R14 mesh, not on the donor cage.
   ResolveSuspendedSkinContact();
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
@@ -1476,6 +1477,7 @@ static void ApplyShape(){
     packedTangent[0]=PackSigned(tangent.x);packedTangent[1]=PackSigned(tangent.y);packedTangent[2]=PackSigned(tangent.z);
     packedNormal[0]=PackSigned(normal.x);packedNormal[1]=PackSigned(normal.y);packedNormal[2]=PackSigned(normal.z);
   }
+  UpdateR14(p);
   if(tipCount){V3 tip=tipSum/(float)tipCount;float newLength=max(8.f,min(60.f,Length(tip-ShaftRoot())));constraintRestLength=constraintRestLength*.92f+newLength*.08f;}
   float written[3];memcpy(written,p,12);graftBuffer->Unlock();shapeDirty=false;if(report)Log("live controls, recruited pelvis collar, and dynamic tangent basis applied state=%d collar=%.3f shape=%.2f %.2f %.2f %.2f %.1f %.2f %.2f shaft=%.0f %.0f %.0f %.0f balls=%.0f %.0f %.0f %.0f first=(%.4f %.4f %.4f)",physicsState,collarGrowth,sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6],physValues[0],physValues[1],physValues[2],physValues[3],physValues[4],physValues[5],physValues[6],physValues[7],written[0],written[1],written[2]);
 }
@@ -1519,7 +1521,7 @@ static void Text(IDirect3DDevice9* d,const char* text,RECT r,D3DCOLOR c,DWORD fl
 static void ResetStudyControls(){hangUI=glansUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
 static void AdjustStudyControl(int index,int dir,float mult){
   int control=index<3?index:index-1;
-  if(index==3)glansUI=max(1.f,min(100.f,glansUI+dir*mult));
+  if(index==3)glansUI=max(0.f,min(100.f,glansUI+dir*mult));
   else{
       if(control==4)hangUI=max(1.f,min(100.f,hangUI+dir*mult));
       else if(control<8){int shape=control<4?control:control-1;sliderUI[shape]=max(1.f,min(100.f,sliderUI[shape]+dir*mult));}
@@ -1544,11 +1546,11 @@ static void OverlayFrame(IDirect3DDevice9* d){
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
   IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=18;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"v0.7.2 R2 GLANS STUDY (F6 TO HIDE)":"v0.7.2 R2 GLANS STUDY (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,menuOpen?"R14 INTEGRATED (F6 TO HIDE)":"R14 INTEGRATED (F6 TO SHOW)",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       int control=i<3?i:i-1;
-      if(i==3){name="GLANS SIZE";value=glansUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      if(i==3){name="GLANS SIZE";value=glansUI;lo=0;hi=100;sprintf_s(val,"%.0f",value);}
       else if(control==4){name="HANG";value=hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
       else if(control<8){int shape=control<4?control:control-1;const auto& s=sliderSpecs[shape];name=s.name;value=sliderUI[shape];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
       else if(control==8){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}
@@ -1571,7 +1573,7 @@ static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const R
   if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}frameRendered=false;d->Release();}
   return origSwapPresent(sc,src,dst,wnd,dirty,flags);
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
 
 static void Log(const char* fmt, ...) {
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);
@@ -1626,6 +1628,10 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
         if(candidate<=16)Log("candidate Wolverine VB=%p size=%u offset=%u stride=%u lock=%08X fingerprint=%d drawSignature=%d start=%u count=%u",vb,desc.Size,offset,stride,lk,match?1:0,drawSignature?1:0,start,count);
         if(match||drawSignature){graftBuffer=vb;graftBuffer->AddRef();graftOffset=47050u*graftStride;InterlockedExchange(&logged,1);shapeDirty=true;ApplyShape();Log("graft buffer solidly connected at vertex %u via %s signature",graftOffset/graftStride,match?"geometry":"section-draw");}
       }
+    }
+    if(vb==graftBuffer && type==D3DPT_TRIANGLELIST && start==graftTriangleIndexStart && count==graftTriangleIndexCount/3u && EnsureR14(dev)){
+      HRESULT replacement=DrawR14(dev,vb,offset,stride);
+      if(SUCCEEDED(replacement)){vb->Release();return replacement;}
     }
     vb->Release();
   }
