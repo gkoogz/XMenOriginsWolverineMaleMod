@@ -1,0 +1,19 @@
+# Longer glans, lower slit, joined V and smooth shaft — R6
+
+Addresses the five requested changes from R5:
+
+- Another 0.88 authoring units of distributed axial extension. Maximum distal axial position increases by approximately 0.883 units; the existing crown roll and sweep remain.
+- Moves the terminal slit toward the ventral surface using a 0.65-unit offset in the recess envelope and a reworked upper closure. The recess continues into the V; this is external surface shaping, not an internal urethral lumen.
+- Tightens the V arms after their outward shoulder curl: half-widths now pass through 1.85, 1.05, 0.40, 0.12 and zero by parameter5.1. The frenular bridge narrows and diminishes sooner so the arms converge rather than leaving a broad terminal pocket.
+- Uses a straight axial/radial guide for the central raphe-to-frenulum side profile, with soft transverse blending to preserve its rounded cross-section. The closing tip meridians are faired and the terminal envelope recalculated after the profile edit; this prevents the new surface folding back or introducing a ledge. Default central-profile RMS deviation from a fitted line over parameters0.85–4.6 decreases from about0.173 to0.00053 authoring units. The terminal closure remains rounded.
+- Smooths the upstream shaft join using a low-order axial/Fourier surface fit after temporarily removing raphe relief. The raphe is restored as a distinct feature. The visible crease also involved the coarse-to-dense topology's shading: local quadratic surface normals are blended across the fixed shaft band. All vertices with custom normals have zero size-morph weight; the changing crown retains automatic normals. This removes the seam in the side preview without adding polygons.
+
+Normals are part of this authoring result: preserve the custom normals in the Blender file or exported OBJ. Rebuilding only positions from model-data.json with ordinary averaged normals can reintroduce the shaft shading seam; render_oblique_crown_r6.py contains the reproducible normal-fit procedure. No weighted-normal modifier is used. Raphe/profile/terminal fields are cumulative; inherited raphe or meatal metadata alone does not reverse the finished sculpt.
+
+Topology remains10,554 vertices /21,086 triangles. Size mapping remains0=0.85x,50=1.00x,100=1.60x. Actual deliveredR5 andR6 use matched scales across five sizes, four views and three shading modes (120 renders). Blender has a continuous Glans Size property; OBJ is exported at default50.
+
+Checks: 41 finite/nondegenerate geometry, body-ring order and uniform fully weighted crown scaling samples; no edited open/nonmanifold edges; five BVH samples with no nonadjacent intersections involving edited faces. Intentional terminal recess rows are excluded from axial ring ordering. Before/after Blender evaluated coordinates match expected meshes. The normal-fit band is asserted to have zero morph influence. The preview script, 60 setting combinations, links and reset are checked. See geometry-audit.json, intersection-audit.json, blender-control-check.json, before-control-check.json, shaft-normal-check.json, change-audit.json and preview-ui-check.json.
+
+Some fine facets remain in the V under cavity lighting at large size, and the older proximal shaft retains its original coarse topology. The shape is an authored interpretation of the user's drawing, not a calibrated reconstruction or medically validated model.
+
+Construction recomputes the previous recipe from R2 and preserves R3 root protection. Comparison baseline and detail_displacement are relative to actual R5. Source scripts require workspace inputs. This remains an authoring preview pending user review; UV/rig transfer, animation, physics and game integration are unfinished. No game launch, installation or game-file modification was performed. Previous artifacts are preserved.
