@@ -1,3 +1,7 @@
+# Current: R13 slight flare enhancement — R12 approved
+
+User explicitly approved R12 ("Much better, very good") and requested only slight extra flare into the rounded curl. outputs/crown-oblique-raphe-r13 starts from R12, adds local radial expansion up to.23 around smoothed existing crest, broader glans-side approach and shorter rounded shaft-side return. Reduced underside strength preserves accepted V path, fades at tip. No axial or length change;shaft/terminal unchanged. Same10,554verts/21,086tris;41geometry and5BVH checks pass. ActualR12 before,120renders, controls verified. R12 remains user-approved baseline;R13 pending review. See CROWN-OBLIQUE-RAPHE-R13.md. Preserve custom normals. DO NOT LAUNCH GAME;no installation/integration.
+
 # Current: R12 retry from R10 — rounded side and defined crest
 
 User authorized retry after rejecting R11. outputs/crown-oblique-raphe-r12 starts from R10 directly. Local positive lip (.22 nominal) and shallow return (-.095 nominal) along smoothed existing crest path, blends to original dorsal crown, final taper parameter5.40–5.80. Side lobe arc-length fairing32iterations smooths old angular transition. Not the rejected radial reconstruction. Same10,554verts/21,086tris;shaft/terminal/length unchanged;41geometry and5BVH samples pass. ActualR10 comparison,120renders, control checks. Fine cavity-light facets remain; user review pending. R11 rejected and R10 preserved. Both sketches included. See CROWN-OBLIQUE-RAPHE-R12.md. Preserve custom normals. DO NOT LAUNCH GAME;no installation/integration.
