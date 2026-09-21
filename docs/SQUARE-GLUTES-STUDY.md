@@ -1,0 +1,13 @@
+# Squarer glutes — review renders
+
+2026-09-20: user requested fuller, squarer gluteal contours, emphasizing upper mass, and specified color and wireframe renders from several sides as the deliverable.
+
+Delivered `outputs/square-glutes/comparison.html`, twenty 1200×1400 PNGs, `overview.png`, `renders.zip`, `square-glutes.blend`, full `edited-mesh.json`, source snapshots, references, and audits. Five views: rear, left rear three-quarter, left side, right rear three-quarter, elevated rear. Actual installed package is the before model (SHA256 7C5CE1F5FD45AB4F7A159F9D5455B1D40D11E72F4C2EFE7D7F18C7391AED2A64). Fresh export used the old `beta_mesh.ps1` in export-only mode.
+
+The final sculpt widens the upper/outer contours and adds broad upper projection, with welded position-group fairing to round the old pointed side contour. Same 50,915 render vertices / 87,864 stored triangles; 670 render vertices changed. Original UV, skin weights, chunks, bones and sections remain identical. Normals and tangents updated only for edited points. No game installation or launch. This is an unapproved art candidate, not a runtime fix, and does not resolve the separate outfit regression.
+
+Validation: positive pre-fairing deformation Jacobians; final edited face normals do not flip; no new degenerate edited faces; zero nonadjacent edited-region skin intersections before and after using Blender BVH. Twenty PNGs decoded and dimensions verified. Matched color views use the freshly exported game diffuse atlas, not the complete UE3 material. Workbench renders visually inspected, including all ten final views on the overview. Some original texture seams and low-poly silhouette facets remain. Animation is untested. Deliberately degenerate original game triangles are excluded from preview geometry to avoid Blender custom-normal crashes, but remain unchanged in the full mesh JSON.
+
+Reference: rear bodybuilding comparison by Chris Nicoll / M+F Magazine in John Romano's rear double-biceps article. Inspected the image in browser; no external photos redistributed. Links and limitations in REFERENCES.md. Opening the local HTML automatically in the in-app browser was blocked by the browser URL policy; no workaround attempted. Deliver the PNG overview and file links directly.
+
+Sources: workspace `work/sculpt_square_glutes.py`, `work/render_square_glutes.py`, `work/check_square_glutes_bvh.py`, `work/package_square_glutes.py`; preserved copies in output `sources/`. Blender file is a cropped body study with source vertex IDs and packed texture. Full edited mesh JSON retains package attributes for later integration; do not install without synchronizing any affected runtime body-control base data and checking animation.

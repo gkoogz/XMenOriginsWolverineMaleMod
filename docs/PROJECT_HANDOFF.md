@@ -1,4 +1,8 @@
-# Current: full-capture lighting-direction correction installed; review pending
+# Current: squarer glute sculpt rendered for review (2026-09-20)
+
+User requested fuller, squarer upper glutes, then specified color and wireframe renders from several sides. Completed authoring candidate in `outputs/square-glutes`: 20 matching PNGs across 5 angles, overview, renders.zip, comparison.html, packed-texture Blender scene, full edited mesh JSON, sources and audits. Started from fresh export of installed Natural package. Same 50,915 vertices / 87,864 stored triangles; 670 vertices changed; UV/rig/topology retained. Zero new edited-region intersections or face flips. Final images visually reviewed; actual game texture used. Not installed, no game launch, user review pending. Browser URL policy blocked automatic opening of local HTML; deliver direct image/file links, no bypass. See SQUARE-GLUTES-STUDY.md. Outfit regression and gameplay shading confirmation remain separate unresolved items.
+
+# Previous: full-capture lighting-direction correction installed; review pending
 
 2026-09-20 user supplied two F10 captures: Binaries/R14Capture_20260920_023611 and _023631. Both have successful completion and all real material textures/cubemaps. The base material draw_000 already contains the dark distal scribble; no later screen effect required. Its shader pair is byte-identical to the old Capture168 pair, so exact-pair matching applies.
 
