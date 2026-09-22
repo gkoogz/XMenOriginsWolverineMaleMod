@@ -1,4 +1,5 @@
 #include "lighting_direction_shaders.h"
+#include "ovoid_skin_shaders.h"
 // Correct only the demonstrated shader pair, only while rendering R14.
 // View vector and skin lobe retain all material strengths and sampled normals.
 // Carry all three transformed basis vectors to the pixel shader instead of
@@ -30,9 +31,17 @@ static HRESULT DrawWithLightingDirections(IDirect3DDevice9* d,D3DPRIMITIVETYPE t
  if(!lightingDirectionsEnabled)return origDIP(d,type,base,minv,nv,start,count);
  IDirect3DVertexShader9* vs=nullptr;IDirect3DPixelShader9* ps=nullptr;d->GetVertexShader(&vs);d->GetPixelShader(&ps);
  bool ready=MatchLightingPair(vs,ps);
- if(ready&&!lightingDirectionsVS)ready=SUCCEEDED(d->CreateVertexShader(skinFixedVS,&lightingDirectionsVS));
- if(ready&&!lightingDirectionsPS)ready=SUCCEEDED(d->CreatePixelShader(skinFixedPS,&lightingDirectionsPS));
+ if(ready&&!lightingDirectionsVS)ready=SUCCEEDED(d->CreateVertexShader(skinOvoidVS,&lightingDirectionsVS));
+ if(ready&&!lightingDirectionsPS)ready=SUCCEEDED(d->CreatePixelShader(skinOvoidPS,&lightingDirectionsPS));
+ float savedOvoidConstants[16]{};bool constantsSaved=false;
  bool applied=false;
+ if(ready){
+  constantsSaved=SUCCEEDED(d->GetVertexShaderConstantF(239,savedOvoidConstants,4));
+  if(constantsSaved){
+    float oval[16];for(int b=0;b<2;b++){V3 r=eggRadii[b];oval[b*8]=ballNodes[b].x;oval[b*8+1]=ballNodes[b].y;oval[b*8+2]=ballNodes[b].z;oval[b*8+3]=0;oval[b*8+4]=1.f/max(.1f,r.x);oval[b*8+5]=1.f/max(.1f,r.y);oval[b*8+6]=1.f/max(.1f,r.z);oval[b*8+7]=0;}
+    ready=SUCCEEDED(d->SetVertexShaderConstantF(239,oval,4));
+  }else ready=false;
+ }
  if(ready){
   HRESULT a=d->SetVertexShader(lightingDirectionsVS),b=SUCCEEDED(a)?d->SetPixelShader(lightingDirectionsPS):E_FAIL;
   applied=SUCCEEDED(a)&&SUCCEEDED(b);
@@ -40,5 +49,6 @@ static HRESULT DrawWithLightingDirections(IDirect3DDevice9* d,D3DPRIMITIVETYPE t
  }
  HRESULT result=origDIP(d,type,base,minv,nv,start,count);
  if(applied){d->SetVertexShader(vs);d->SetPixelShader(ps);if(lightingDirectionsDraws++==0)Log("R14 lighting directions correction ACTIVE; original lighting constants retained");}
+ if(constantsSaved)d->SetVertexShaderConstantF(239,savedOvoidConstants,4);
  if(vs)vs->Release();if(ps)ps->Release();return result;
 }

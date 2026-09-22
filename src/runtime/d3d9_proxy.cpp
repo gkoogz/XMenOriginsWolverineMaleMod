@@ -62,9 +62,9 @@ static float sliderUI[7]={50.f,50.f,50.f,50.f,50.f,50.f,50.f};
 static float sliderValues[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
 struct PhysSpec {const char* name;float lo,hi,def,step;};
 static const PhysSpec physSpecs[8]={{"SHAFT STIFF",-100,400,70,1},{"SHAFT WEIGHT",0,100,65,1},{"SHAFT BOUNCE",0,100,20,1},{"SHAFT VELOCITY",10,200,40,1},{"BALLS STIFF",0,100,70,1},{"BALLS WEIGHT",0,100,75,1},{"BALLS BOUNCE",0,100,35,1},{"BALLS VELOCITY",10,200,105,1}};
-static const float neutralPhysics[8]={70.f,65.f,20.f,40.f,70.f,75.f,35.f,105.f};
+static const float neutralPhysics[8]={78.f,86.f,12.f,62.f,28.f,94.f,18.f,72.f};
 static float physUI[8]={50.f,50.f,50.f,50.f,50.f,50.f,50.f,50.f};
-static float physValues[8]={70.f,65.f,20.f,40.f,70.f,75.f,35.f,105.f};
+static float physValues[8]={78.f,86.f,12.f,62.f,28.f,94.f,18.f,72.f};
 static int physicsState=2,menuPage=0,selectedPhysics=0;
 struct Spring2 {float pitch,yaw,pitchVelocity,yawVelocity;};
 static Spring2 shaftSpring{},ballsSpring{};
@@ -79,11 +79,16 @@ static float Length(V3 a){return sqrtf(Dot(a,a));}
 static V3 Unit(V3 a){float n=Length(a);return n>1e-6f?a/n:V3{1,0,0};}
 static float Smooth01(float value);
 static float Smoother01(float value);
+static float Smoother01(float value);
 // A dense chain is required to form a real bend gradient.  Six long links let
 // gravity concentrate the turn at a single ring even when the rendered spline
 // was mathematically smooth.
 static const int shaftNodeCount=12;
-static V3 shaftNodes[shaftNodeCount],shaftPrevious[shaftNodeCount],ballNodes[2],ballPrevious[2];
+static V3 shaftNodes[shaftNodeCount],shaftPrevious[shaftNodeCount];
+// Layered scrotal dynamics: the sack lobes drive the visible skin, heavy
+// internal bodies roll inside them, and flexible neck particles connect the
+// lobes to their moving anatomical anchors.
+static V3 ballNodes[2],ballPrevious[2],nutNodes[2],nutPrevious[2],neckNodes[2],neckPrevious[2];
 static const int shaftRestSampleCount=18;
 static V3 shaftRestCenters[shaftRestSampleCount];
 static float graftRestFlex[graftCount];
@@ -96,6 +101,8 @@ static V3 collarFairA[collarFairGroupCount],collarFairB[collarFairGroupCount];
 static V3 collarNormalSums[collarFairGroupCount],collarTangentSums[collarFairGroupCount];
 static bool constraintSolverReady;static int constraintSolverState=-1;static float constraintAccumulator,constraintRestLength=24.f;
 static V3 constraintBallRest[2]={{14.30f,-2.0f,72.3f},{14.30f,2.0f,72.3f}};
+static V3 eggRadii[2]={{3.2f,2.35f,3.8f},{3.2f,2.35f,3.8f}};
+static bool eggRestReady=false;
 static DWORD physicsLastTick;
 static float physicsPhase;
 static const float* overallWidthTargets[3][3]={{morph_ow_lo_lo,morph_ow_lo_def,morph_ow_lo_hi},{morph_ow_def_lo,morph_ow_def_def,morph_ow_def_hi},{morph_ow_hi_lo,morph_ow_hi_def,morph_ow_hi_hi}};
@@ -114,6 +121,8 @@ static volatile LONG motionCandidateLogs;
 static volatile LONG motionBoneLogged;
 static float motionPelvisMatrix[12],motionLeftThighMatrix[12],motionRightThighMatrix[12];
 static bool motionCollisionBonesReady;
+static bool collisionCapsuleOverride;
+static V3 overrideLeftA,overrideLeftB,overrideRightA,overrideRightB;
 static __declspec(thread) bool inOverlay;
 
 static ShaderLayout* GetShaderLayout(IDirect3DDevice9* d){
@@ -150,13 +159,16 @@ static void CaptureCharacterMotion(IDirect3DDevice9* d){
   float worldOmega[3]{},localOmega[3]{};if(motionBasisReady){for(int axis=0;axis<3;axis++){const float* a=&motionPrevBasis[axis*3];const float* b=&basis[axis*3];worldOmega[0]+=(a[1]*b[2]-a[2]*b[1])*.5f/dt;worldOmega[1]+=(a[2]*b[0]-a[0]*b[2])*.5f/dt;worldOmega[2]+=(a[0]*b[1]-a[1]*b[0])*.5f/dt;}float omegaAlpha=1.f-expf(-12.f*dt);for(int axis=0;axis<3;axis++){float raw=worldOmega[0]*basis[axis*3]+worldOmega[1]*basis[axis*3+1]+worldOmega[2]*basis[axis*3+2];motionPrevAngularVelocity[axis]+=omegaAlpha*(raw-motionPrevAngularVelocity[axis]);localOmega[axis]=motionPrevAngularVelocity[axis];}}
   memcpy(motionPrevBasis,basis,sizeof(basis));motionBasisReady=true;
   if(motionWarmupSamples<3){motionWarmupSamples++;motionPitchForce=motionYawForce=0;motionTracked=false;return;}
-  for(int axis=0;axis<3;axis++){localAccel[axis]=max(-800.f,min(800.f,SoftDeadzone(localAccel[axis],32.f)));localOmega[axis]=max(-10.f,min(10.f,SoftDeadzone(localOmega[axis],.16f)));}
-  motionSpinSpeed=motionSpinSpeed*.78f+localOmega[2]*.22f;
+  for(int axis=0;axis<3;axis++){localAccel[axis]=max(-800.f,min(800.f,localAccel[axis]));localOmega[axis]=max(-10.f,min(10.f,localOmega[axis]));}
+  // Continuous, time-based filtering: idle movement must not trigger a
+  // dead zone or erase the momentum of already moving tissue.
+  float forceAlpha=1.f-expf(-14.f*dt);
+  motionSpinSpeed+=(localOmega[2]-motionSpinSpeed)*forceAlpha;
   float pitch=max(-2.5f,min(2.5f,-localAccel[2]*.0052f-localAccel[0]*.0033f-localOmega[1]*.72f));
   float yaw=max(-2.5f,min(2.5f,-localAccel[1]*.0048f-localOmega[2]*1.40f));
-  bool active=fabsf(pitch)+fabsf(yaw)>.035f;if(active)motionQuietFrames=0;else{pitch=yaw=0;motionQuietFrames++;}
-  motionPitchForce=motionPitchForce*.70f+pitch*.30f;motionYawForce=motionYawForce*.70f+yaw*.30f;
-  if(motionQuietFrames>10){motionPitchForce*=.55f;motionYawForce*=.55f;motionSpinSpeed*=.55f;shaftSpring.pitchVelocity*=.82f;shaftSpring.yawVelocity*=.82f;ballsSpring.pitchVelocity*=.82f;ballsSpring.yawVelocity*=.82f;if(fabsf(motionPitchForce)<.008f)motionPitchForce=0;if(fabsf(motionYawForce)<.008f)motionYawForce=0;}
+  motionQuietFrames=fabsf(pitch)+fabsf(yaw)>.035f?0:motionQuietFrames+1;
+  motionPitchForce+=(pitch-motionPitchForce)*forceAlpha;
+  motionYawForce+=(yaw-motionYawForce)*forceAlpha;
   motionTracked=true;LONG sample=InterlockedIncrement(&motionSamples);if(sample==1||sample==120)Log("filtered character motion bone=(%.2f %.2f %.2f) accel=(%.1f %.1f %.1f) omega=(%.2f %.2f %.2f) force=(%.3f %.3f) quiet=%d",world[0],world[1],world[2],localAccel[0],localAccel[1],localAccel[2],localOmega[0],localOmega[1],localOmega[2],motionPitchForce,motionYawForce,motionQuietFrames);
 }
 static void StepSpring(Spring2& s,float stiffness,float weight,float bounce,float velocity,float pitchTarget,float yawTarget,float pitchForce,float yawForce,float dt){
@@ -183,6 +195,25 @@ static void StepFloppySpring(Spring2& s,float stiffness,float weight,float bounc
 static V3 TransformPoint(const float m[12],V3 p){return {m[0]*p.x+m[1]*p.y+m[2]*p.z+m[3],m[4]*p.x+m[5]*p.y+m[6]*p.z+m[7],m[8]*p.x+m[9]*p.y+m[10]*p.z+m[11]};}
 static V3 InverseRigidPoint(const float m[12],V3 p){V3 q={p.x-m[3],p.y-m[7],p.z-m[11]};return {m[0]*q.x+m[4]*q.y+m[8]*q.z,m[1]*q.x+m[5]*q.y+m[9]*q.z,m[2]*q.x+m[6]*q.y+m[10]*q.z};}
 static V3 RestShaftDirection(){float a=sliderValues[4]*3.1415926535f/180.f;return {cosf(a),0.f,-sinf(a)};}
+static float shaftMode=2.f;
+static float ModeValue(float erect,float semi,float floppy){return shaftMode<=1.f?erect+(semi-erect)*Smoother01(shaftMode):semi+(floppy-semi)*Smoother01(shaftMode-1.f);}
+static V3 LiveRootDirection(){
+  float pitch=sliderValues[4]*3.1415926535f/180.f+shaftSpring.pitch,yaw=shaftSpring.yaw;
+  return {cosf(pitch)*cosf(yaw),sinf(yaw),-sinf(pitch)*cosf(yaw)};
+}
+static void StepRootSuspension(float dt,float gait,float side){
+  shaftMode+=(physicsState-shaftMode)*(1.f-expf(-2.f*dt));
+  float mass=(1.f+physValues[1]*.016f)*max(.65f,sqrtf(constraintRestLength/24.f));
+  float k=ModeValue(38.f,22.f,10.f),damping=2.f*sqrtf(k*mass)*ModeValue(.28f,.40f,.52f);
+  float droop=ModeValue(.015f,.11f,.28f),drive=ModeValue(7.f,9.f,12.f);
+  shaftSpring.pitchVelocity+=(k*(droop-shaftSpring.pitch)-damping*shaftSpring.pitchVelocity-gait*drive)*dt/mass;
+  shaftSpring.yawVelocity+=(-k*.8f*shaftSpring.yaw-damping*shaftSpring.yawVelocity+side*drive)*dt/mass;
+  shaftSpring.pitch+=shaftSpring.pitchVelocity*dt;shaftSpring.yaw+=shaftSpring.yawVelocity*dt;
+  // Soft travel stops apply restoring torque, not per-frame angle resets.
+  float limit=ModeValue(.42f,.62f,.92f);
+  if(fabsf(shaftSpring.pitch)>limit)shaftSpring.pitchVelocity-=copysignf((fabsf(shaftSpring.pitch)-limit)*90.f*dt,shaftSpring.pitch);
+  if(fabsf(shaftSpring.yaw)>.65f)shaftSpring.yawVelocity-=copysignf((fabsf(shaftSpring.yaw)-.65f)*90.f*dt,shaftSpring.yaw);
+}
 static V3 ShaftRoot(){return {12.65f,0.f,84.3f};}
 static float OverallShapeScale(){return sliderValues[0]/sliderSpecs[0].def;}
 static float ShaftWidthScale(){return OverallShapeScale()*(sliderValues[2]/sliderSpecs[2].def);}
@@ -203,13 +234,40 @@ static float LogicalShaftOwner(UINT i,float t);
 static V3 RotateFromTo(V3 value,V3 from,V3 to);
 static void SampleShaftChain(float t,V3& center,V3& tangent);
 static void InitializeConstraintSolver(){
+  shaftMode=(float)physicsState;
   V3 root=ShaftRoot(),dir=RestShaftDirection();float segment=constraintRestLength/(shaftNodeCount-1);
   for(int i=0;i<shaftNodeCount;i++)shaftNodes[i]=shaftPrevious[i]=root+dir*(segment*i);
-  ballNodes[0]=ballPrevious[0]=constraintBallRest[0];ballNodes[1]=ballPrevious[1]=constraintBallRest[1];
+  for(int side=0;side<2;side++){
+    V3 anchor=RestBallAnchor(side),rest=constraintBallRest[side];
+    ballNodes[side]=ballPrevious[side]=rest;
+    neckNodes[side]=neckPrevious[side]=anchor+(rest-anchor)*.43f;
+    float sign=side?1.f:-1.f;
+    nutNodes[side]=nutPrevious[side]=rest+V3{.10f,sign*.18f,-.32f};
+  }
   constraintAccumulator=0;constraintSolverReady=true;constraintSolverState=physicsState;
   Log("constraint solver initialized nodes=%d restLength=%.2f state=%d",shaftNodeCount,constraintRestLength,physicsState);
 }
 static void SolveDistance(V3& a,V3& b,float target,float aInvMass,float bInvMass){V3 d=b-a;float n=Length(d),sum=aInvMass+bInvMass;if(n<1e-6f||sum<=0)return;V3 correction=d*((n-target)/(n*sum));a=a+correction*aInvMass;b=b-correction*bInvMass;}
+static void SolveDistanceHistory(V3& a,V3& previousA,V3& b,V3& previousB,float target,float aInvMass,float bInvMass,float stiffness,float maximumStep){
+  V3 d=b-a;float n=Length(d),sum=aInvMass+bInvMass;if(n<1e-6f||sum<=0)return;
+  V3 correction=d*((n-target)/n)*(stiffness/sum);float magnitude=Length(correction);
+  if(magnitude>maximumStep)correction=correction*(maximumStep/magnitude);
+  V3 da=correction*aInvMass,db=correction*bInvMass;
+  a=a+da;b=b-db;
+}
+// Project only relative radial velocity; free tangential swing survives.
+static void ProjectLinkVelocity(V3 a,V3& previousA,V3 b,V3& previousB,float wa,float wb){
+  V3 d=b-a;float n=Length(d),sum=wa+wb;if(n<1e-6f||sum<=0.f)return;
+  V3 normal=d*(1.f/n),va=a-previousA,vb=b-previousB;
+  V3 impulse=normal*(Dot(vb-va,normal)/sum);
+  previousA=previousA-impulse*wa;previousB=previousB+impulse*wb;
+}
+static void SolveMaximumHistory(V3& a,V3& previousA,V3& b,V3& previousB,float maximum,float aInvMass,float bInvMass,float stiffness,float maximumStep){
+  V3 d=b-a;float n=Length(d);if(n<=maximum||n<1e-6f)return;
+  float sum=aInvMass+bInvMass;if(sum<=0.f)return;V3 correction=d*((n-maximum)/n)*(stiffness/sum);float magnitude=Length(correction);
+  if(magnitude>maximumStep)correction=correction*(maximumStep/magnitude);
+  V3 da=correction*aInvMass,db=correction*bInvMass;a=a+da;b=b-db;
+}
 static V3 SlerpDirection(V3 a,V3 b,float fraction){
   a=Unit(a);b=Unit(b);float c=max(-1.f,min(1.f,Dot(a,b))),angle=acosf(c);
   if(angle<1e-4f)return b;float s=sinf(angle);if(fabsf(s)<1e-4f)return Unit(a*(1.f-fraction)+b*fraction);
@@ -223,11 +281,12 @@ static void ConstrainCurvatureGradient(V3 root,V3 restDir,float segment,float st
     // Maximum turn is deliberately smallest at the root and opens gradually
     // downstream.  Stiffness narrows the whole envelope without creating a
     // separate rigid/free hinge.
-    float maxTurn=physicsState==0?(.050f+.035f*t):physicsState==1?(.085f+.115f*t):(.115f+.190f*t);
+    float maxTurn=ModeValue(.003f+.003f*t,.065f+.115f*t,.17f+.25f*t);
     maxTurn*=1.f-.42f*stiffCurve;
     V3 incoming=Unit(shaftNodes[i]-shaftNodes[i-1]);V3 outgoing=Unit(shaftNodes[i+1]-shaftNodes[i]);
     float angle=acosf(max(-1.f,min(1.f,Dot(incoming,outgoing))));
-    if(angle>maxTurn){V3 limited=SlerpDirection(incoming,outgoing,maxTurn/angle);shaftNodes[i+1]=shaftNodes[i]+limited*segment;}
+    V3 limited=angle>maxTurn?SlerpDirection(incoming,outgoing,maxTurn/angle):outgoing;
+    shaftNodes[i+1]=shaftNodes[i]+limited*segment;
   }
   shaftNodes[0]=root;shaftNodes[1]=root+restDir*segment;
 }
@@ -240,7 +299,10 @@ static V3 LimitedCorrection(V3 correction,float compliance,float maximumStep){
   return distance>maximumStep?correction*(maximumStep/distance):correction;
 }
 static void ApplyNonimpulsiveCorrection(V3& point,V3& previous,V3 correction,float compliance,float maximumStep){
-  V3 shift=LimitedCorrection(correction,compliance,maximumStep);point=point+shift;previous=previous+shift;
+  V3 shift=LimitedCorrection(correction,compliance,maximumStep);
+  V3 velocity=point-previous;float n=Length(correction);
+  if(n>1e-6f){V3 normal=correction*(1.f/n);float inward=Dot(velocity,normal);if(inward<0.f)velocity=velocity-normal*inward;}
+  point=point+shift;previous=point-velocity;
 }
 static void ResolvePairMaximumCompliant(V3& a,V3& previousA,V3& b,V3& previousB,float maximum){
   V3 d=b-a;float n=Length(d);if(n<=maximum||n<1e-6f)return;
@@ -312,6 +374,7 @@ static void KeepBallAboveMinimum(float& value,float& previous,float minimum,floa
 static void KeepBallBelowMaximum(float& value,float& previous,float maximum,float relief=0.f){if(value>maximum){float strength=.12f*(1.f-.55f*relief),cap=.10f*(1.f-.40f*relief);float shift=min((value-maximum)*strength,cap);value-=shift;previous-=shift;}}
 static void CollisionCapsules(V3& leftA,V3& leftB,V3& rightA,V3& rightB){
   const V3 restLeftA={2.f,-7.8f,79.f},restLeftB={1.f,-8.2f,43.f},restRightA={2.f,7.8f,79.f},restRightB={1.f,8.2f,43.f};
+  if(collisionCapsuleOverride){leftA=overrideLeftA;leftB=overrideLeftB;rightA=overrideRightA;rightB=overrideRightB;return;}
   leftA=restLeftA;leftB=restLeftB;rightA=restRightA;rightB=restRightB;
   if(motionCollisionBonesReady){V3 la=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionLeftThighMatrix,restLeftA)),lb=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionLeftThighMatrix,restLeftB)),ra=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionRightThighMatrix,restRightA)),rb=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionRightThighMatrix,restRightB));if(Length(lb-la)>18.f&&Length(lb-la)<55.f&&Length(rb-ra)>18.f&&Length(rb-ra)<55.f&&Length(la-restLeftA)<45.f&&Length(ra-restRightA)<45.f){leftA=la;leftB=lb;rightA=ra;rightB=rb;}}
 }
@@ -320,30 +383,40 @@ static float CrouchFactor(V3 leftA,V3 leftB,V3 rightA,V3 rightB){
   return Smoother01(max(0.f,min(1.f,(.90f-verticality)/.55f)));
 }
 static void StepConstraintSolver(float dt,float gait,float side){
-  if(!constraintSolverReady||constraintSolverState!=physicsState)InitializeConstraintSolver();
-  V3 root=ShaftRoot(),restDir=RestShaftDirection();float segment=max(2.f,constraintRestLength/(shaftNodeCount-1));
-  float shaftDamping=.995f-(100.f-physValues[2])*.00035f+physValues[1]*.00008f;shaftDamping=max(.955f,min(.997f,shaftDamping));
-  float ballDamping=.995f-(100.f-physValues[6])*.00035f;ballDamping=max(.955f,min(.997f,ballDamping));
+  if(!constraintSolverReady)InitializeConstraintSolver();
+  constraintSolverState=physicsState; // State changes retain positions and momentum.
+  StepRootSuspension(dt,gait,side);
+  V3 shaftStart[shaftNodeCount],ballStart[2],nutStart[2],neckStart[2];memcpy(shaftStart,shaftNodes,sizeof(shaftStart));memcpy(ballStart,ballNodes,sizeof(ballStart));memcpy(nutStart,nutNodes,sizeof(nutStart));memcpy(neckStart,neckNodes,sizeof(neckStart));
+  V3 root=ShaftRoot(),restDir=LiveRootDirection();float segment=max(2.f,constraintRestLength/(shaftNodeCount-1));
+  // Drag is expressed per second, rather than multiplied by an arbitrary
+  // fixed amount 240 times per second. Preserve natural coast-down.
+  float shaftDamping=expf(-(ModeValue(.5f,.65f,.48f)+(100.f-physValues[2])*.006f)*dt);
+  float ballDamping=expf(-(.65f+(100.f-physValues[6])*.010f)*dt);
+  float nutDamping=expf(-.55f*dt);
+  float neckDamping=expf(-1.35f*dt);
   // Weight is rotational inertia, not extra gravitational acceleration.  A
   // heavier chain accelerates more deliberately and carries momentum longer.
   float shaftMass=.75f+physValues[1]*.0125f;
   float response=(.65f+physValues[3]*.009f)/sqrtf(shaftMass),ballResponse=.65f+physValues[7]*.009f;
-  float gravity=physicsState==0?6.f:physicsState==1?24.f:58.f;
+  float gravity=ModeValue(5.f,42.f,110.f);
   V3 inertial={0.f,side*125.f*response,gait*125.f*response-gravity};
   for(int i=1;i<shaftNodeCount;i++){V3 velocity=(shaftNodes[i]-shaftPrevious[i])*shaftDamping;shaftPrevious[i]=shaftNodes[i];shaftNodes[i]=shaftNodes[i]+velocity+inertial*(dt*dt);}
   for(int i=0;i<2;i++){
-    // A tiny left/right response mismatch models independent suspended masses
-    // and lets the lobes meet and knock instead of moving as one welded unit.
     float independentResponse=i?1.025f:.975f;
-    V3 ballAccel={0.f,side*110.f*ballResponse*independentResponse,gait*110.f*ballResponse/independentResponse-(72.f+physValues[5]*.45f)};
+    V3 ballAccel={0.f,side*86.f*ballResponse*independentResponse,gait*86.f*ballResponse/independentResponse-(58.f+physValues[5]*.28f)};
     V3 velocity=(ballNodes[i]-ballPrevious[i])*ballDamping;ballPrevious[i]=ballNodes[i];ballNodes[i]=ballNodes[i]+velocity+ballAccel*(dt*dt);
+    V3 neckVelocity=(neckNodes[i]-neckPrevious[i])*neckDamping;neckPrevious[i]=neckNodes[i];neckNodes[i]=neckNodes[i]+neckVelocity+ballAccel*(dt*dt*.45f);
+    V3 nutAccel={0.f,side*118.f*ballResponse*independentResponse,gait*118.f*ballResponse/independentResponse-(98.f+physValues[5]*.62f)};
+    V3 internalRest=ballNodes[i]+V3{.08f,(i?1.f:-1.f)*.10f,-BallCollisionRadius()*.18f};
+    nutAccel=nutAccel+(internalRest-nutNodes[i])*12.f;
+    V3 nutVelocity=(nutNodes[i]-nutPrevious[i])*nutDamping;nutPrevious[i]=nutNodes[i];nutNodes[i]=nutNodes[i]+nutVelocity+nutAccel*(dt*dt);
   }
   // Experimental wide-range nonlinear compliance sweep.  -100 is nearly
   // unconstrained, 400 approaches rigid, and the lower half receives most of
   // the useful resolution.  One control drives hinge, bend and shape memory.
   float stiffnessSweep=max(0.f,min(1.f,(physValues[0]+100.f)/500.f));
   float stiffnessCurve=stiffnessSweep*stiffnessSweep;
-  float bend=physicsState==0?.52f+.43f*stiffnessCurve:physicsState==1?.20f+.60f*stiffnessCurve:.010f+.85f*stiffnessCurve;
+  float bend=ModeValue(.96f,.16f+.40f*stiffnessCurve,.006f+.10f*stiffnessCurve);
   // Collision envelopes are derived from the complete live morph.  The old
   // fixed-size radii underestimated the largest shapes by several times, so
   // their centers could be non-intersecting while the rendered surfaces were
@@ -362,34 +435,48 @@ static void StepConstraintSolver(float dt,float gait,float side){
   // Sphere-like lobe cores may touch and knock independently, but their centers
   // may not cross deeply enough for the rendered sacks to pass through.
   float pairMinimum=max(restSeparation*(.72f-.10f*relief),ballRadius*(1.24f-.16f*relief));
-  float pairMaximum=max(restSeparation*1.19f,shaftRadius*.55f+ballRadius*.42f);pairMaximum=max(pairMaximum,pairMinimum*1.18f);
+  if(eggRestReady)pairMinimum=(eggRadii[0].y+eggRadii[1].y)*.98f;
+  float pairMaximum=max(restSeparation*1.19f,shaftRadius*.55f+ballRadius*.42f);
+  pairMaximum=eggRestReady?pairMinimum*1.24f:max(pairMaximum,pairMinimum*1.18f);
   // Shape-aware rescue bounds. These are inactive in the normal hanging pose,
   // but prevent a lobe center from settling behind the pelvis or above the
   // proximal shaft after a deep leg/shaft contact.
   float ballForwardFloor=11.75f+min(1.65f,shaftRadius*.18f+ballRadius*.08f)-1.15f*relief;
   float ballVerticalCeiling=ShaftRoot().z-max(2.80f,ballRadius*.45f)+.65f*relief;
   float ballThighContact=thighRadius-.35f*relief+ballRadius*(.70f-.18f*relief);
-  for(int iteration=0;iteration<18;iteration++){
+  float nutRadius=ballRadius*.56f;
+  for(int iteration=0;iteration<24;iteration++){
     shaftNodes[0]=root;
     for(int i=0;i<shaftNodeCount-1;i++)SolveDistance(shaftNodes[i],shaftNodes[i+1],segment,i==0?0.f:1.f,1.f);
     // The first segment is the anatomical attachment, not a free joint.
     V3 hingeTarget=root+restDir*segment;shaftNodes[1]=hingeTarget;
     for(int i=1;i<shaftNodeCount-1;i++){float profile=physicsState==1?(1.f-(float)i/(shaftNodeCount-1)):.7f;V3 midpoint=(shaftNodes[i-1]+shaftNodes[i+1])*.5f;shaftNodes[i]=shaftNodes[i]+(midpoint-shaftNodes[i])*(bend*profile*.16f);}
     ConstrainCurvatureGradient(root,restDir,segment,stiffnessSweep);
-    if(physicsState==0){for(int i=2;i<shaftNodeCount;i++){V3 line=root+restDir*(segment*i);shaftNodes[i]=shaftNodes[i]+(line-shaftNodes[i])*.32f;}}
-    else if(physicsState==2){for(int i=2;i<shaftNodeCount;i++){float proximal=1.f-(float)(i-1)/(shaftNodeCount-1);float memory=(.00010f+.012f*stiffnessCurve)*proximal*proximal;V3 line=root+restDir*(segment*i);shaftNodes[i]=shaftNodes[i]+(line-shaftNodes[i])*memory;}}
+    for(int i=2;i<shaftNodeCount;i++){float proximal=1.f-(float)(i-1)/(shaftNodeCount-1);float memory=ModeValue(.65f,.0012f+.004f*stiffnessCurve,.00001f+.0003f*stiffnessCurve)*proximal*proximal;V3 line=root+restDir*(segment*i);shaftNodes[i]=shaftNodes[i]+(line-shaftNodes[i])*memory;}
     for(int i=1;i<shaftNodeCount-1;i++)SolveDistance(shaftNodes[i],shaftNodes[i+1],segment,1.f,1.f);SolveDistance(shaftNodes[0],shaftNodes[1],segment,0.f,1.f);
     for(int i=2;i<shaftNodeCount;i++){
       float renderedRadius=shaftRadius*(.58f+.42f*min(1.f,(float)i/4.f));float contactRadius=1.35f+max(0.f,renderedRadius-2.50f)*.35f;
       ResolveAnatomyCapsule(shaftNodes[i],shaftPrevious[i],leftA,leftB,thighRadius+contactRadius,.18f,.15f,Unit(V3{.36f,.90f,-.08f}));
       ResolveAnatomyCapsule(shaftNodes[i],shaftPrevious[i],rightA,rightB,thighRadius+contactRadius,.18f,.15f,Unit(V3{.36f,-.90f,-.08f}));
+      V3 leftUpper=leftA+(leftB-leftA)*.34f,rightUpper=rightA+(rightB-rightA)*.34f;
+      ResolveAnatomyCapsule(shaftNodes[i],shaftPrevious[i],leftA,leftUpper,thighRadius+1.05f+contactRadius,.16f,.14f,Unit(V3{.42f,.88f,-.18f}));
+      ResolveAnatomyCapsule(shaftNodes[i],shaftPrevious[i],rightA,rightUpper,thighRadius+1.05f+contactRadius,.16f,.14f,Unit(V3{.42f,-.88f,-.18f}));
     }
     for(int b=0;b<2;b++){
       ballAnchors[b]=BallAnchor(b);
-      SolveDistance(ballAnchors[b],ballNodes[b],ballTether[b],0.f,1.f);
+      // Two compliant links replace the old rigid sack tether. The neck can
+      // bend and stretch under load while a strict outer limit prevents the
+      // lobe from separating during violent animation changes.
+      V3 fixedPrevious=ballAnchors[b];float upper=ballTether[b]*.42f,lower=ballTether[b]*.58f;
+      SolveDistanceHistory(ballAnchors[b],fixedPrevious,neckNodes[b],neckPrevious[b],upper,0.f,1.f,.34f,.065f);
+      SolveDistanceHistory(neckNodes[b],neckPrevious[b],ballNodes[b],ballPrevious[b],lower,.42f,1.f,.27f,.070f);
+      SolveMaximumHistory(ballAnchors[b],fixedPrevious,ballNodes[b],ballPrevious[b],ballTether[b]*1.08f,0.f,1.f,.55f,.10f);
       ResolvePelvisAndGlutes(ballNodes[b],ballPrevious[b],ballRadius,relief);
       ResolveBallCapsule(ballNodes[b],ballPrevious[b],leftA,leftB,ballThighContact,b,relief);
       ResolveBallCapsule(ballNodes[b],ballPrevious[b],rightA,rightB,ballThighContact,b,relief);
+      V3 leftUpper=leftA+(leftB-leftA)*.34f,rightUpper=rightA+(rightB-rightA)*.34f;
+      ResolveBallCapsule(ballNodes[b],ballPrevious[b],leftA,leftUpper,ballThighContact+1.05f,b,relief);
+      ResolveBallCapsule(ballNodes[b],ballPrevious[b],rightA,rightUpper,ballThighContact+1.05f,b,relief);
       // The earlier solver checked lobes against downstream shaft nodes but
       // left a blind pocket around its first few links. A compliant capsule
       // chain closes that pocket without welding the independently moving
@@ -403,9 +490,40 @@ static void StepConstraintSolver(float dt,float gait,float side){
       KeepBallAboveMinimum(signedValue,signedPrevious,minimumSide,relief);ballNodes[b].y=sign*signedValue;ballPrevious[b].y=sign*signedPrevious;
       KeepBallAboveMinimum(ballNodes[b].x,ballPrevious[b].x,ballForwardFloor,relief);
       KeepBallBelowMaximum(ballNodes[b].z,ballPrevious[b].z,ballVerticalCeiling,relief);
+
+      // The internal body rolls independently but remains contained by the
+      // yielding lobe. Its inertia gently drags the sack instead of welding
+      // the visible surface to a single point mass.
+      SolveMaximumHistory(ballNodes[b],ballPrevious[b],nutNodes[b],nutPrevious[b],ballRadius*.44f,.30f,1.f,.48f,.075f);
+
+      ResolvePelvisAndGlutes(nutNodes[b],nutPrevious[b],nutRadius,relief);
+      ResolveBallCapsule(nutNodes[b],nutPrevious[b],leftA,leftB,thighRadius+nutRadius*.72f,b,relief);
+      ResolveBallCapsule(nutNodes[b],nutPrevious[b],rightA,rightB,thighRadius+nutRadius*.72f,b,relief);
+      KeepBallBelowMaximum(nutNodes[b].z,nutPrevious[b].z,ballVerticalCeiling+.18f,relief);
+      SolveMaximumHistory(ballNodes[b],ballPrevious[b],nutNodes[b],nutPrevious[b],ballRadius*.44f,.22f,1.f,.72f,.080f);
+    }
+    if(eggRestReady){
+      V3 separation=Unit(ballNodes[1]-ballNodes[0]);float support=0.f;
+      for(int b=0;b<2;b++){
+        V3 ra=Unit(constraintBallRest[b]-RestBallAnchor(b)),la=Unit(ballNodes[b]-BallAnchor(b));
+        V3 n=RotateFromTo(separation,la,ra),r=eggRadii[b];
+        support+=sqrtf(n.x*n.x*r.x*r.x+n.y*n.y*r.y*r.y+n.z*n.z*r.z*r.z);
+      }
+      // The old 10% radial safety envelope held the lobes visibly apart.
+      // The protected core uses 94% radii; this contact envelope leaves a
+      // thin yielding skin layer, with slack until the shared sack stretches.
+      pairMinimum=support*.98f;
+      // Preserve a modest pocket of lateral freedom inside the shared sack,
+      // then let the sack act as a soft outer tether. The two supports can
+      // still meet, rebound and exchange vertical/fore-aft position.
+      pairMaximum=pairMinimum*1.24f;
     }
     ResolvePairMinimumCompliant(ballNodes[0],ballPrevious[0],ballNodes[1],ballPrevious[1],pairMinimum);
     ResolvePairMaximumCompliant(ballNodes[0],ballPrevious[0],ballNodes[1],ballPrevious[1],pairMaximum);
+    ResolvePairMinimumCompliant(nutNodes[0],nutPrevious[0],nutNodes[1],nutPrevious[1],nutRadius*1.72f);
+    // Internal bodies may exchange places vertically and fore/aft but retain
+    // their anatomical side, preventing a high-energy crossover inversion.
+    for(int b=0;b<2;b++){float sign=b?1.f:-1.f,signedY=sign*nutNodes[b].y,signedPrev=sign*nutPrevious[b].y;KeepBallAboveMinimum(signedY,signedPrev,.10f,relief);nutNodes[b].y=sign*signedY;nutPrevious[b].y=sign*signedPrev;}
     // Skin and lobes yield to the solid shaft; contact cannot dent its core.
     for(int i=2;i<shaftNodeCount;i++)for(int b=0;b<2;b++){
       float localRadius=shaftRadius*(.62f+.38f*min(1.f,(float)i/4.f));
@@ -414,7 +532,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
     // A second body pass closes intersections introduced while resolving the
     // mutually coupled shaft/lobe system. Applying the same shift to Verlet
     // history keeps this positional correction from becoming false velocity.
-    for(int b=0;b<2;b++)ResolvePelvisAndGlutes(ballNodes[b],ballPrevious[b],ballRadius,relief);
+    for(int b=0;b<2;b++){ResolvePelvisAndGlutes(ballNodes[b],ballPrevious[b],ballRadius,relief);ResolvePelvisAndGlutes(nutNodes[b],nutPrevious[b],nutRadius,relief);SolveMaximumHistory(ballNodes[b],ballPrevious[b],nutNodes[b],nutPrevious[b],ballRadius*.44f,.22f,1.f,.72f,.080f);}
     for(int i=2;i<shaftNodeCount;i++){
       float profile=.58f+.42f*min(1.f,(float)i/4.f);
       ResolvePelvisAndGlutes(shaftNodes[i],shaftPrevious[i],shaftRadius*profile,.15f*relief);
@@ -431,43 +549,92 @@ static void StepConstraintSolver(float dt,float gait,float side){
     ConstrainCurvatureGradient(root,restDir,segment,stiffnessSweep);
   }
   shaftNodes[0]=root;shaftNodes[1]=root+restDir*segment;shaftPrevious[1]=shaftNodes[1];
-  if(motionQuietFrames>24){for(int i=1;i<shaftNodeCount;i++){V3 v=shaftNodes[i]-shaftPrevious[i];if(Length(v)<.018f)shaftPrevious[i]=shaftNodes[i];}for(int i=0;i<2;i++){V3 v=ballNodes[i]-ballPrevious[i];if(Length(v)<.018f)ballPrevious[i]=ballNodes[i];}}
+  // Bound the total correction produced by all contacts in one 240 Hz step.
+  // Deep pose changes are resolved over adjacent substeps instead of becoming
+  // a one-frame teleport, while history receives the same shift so the cap
+  // cannot manufacture rebound velocity.
+  for(int i=2;i<shaftNodeCount;i++){V3 move=shaftNodes[i]-shaftStart[i];float n=Length(move);if(n>.42f){V3 target=shaftStart[i]+move*(.42f/n),shift=target-shaftNodes[i];shaftNodes[i]=target;shaftPrevious[i]=shaftPrevious[i]+shift;}}
+  for(int i=0;i<2;i++){
+    V3 move=ballNodes[i]-ballStart[i];float n=Length(move);if(n>.34f){V3 target=ballStart[i]+move*(.34f/n),shift=target-ballNodes[i];ballNodes[i]=target;ballPrevious[i]=ballPrevious[i]+shift;}
+    move=neckNodes[i]-neckStart[i];n=Length(move);if(n>.30f){V3 target=neckStart[i]+move*(.30f/n),shift=target-neckNodes[i];neckNodes[i]=target;neckPrevious[i]=neckPrevious[i]+shift;}
+    move=nutNodes[i]-nutStart[i];n=Length(move);if(n>.38f){V3 target=nutStart[i]+move*(.38f/n),shift=target-nutNodes[i];nutNodes[i]=target;nutPrevious[i]=nutPrevious[i]+shift;}
+  }
+
+  // The iterative tether provides a soft approach to the sack boundary. This
+  // final projection is its true outer extent, so a fast pose cannot briefly
+  // pull the two contents farther apart than the shared skin can span.
+  V3 pairDelta=ballNodes[1]-ballNodes[0];float pairDistance=Length(pairDelta);
+  if(pairDistance>pairMaximum){
+    V3 correction=pairDelta*((pairDistance-pairMaximum)/(pairDistance*2.f));
+    ballNodes[0]=ballNodes[0]+correction;ballNodes[1]=ballNodes[1]-correction;
+  }
+
+  // Reconstruct velocities from the accepted constrained trajectory. Keeping
+  // pre-projection history here stores impossible motion behind contacts.
+  // A moving root and per-step travel caps must not stretch the centerline.
+  shaftNodes[0]=root;shaftNodes[1]=root+restDir*segment;
+  for(int i=2;i<shaftNodeCount;i++)shaftNodes[i]=shaftNodes[i-1]+Unit(shaftNodes[i]-shaftNodes[i-1])*segment;
+  ConstrainCurvatureGradient(root,restDir,segment,stiffnessSweep);
+  for(int i=2;i<shaftNodeCount;i++)shaftPrevious[i]=shaftStart[i];
+  for(int b=0;b<2;b++){
+    ballPrevious[b]=ballStart[b];neckPrevious[b]=neckStart[b];nutPrevious[b]=nutStart[b];
+    V3 anchor=BallAnchor(b),fixedHistory=anchor;
+    ProjectLinkVelocity(anchor,fixedHistory,neckNodes[b],neckPrevious[b],0.f,1.f);
+    ProjectLinkVelocity(neckNodes[b],neckPrevious[b],ballNodes[b],ballPrevious[b],.42f,1.f);
+    V3 offset=nutNodes[b]-ballNodes[b];
+    if(Length(offset)>=ballRadius*.435f && Dot((nutNodes[b]-nutPrevious[b])-(ballNodes[b]-ballPrevious[b]),offset)>0.f)
+      ProjectLinkVelocity(ballNodes[b],ballPrevious[b],nutNodes[b],nutPrevious[b],.22f,1.f);
+  }
+  pairDelta=ballNodes[1]-ballNodes[0];pairDistance=Length(pairDelta);
+  if(pairDistance>=pairMaximum*.999f&&pairDistance>1e-6f){
+    V3 normal=pairDelta/pairDistance;
+    V3 relative=(ballNodes[1]-ballPrevious[1])-(ballNodes[0]-ballPrevious[0]);
+    float outward=Dot(relative,normal);
+    if(outward>0.f){V3 impulse=normal*(outward*.5f);ballPrevious[0]=ballPrevious[0]-impulse;ballPrevious[1]=ballPrevious[1]+impulse;}
+  }
+
 }
-static void UpdateConstraintSolver(float dt,float gait,float side){constraintAccumulator+=min(dt,.05f);const float fixed=1.f/180.f;int steps=0;while(constraintAccumulator>=fixed&&steps++<12){StepConstraintSolver(fixed,gait,side);constraintAccumulator-=fixed;}if(steps>=12)constraintAccumulator=0;}
+static void UpdateConstraintSolver(float dt,float gait,float side){constraintAccumulator+=min(dt,.05f);const float fixed=1.f/240.f;int steps=0;while(constraintAccumulator>=fixed&&steps++<16){StepConstraintSolver(fixed,gait,side);constraintAccumulator-=fixed;}if(steps>=16)constraintAccumulator=0;}
 static void UpdatePhysics(){
   DWORD now=GetTickCount();if(!physicsLastTick){physicsLastTick=now;return;}float dt=(now-physicsLastTick)*.001f;physicsLastTick=now;if(dt<=0||dt>.15f)dt=1.f/60.f;
   // Unified-skin Weapon X passes can be sparse. Hold the last validated bone
   // sample through ordinary render gaps while forces continue to decay.
   bool fresh=motionTracked&&motionLastCaptureTick&&now-motionLastCaptureTick<=600;
-  float gait=0.f,side=0.f;if(fresh){gait=motionPitchForce;side=motionYawForce;motionPitchForce*=.985f;motionYawForce*=.985f;}else{motionTracked=false;motionPitchForce=motionYawForce=motionSpinSpeed=0.f;}
+  float gait=0.f,side=0.f;if(fresh){gait=motionPitchForce;side=motionYawForce;}else{float fade=expf(-6.f*dt);motionPitchForce*=fade;motionYawForce*=fade;motionSpinSpeed*=fade;gait=motionPitchForce;side=motionYawForce;}
   float spinLift=fresh?min(1.f,motionSpinSpeed*motionSpinSpeed*1.15f):0.f;
   float downTarget=(90.f-sliderValues[4])*3.1415926535f/180.f;
   float shaftTarget=physicsState==2?downTarget-1.65f*spinLift:physicsState==1?.12f-.82f*spinLift:0.f;
   float shaftYawTarget=max(-1.20f,min(1.20f,-motionSpinSpeed*.75f));
   UpdateConstraintSolver(dt,gait,side);
-  // Erect and semi use a rigid shaft pivot with one deliberately damped axis.
-  // Full floppy retains the two-axis distributed flex model.
-  if(physicsState==0){
-    StepSpring(shaftSpring,90.f,35.f,18.f,110.f,0.f,0.f,gait*.40f,0.f,dt);
-    shaftSpring.yaw=shaftSpring.yawVelocity=0.f;
-    shaftSpring.pitch=max(-.10f,min(.10f,shaftSpring.pitch));
-  }else if(physicsState==1){
-    StepSpring(shaftSpring,72.f,42.f,30.f,125.f,.10f,0.f,gait*.65f,0.f,dt);
-    shaftSpring.yaw=shaftSpring.yawVelocity=0.f;
-    shaftSpring.pitch=max(-.16f,min(.26f,shaftSpring.pitch));
-  }else StepFloppySpring(shaftSpring,max(0.f,physValues[0]),physValues[1],physValues[2],physValues[3],shaftTarget,shaftYawTarget,gait*2.0f,side*2.2f,dt);
+  // Shaft root suspension is integrated with the chain at the fixed step.
   StepSpring(ballsSpring,physValues[4],physValues[5],physValues[6],physValues[7],.24f,0,gait*2.0f,side*2.2f,dt);
 }
 static void SiblingPath(char* path,const char* name){GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);char* slash=strrchr(path,'\\');if(slash)strcpy_s(slash+1,MAX_PATH-(slash+1-path),name);}
 static bool ReadIniFloat(const char* path,const char* section,const char* key,float lo,float hi,float& value){char text[64]{};GetPrivateProfileStringA(section,key,"",text,sizeof(text),path);if(!text[0])return false;char* end=nullptr;float parsed=strtof(text,&end);if(end==text||!std::isfinite(parsed)||parsed<lo||parsed>hi)return false;value=parsed;return true;}
 static float MapControl100(float ui,float lo,float neutral,float hi){ui=max(1.f,min(100.f,ui));return ui<=50.f?lo+(neutral-lo)*((ui-1.f)/49.f):neutral+(hi-neutral)*((ui-50.f)/50.f);}
 static float UnmapControl100(float value,float lo,float neutral,float hi){value=max(lo,min(hi,value));return value<=neutral?1.f+49.f*(value-lo)/max(1e-6f,neutral-lo):50.f+50.f*(value-neutral)/max(1e-6f,hi-neutral);}
-static void ApplyControlMapping(){for(int i=0;i<7;i++)sliderValues[i]=MapControl100(sliderUI[i],coherentShapeLow[i],neutralShape[i],sliderSpecs[i].hi);for(int i=0;i<8;i++)physValues[i]=MapControl100(physUI[i],physSpecs[i].lo,neutralPhysics[i],physSpecs[i].hi);}
+// Preserve the accepted midpoint and upper range. Below 50, use a dedicated
+// smooth envelope so Length 0 reaches one half of the Length 50 value without
+// introducing a slope discontinuity at the midpoint.
+static float MapLength100(float ui){
+  ui=max(0.f,min(100.f,ui));
+  if(ui<50.f)return .40f+(neutralShape[1]-.40f)*Smoother01(ui/50.f);
+  return neutralShape[1]+(sliderSpecs[1].hi-neutralShape[1])*((ui-50.f)/50.f);
+}
+// Version 4 moves the immediately preceding zero-size glans to 50 and
+// compresses that complete 0..100 response into the upper half again.
+static float LegacyGlansControl(float ui){return max(0.f,min(100.f,(ui-50.f)*2.f));}
+static float GlansIndependentScale(float ui){
+  ui=max(0.f,min(100.f,ui));
+  if(ui<50.f)return .82f+.18f*Smoother01(ui/50.f);
+  return MapControl100(LegacyGlansControl(ui),1.f,1.40f,1.60f);
+}
+static void ApplyControlMapping(){for(int i=0;i<7;i++)sliderValues[i]=i==1?MapLength100(sliderUI[i]):MapControl100(sliderUI[i],coherentShapeLow[i],neutralShape[i],sliderSpecs[i].hi);for(int i=0;i<8;i++)physValues[i]=MapControl100(physUI[i],physSpecs[i].lo,neutralPhysics[i],physSpecs[i].hi);}
 static void LoadSettings(){
   if(settingsLoaded)return;settingsLoaded=true;char path[MAX_PATH];SiblingPath(path,"WolverineLive.ini");
   int version=GetPrivateProfileIntA("Meta","ControlScaleVersion",0,path);
   if(version>=2){
-    for(int i=0;i<7;i++)ReadIniFloat(path,"Shape",sliderSpecs[i].name,1.f,100.f,sliderUI[i]);
+    for(int i=0;i<7;i++)ReadIniFloat(path,"Shape",sliderSpecs[i].name,i==1?0.f:1.f,100.f,sliderUI[i]);
     for(int i=0;i<8;i++)ReadIniFloat(path,"Physics",physSpecs[i].name,1.f,100.f,physUI[i]);
   }else{
     for(int i=0;i<7;i++){float legacy=neutralShape[i];ReadIniFloat(path,"Shape",sliderSpecs[i].name,sliderSpecs[i].lo,sliderSpecs[i].hi,legacy);sliderUI[i]=UnmapControl100(legacy,sliderSpecs[i].lo,neutralShape[i],sliderSpecs[i].hi);}
@@ -475,11 +642,18 @@ static void LoadSettings(){
     settingsPending=true;settingsChangedTick=GetTickCount();
   }
   ReadIniFloat(path,"Shape","Hang",1.f,100.f,hangUI);
-  ReadIniFloat(path,"Shape","Glans Size",0.f,100.f,glansUI);
+  float storedGlans=glansUI;
+  if(ReadIniFloat(path,"Shape","Glans Size",0.f,100.f,storedGlans)){
+    // Preserve the selected geometry across both centered-scale revisions.
+    if(version>=4)glansUI=storedGlans;
+    else if(version>=3)glansUI=50.f+.5f*storedGlans;
+    else glansUI=75.f+.25f*storedGlans;
+    if(version<4){settingsPending=true;settingsChangedTick=GetTickCount();}
+  }
   ApplyControlMapping();float state=(float)physicsState;if(ReadIniFloat(path,"Physics","State",0,2,state))physicsState=(int)(state+.5f);
   Log("1-100 controls loaded version=%d state=%d neutral shape=(%.3f %.3f %.3f %.3f %.1f %.3f %.3f)",version,physicsState,sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6]);
 }
-static void SaveSettings(){char path[MAX_PATH],value[64];SiblingPath(path,"WolverineLive.ini");WritePrivateProfileStringA("Meta","ControlScaleVersion","2",path);for(int i=0;i<7;i++){sprintf_s(value,"%.0f",sliderUI[i]);WritePrivateProfileStringA("Shape",sliderSpecs[i].name,value,path);}for(int i=0;i<8;i++){sprintf_s(value,"%.0f",physUI[i]);WritePrivateProfileStringA("Physics",physSpecs[i].name,value,path);}sprintf_s(value,"%.0f",hangUI);WritePrivateProfileStringA("Shape","Hang",value,path);sprintf_s(value,"%.0f",glansUI);WritePrivateProfileStringA("Shape","Glans Size",value,path);sprintf_s(value,"%d",physicsState);WritePrivateProfileStringA("Physics","State",value,path);settingsPending=false;Log("1-100 control settings saved to WolverineLive.ini");}
+static void SaveSettings(){char path[MAX_PATH],value[64];SiblingPath(path,"WolverineLive.ini");WritePrivateProfileStringA("Meta","ControlScaleVersion","4",path);for(int i=0;i<7;i++){sprintf_s(value,"%.0f",sliderUI[i]);WritePrivateProfileStringA("Shape",sliderSpecs[i].name,value,path);}for(int i=0;i<8;i++){sprintf_s(value,"%.0f",physUI[i]);WritePrivateProfileStringA("Physics",physSpecs[i].name,value,path);}sprintf_s(value,"%.0f",hangUI);WritePrivateProfileStringA("Shape","Hang",value,path);sprintf_s(value,"%.0f",glansUI);WritePrivateProfileStringA("Shape","Glans Size",value,path);sprintf_s(value,"%d",physicsState);WritePrivateProfileStringA("Physics","State",value,path);settingsPending=false;Log("control settings saved with centered glans scale v4");}
 static void QueueSettingsSave(){settingsPending=true;settingsChangedTick=GetTickCount();}
 static void FlushSettingsIfDue(){if(settingsPending&&GetTickCount()-settingsChangedTick>=700)SaveSettings();}
 static float Smooth01(float value){value=max(0.f,min(1.f,value));return value*value*(3.f-2.f*value);}
@@ -1116,7 +1290,7 @@ static void SampleShaftChain(float t,V3& center,V3& tangent){
   // appeared as a hard crease and could split the sparse attachment rings.
   t=max(0.f,min(1.f,t));float u=t*(shaftNodeCount-1);int s=min(shaftNodeCount-2,(int)u);float q=u-s,q2=q*q,q3=q2*q;
   V3 p0=shaftNodes[s],p1=shaftNodes[s+1];
-  V3 m0=s==0?RestShaftDirection()*Length(p1-p0):(shaftNodes[s+1]-shaftNodes[s-1])*.5f;
+  V3 m0=s==0?LiveRootDirection()*Length(p1-p0):(shaftNodes[s+1]-shaftNodes[s-1])*.5f;
   V3 m1=s+1==shaftNodeCount-1?(p1-p0):(shaftNodes[s+2]-shaftNodes[s])*.5f;
   center=p0*(2*q3-3*q2+1)+m0*(q3-2*q2+q)+p1*(-2*q3+3*q2)+m1*(q3-q2);
   tangent=Unit(p0*(6*q2-6*q)+m0*(3*q2-4*q+1)+p1*(-6*q2+6*q)+m1*(3*q2-2*q));
@@ -1185,7 +1359,7 @@ static void SculptVentralContourStudy(){
 }
 static void ScaleGlansIndependently(){
   if(!constraintSolverReady)return;
-  float scale=MapControl100(glansUI,1.f,1.40f,1.60f);
+  float scale=GlansIndependentScale(glansUI);
   V3 anchor{},axis{};SampleShaftChain(.76f,anchor,axis);
   V3 lateral=Unit(V3{0,1,0}-axis*axis.y),dorsal=Unit(Cross(axis,lateral));
   for(UINT i=0;i<graftCount;i++){
@@ -1238,27 +1412,93 @@ static float HangOffset(){
   float u=hangUI<50.f?(hangUI-50.f)/49.f:(hangUI-50.f)/50.f;
   return -u*(u<0.f?1.f:4.5f)*sqrtf(max(.35f,BallShapeScale()));
 }
+// Each contents support is a complete, fixed-volume ovoid. The upper pole
+// tapers gently; dimensions are rebuilt only from the authored/morphed rest skin.
+static float EggTaper(float z){return 1.f-.10f*max(-1.f,min(1.f,z));}
+static V3 EggSurface(V3 d,V3 r){
+  V3 u={d.x/r.x,d.y/r.y,d.z/r.z};float n=Length(u);if(n<1e-6f)return {0,0,-r.z};
+  u=u*(1.f/n);float taper=EggTaper(u.z);
+  return {u.x*r.x*taper,u.y*r.y*taper,u.z*r.z};
+}
+static void FitEggRestShapes(){
+  for(int b=0;b<2;b++){
+    V3 lo={1e9f,1e9f,1e9f},hi={-1e9f,-1e9f,-1e9f};int count=0;
+    for(UINT i=0;i<graftCount;i++)if(phys_scrotum_weight[i]>.55f && (graftDeformedPositions[i].y<0?0:1)==b){
+      V3 p=graftDeformedPositions[i];lo.x=min(lo.x,p.x);lo.y=min(lo.y,p.y);lo.z=min(lo.z,p.z);hi.x=max(hi.x,p.x);hi.y=max(hi.y,p.y);hi.z=max(hi.z,p.z);count++;
+    }
+    if(count<12)continue;
+    V3 center=(lo+hi)*.5f,r=(hi-lo)*.5f;
+    // Keep the inward side rounded and a small skin septum between the cores.
+    r.x=max(.45f,r.x*.96f);r.y=max(.40f,r.y*.96f);r.z=max(.60f,r.z*.99f);
+    V3 shift=center-constraintBallRest[b];
+    if(constraintSolverReady){ballNodes[b]=ballNodes[b]+shift;ballPrevious[b]=ballPrevious[b]+shift;nutNodes[b]=nutNodes[b]+shift;nutPrevious[b]=nutPrevious[b]+shift;neckNodes[b]=neckNodes[b]+shift;neckPrevious[b]=neckPrevious[b]+shift;}
+    constraintBallRest[b]=center;eggRadii[b]=r;
+  }
+  eggRestReady=true;
+}
+static V3 SculptEggRestPoint(V3 point,int side,float weight){
+  V3 offset=point-constraintBallRest[side];
+  float blend=Smoother01((weight-.50f)/.38f);
+  return point+(EggSurface(offset,eggRadii[side])-offset)*blend;
+}
 static void ApplySuspendedSkin(float value[3],UINT i){
   float w=suspensionWeight[i];if(w<=0.f||!constraintSolverReady)return;
   V3 point={value[0],value[1],value[2]},rc{},rt{},lc{},lt{};
   float t=max(.035f,min(.30f,graftRestFlex[i]));SampleRestShaftFrame(t,rc,rt);SampleShaftChain(t,lc,lt);
   V3 shaftTarget=lc+RotateFromTo(point-rc,rt,lt);
-  float radius=max(.55f,BallCollisionRadius()*.30f);
+  float radius=max(.20f,BallCollisionRadius()*.13f);
   float sideBlend=Smooth01(.5f+point.y/(2.f*radius));V3 lobeTarget{};
   for(int side=0;side<2;side++){
     V3 restAxis=Unit(constraintBallRest[side]-RestBallAnchor(side));
     V3 liveAxis=Unit(ballNodes[side]-BallAnchor(side));
-    V3 candidate=ballNodes[side]+RotateFromTo(point-constraintBallRest[side],restAxis,liveAxis);
+    V3 sculpted=eggRestReady?SculptEggRestPoint(point,side,w):point;
+    V3 candidate=ballNodes[side]+RotateFromTo(sculpted-constraintBallRest[side],restAxis,liveAxis);
     lobeTarget=lobeTarget+candidate*(side?sideBlend:1.f-sideBlend);
   }
   // The lobe transform already tapers rotational travel toward the anchor.
   // Compensate the second skin blend so the neck does not become a dead strip.
   float follow=w/sqrtf(.06f+.94f*w);
   V3 result=shaftTarget*(1.f-follow)+lobeTarget*follow;
+  V3 neckBend{};for(int b=0;b<2;b++){
+    V3 straight=BallAnchor(b)+(ballNodes[b]-BallAnchor(b))*.42f;
+    V3 deflection=neckNodes[b]-straight;float n=Length(deflection),limit=BallCollisionRadius()*.30f;
+    if(n>limit)deflection=deflection*(limit/n);
+    neckBend=neckBend+deflection*(b?sideBlend:1.f-sideBlend);
+  }
+  result=result+neckBend*(2.f*follow*(1.f-follow));
   value[0]=result.x;value[1]=result.y;value[2]=result.z;
+}
+static float EggLevel(V3 p,V3 r){
+  float z=p.z/r.z,taper=EggTaper(z),x=p.x/(r.x*taper),y=p.y/(r.y*taper);return x*x+y*y+z*z;
+}
+static void PreserveEggSupports(){
+  if(!eggRestReady||!constraintSolverReady)return;
+  for(UINT i=0;i<graftCount;i++){
+    float w=suspensionWeight[i];if(w<.68f)continue;
+    // The neck remains elastic. Lower skin cannot be pushed inside its core
+    // by the later thigh-contact or junction-fairing passes.
+    V3 p=graftDeformedPositions[i];
+    for(int pass=0;pass<2;pass++)for(int b=0;b<2;b++){
+      V3 restAxis=Unit(constraintBallRest[b]-RestBallAnchor(b)),liveAxis=Unit(ballNodes[b]-BallAnchor(b));
+      V3 local=RotateFromTo(p-ballNodes[b],liveAxis,restAxis),r=eggRadii[b]*.94f;
+      if(EggLevel(local,r)>=1.f)continue;
+      float low=1.f,high=2.f;while(EggLevel(local*high,r)<1.f&&high<64.f)high*=2.f;
+      if(Length(local)<1e-5f)local={0.f,0.f,-r.z};
+      for(int j=0;j<16;j++){float mid=(low+high)*.5f;if(EggLevel(local*mid,r)<1.f)low=mid;else high=mid;}
+      p=ballNodes[b]+RotateFromTo(local*high,restAxis,liveAxis);
+    }
+    graftDeformedPositions[i]=p;
+  }
 }
 static void ResolveSuspendedSkinContact(){
   if(!constraintSolverReady)return;
+  V3 leftA{},leftB{},rightA{},rightB{};CollisionCapsules(leftA,leftB,rightA,rightB);
+  float directContact=CrouchFactor(leftA,leftB,rightA,rightB);
+  V3 leftUpper=leftA+(leftB-leftA)*.34f,rightUpper=rightA+(rightB-rightA)*.34f;
+  auto projectCapsule=[](V3& p,V3 a,V3 b,float radius,V3 preferred){
+    V3 span=b-a;float d=Dot(span,span),u=d>1e-8f?max(0.f,min(1.f,Dot(p-a,span)/d)):0.f;V3 q=a+span*u,delta=p-q;float distance=Length(delta);if(distance>=radius)return;
+    V3 normal=distance>1e-5f?delta/distance:preferred;if(Dot(normal,preferred)<.08f)normal=Unit(normal*.42f+preferred*.58f);p=p+normal*(radius-distance);
+  };
   for(UINT i=0;i<graftCount;i++){
     if(suspensionWeight[i]<=0.f)continue;
     V3 p=graftDeformedPositions[i],nearest{},tangent{};float best=1e30f,coordinate=0.f;
@@ -1267,12 +1507,21 @@ static void ResolveSuspendedSkinContact(){
       float u=max(0.f,min(1.f,Dot(p-shaftNodes[link],span)/d));V3 q=shaftNodes[link]+span*u;
       float distance=Dot(p-q,p-q);if(distance<best){best=distance;nearest=q;tangent=Unit(span);coordinate=(link+u)/(shaftNodeCount-1);}
     }
-    if(coordinate<.025f||coordinate>.48f)continue;
-    V3 radial=p-nearest;radial=radial-tangent*Dot(radial,tangent);float radius=Length(radial);
-    if(radius<1e-5f)continue;
-    float minimum=LogicalShaftOvalRadius(radial,tangent,LogicalShaftRadius(coordinate));
-    minimum+=(.10f+.025f*logicalShaftBodyRadius)*Smoother01(suspensionWeight[i]/.20f);
-    if(radius<minimum)graftDeformedPositions[i]=p+radial*((minimum-radius)/radius);
+    if(coordinate>=.025f&&coordinate<=.48f){
+      V3 radial=p-nearest;radial=radial-tangent*Dot(radial,tangent);float radius=Length(radial);
+      if(radius>1e-5f){float minimum=LogicalShaftOvalRadius(radial,tangent,LogicalShaftRadius(coordinate));minimum+=(.10f+.025f*logicalShaftBodyRadius)*Smoother01(suspensionWeight[i]/.20f);if(radius<minimum)graftDeformedPositions[i]=p+radial*((minimum-radius)/radius);}
+    }
+    p=graftDeformedPositions[i];float skinContact=Smoother01((suspensionWeight[i]-.10f)/.45f)*directContact;
+    if(skinContact>0.f){
+      // Direct vertex collision lets the sack flatten and slide around the
+      // animated thighs instead of approximating all contact at its center.
+      for(int pass=0;pass<2;pass++){
+        V3 before=p;projectCapsule(p,leftA,leftB,7.28f,Unit(V3{.55f,.78f,-.28f}));projectCapsule(p,rightA,rightB,7.28f,Unit(V3{.55f,-.78f,-.28f}));
+        projectCapsule(p,leftA,leftUpper,8.30f,Unit(V3{.55f,.78f,-.28f}));projectCapsule(p,rightA,rightUpper,8.30f,Unit(V3{.55f,-.78f,-.28f}));
+        if(Length(p-before)<1e-5f)break;
+      }
+      graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-skinContact)+p*skinContact;
+    }
   }
 }
 
@@ -1411,11 +1660,7 @@ static void ApplyShape(){
     if(phys_flex_coordinate[i]>.98f&&phys_shaft_weight[i]>.5f){tipSum=tipSum+value;tipCount++;}
     float rawBallWeight=phys_scrotum_weight[i];if(rawBallWeight>.55f){int side=value.y<0?0:1;ballSum[side]=ballSum[side]+value;ballCount[side]++;}
   }
-  for(int side=0;side<2;side++)if(ballCount[side]){
-    V3 newRest=ballSum[side]/(float)ballCount[side],shift=newRest-constraintBallRest[side];
-    if(constraintSolverReady){ballNodes[side]=ballNodes[side]+shift;ballPrevious[side]=ballPrevious[side]+shift;}
-    constraintBallRest[side]=newRest;
-  }
+  FitEggRestShapes();
   if(!constraintSolverReady)InitializeConstraintSolver();
   for(UINT i=0;i<graftCount;i++){
     float value[3]={graftDeformedPositions[i].x,graftDeformedPositions[i].y,graftDeformedPositions[i].z};
@@ -1427,7 +1672,7 @@ static void ApplyShape(){
   // Reassert the one shaft after every physics state.  This transports the
   // cached complete cross-section through the live centerline and prevents a
   // mixed-weight ring from reappearing in semi/floppy motion.
-  if(physicsState>0)ConstructLogicalShaftSurface(true);
+  ConstructLogicalShaftSurface(true);
   // Keep the distal shaft independent of skin fairing. The proximal .40
   // belongs to the shared pelvic ramp, whose support fades at .40. Restoring
   // the old tube at .04-.10 would undo that ramp and recreate the shelf.
@@ -1442,6 +1687,7 @@ static void ApplyShape(){
   SculptVentralContourStudy();
   // Glans Size is evaluated on the approved R14 mesh, not on the donor cage.
   ResolveSuspendedSkinContact();
+  PreserveEggSupports();
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
   // follows every physics bend.  Wolverine's meshes use the opposite of the
@@ -1526,8 +1772,8 @@ static void AdjustStudyControl(int index,int dir,float mult){
   if(index==3)glansUI=max(0.f,min(100.f,glansUI+dir*mult));
   else{
       if(control==4)hangUI=max(1.f,min(100.f,hangUI+dir*mult));
-      else if(control<8){int shape=control<4?control:control-1;sliderUI[shape]=max(1.f,min(100.f,sliderUI[shape]+dir*mult));}
-      else if(control==8){physicsState=(physicsState+dir+3)%3;shaftSpring=Spring2{};}
+      else if(control<8){int shape=control<4?control:control-1;float low=shape==1?0.f:1.f;sliderUI[shape]=max(low,min(100.f,sliderUI[shape]+dir*mult));}
+      else if(control==8){physicsState=(physicsState+dir+3)%3;}
       else physUI[control-9]=max(1.f,min(100.f,physUI[control-9]+dir*mult));
   }
   ApplyControlMapping();shapeDirty=true;
@@ -1537,7 +1783,7 @@ static void OverlayFrame(IDirect3DDevice9* d){
   InterlockedIncrement(&renderFrameSerial);
   if(KeyEdge(VK_F6))menuOpen=!menuOpen;
   CaptureFinish(d);CapturePoll();
-  if(KeyEdge(VK_F9)){captureComplete=false;lightingDirectionsEnabled=!lightingDirectionsEnabled;Log("R14 lighting directions F9: %s",lightingDirectionsEnabled?"ON":"ORIGINAL");}
+  if(KeyEdge(VK_F9)){captureComplete=false;lightingDirectionsEnabled=!lightingDirectionsEnabled;Log("R28 layered physics lighting F9: %s",lightingDirectionsEnabled?"ON":"ORIGINAL");}
   if(menuOpen){
     const int count=18;
     if(KeyEdge(VK_UP))selectedSlider=(selectedSlider+count-1)%count;
@@ -1550,13 +1796,13 @@ static void OverlayFrame(IDirect3DDevice9* d){
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
   IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=18;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,captureComplete?"R14 CAPTURE SAVED (F10 AGAIN)":lightingDirectionsEnabled?"R14 LIGHTING FIX (F9 A/B)":"R14 ORIGINAL SHADING (F9 A/B)",title,D3DCOLOR_ARGB(255,255,255,255));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,captureComplete?"R33 CAPTURE SAVED (F10 AGAIN)":lightingDirectionsEnabled?"R33 DISTINCT STATES | LIGHT FIX":"R33 DISTINCT STATES | ORIGINAL LIGHT",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       int control=i<3?i:i-1;
       if(i==3){name="GLANS SIZE";value=glansUI;lo=0;hi=100;sprintf_s(val,"%.0f",value);}
       else if(control==4){name="HANG";value=hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
-      else if(control<8){int shape=control<4?control:control-1;const auto& s=sliderSpecs[shape];name=s.name;value=sliderUI[shape];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      else if(control<8){int shape=control<4?control:control-1;const auto& s=sliderSpecs[shape];name=s.name;value=sliderUI[shape];lo=shape==1?0.f:1.f;hi=100;sprintf_s(val,"%.0f",value);}
       else if(control==8){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}
       else{const auto& s=physSpecs[control-9];name=s.name;value=physUI[control-9];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
       RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(control==8){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=(value-lo)/(hi-lo);Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);

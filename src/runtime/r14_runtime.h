@@ -7,7 +7,18 @@ static V3 r14Positions[r14Count],r14Normals[r14Count],r14Tangents[r14Count];
 static unsigned char r14Packed[r14Count*32];
 static bool r14Ready=false,r14UploadPending=false;
 static UINT r14SuccessfulDraws=0;
-static float R14Scale(float ui){return ui<=50.f?.85f+.003f*ui:1.f+.012f*(ui-50.f);}
+static float R14LegacyScale(float ui){return ui<=50.f?.85f+.003f*ui:1.f+.012f*(ui-50.f);}
+static float R16PreviousScale(float ui){
+  ui=max(0.f,min(100.f,ui));
+  return ui<50.f?.80f+.05f*Smoother01(ui/50.f):R14LegacyScale(LegacyGlansControl(ui));
+}
+static float R14Scale(float ui){
+  ui=max(0.f,min(100.f,ui));
+  // New 50..100 is exactly the immediately preceding 0..100 response.
+  // The lower half holds the preceding zero and uses a separate safe shrink.
+  return ui<50.f?R16PreviousScale(0.f):R16PreviousScale((ui-50.f)*2.f);
+}
+static float R14LowerFactor(float ui){return ui<50.f?1.f-Smoother01(max(0.f,ui)/50.f):0.f;}
 static void ReleaseR14(){
   if(r14VB){r14VB->Release();r14VB=nullptr;}
   if(r14IB){r14IB->Release();r14IB=nullptr;}
@@ -15,13 +26,45 @@ static void ReleaseR14(){
 }
 static void UpdateR14(const unsigned char* source){
   const float amount=R14Scale(glansUI)-1.f;
+  const float lowerFactor=R14LowerFactor(glansUI);
   static V3 delta[graftCount];
   for(UINT i=0;i<graftCount;i++)delta[i]=graftDeformedPositions[i]-V3{r14Reference[i*3],r14Reference[i*3+1],r14Reference[i*3+2]};
+  V3 columns[3]={{1,0,0},{0,1,0},{0,0,1}};
+  for(UINT j=0;j<r14FrameCount;j++)for(int a=0;a<3;a++)columns[a]=columns[a]+delta[r14FrameSources[j]]*r14FrameLinear[a*r14FrameCount+j];
   for(UINT i=0;i<r14Count;i++){
     V3 p{r14Base[3*i]+amount*r14Growth[3*i],r14Base[3*i+1]+amount*r14Growth[3*i+1],r14Base[3*i+2]+amount*r14Growth[3*i+2]};
     for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++)p=p+delta[r14Sources[k]]*(r14Weight[k]+amount*r14GrowthWeight[k]);
+    if(lowerFactor>0.f){
+      V3 local{r14LowerDelta[3*i],r14LowerDelta[3*i+1],r14LowerDelta[3*i+2]};
+      p=p+(columns[0]*local.x+columns[1]*local.y+columns[2]*local.z)*lowerFactor;
+    }
     if(!std::isfinite(p.x)||!std::isfinite(p.y)||!std::isfinite(p.z)){r14Ready=false;return;}
     r14Positions[i]=p;
+  }
+  // Length changes the shaft, while Glans Size alone owns the head. Restore
+  // the crown-to-tip span lost in the legacy length morph by moving complete
+  // ring centers; their radial offsets and lowest side points remain intact.
+  if(sliderUI[1]<50.f){
+    V3 centers[r14RingCount];
+    for(UINT ring=r14CrownRing;ring<r14RingCount;ring++){
+      V3 center{0,0,0};UINT first=r14NewStart+ring*r14SegmentCount;
+      for(UINT side=0;side<r14SegmentCount;side++)center=center+r14Positions[first+side];
+      centers[ring]=center/float(r14SegmentCount);
+    }
+    V3 crown=centers[r14CrownRing];
+    float currentArc=0.f;
+    for(UINT ring=r14CrownRing+1;ring<r14RingCount;ring++)currentArc+=Length(centers[ring]-centers[ring-1]);
+    float crownRadius=0.f;UINT crownFirst=r14NewStart+r14CrownRing*r14SegmentCount;
+    for(UINT side=0;side<r14SegmentCount;side++)crownRadius+=Length(r14Positions[crownFirst+side]-crown);
+    crownRadius/=float(r14SegmentCount);
+    float axialScale=currentArc>1e-5f?(.985f*crownRadius/currentArc):1.f;
+    for(UINT ring=r14CrownRing+1;ring<r14RingCount;ring++){
+      V3 shift=crown+(centers[ring]-crown)*axialScale-centers[ring];
+      UINT first=r14NewStart+ring*r14SegmentCount;
+      for(UINT side=0;side<r14SegmentCount;side++)r14Positions[first+side]=r14Positions[first+side]+shift;
+    }
+    UINT cap=r14NewStart+r14RingCount*r14SegmentCount;
+    for(UINT i=cap;i<r14Count;i++)r14Positions[i]=crown+(r14Positions[i]-crown)*axialScale;
   }
   memset(r14Normals,0,sizeof(r14Normals));memset(r14Tangents,0,sizeof(r14Tangents));
   for(UINT k=0;k<r14IndexCount;k+=3){
@@ -32,8 +75,6 @@ static void UpdateR14(const unsigned char* source){
     float du2=r14UV[c*2]-r14UV[a*2],dv2=r14UV[c*2+1]-r14UV[a*2+1],det=du1*dv2-dv1*du2;
     if(fabsf(det)>1e-10f){V3 t=(e1*dv2-e2*dv1)/det;r14Tangents[a]=r14Tangents[a]+t;r14Tangents[b]=r14Tangents[b]+t;r14Tangents[c]=r14Tangents[c]+t;}
   }
-  V3 columns[3]={{1,0,0},{0,1,0},{0,0,1}};
-  for(UINT j=0;j<r14FrameCount;j++)for(int a=0;a<3;a++)columns[a]=columns[a]+delta[r14FrameSources[j]]*r14FrameLinear[a*r14FrameCount+j];
   for(UINT i=0;i<r14Count;i++){
     V3 n=Unit(r14Normals[i]);
     if(r14CustomNormals[i*3]!=0.f||r14CustomNormals[i*3+1]!=0.f||r14CustomNormals[i*3+2]!=0.f){
