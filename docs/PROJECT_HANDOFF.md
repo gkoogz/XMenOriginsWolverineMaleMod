@@ -1,3 +1,11 @@
+## Public v0.8 release — 2026-09-22
+
+Published Wolverine Anatomy Tool v0.8 from commit `7a45fca912b3386471601f783558947c28eb2c75`, tagged `v0.8`, at `https://github.com/gkoogz/XMenOriginsWolverineMaleMod/releases/tag/v0.8`. The uploaded `WolverineAnatomyTool-v0.8.zip` is 40,274,044 bytes with SHA-256 `59E9A479CF76EDA6B8296F5D4EFC6702C307651A336A794C1E96A94C372F1653`; GitHub reports the same digest. The payload DLL exactly matches the installed R33 runtime: `48509A7525280643BF4C4C7B414DAB234B8457D5569C7BFCB6B2AADEC2CD4CD0`. The Revision 161 package and WBX1 patch remain unchanged.
+
+Clean installation/uninstallation, v0.7.2-r2 upgrade/idempotency/rollback, settings preservation, source build, state-profile, continuity, and long physics-regression checks passed. The release notes explicitly retain the known limits: extreme-pose collision clearance, unfinished texture fidelity, and the newly reported ventral junction notch. The latter was diagnosed but intentionally not altered before packaging the user-requested current version.
+
+---
+
 ## Educational and research context — recorded 2026-09-22
 
 The user explicitly asked that this context be retained across accounts and compacted sessions. In the conversation they stated:
