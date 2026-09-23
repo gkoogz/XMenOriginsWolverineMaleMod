@@ -3,8 +3,28 @@
 #endif
 #include RUNTIME_SOURCE
 #include "render_test.h"
+#include "cpu_buffer.h"
 static LRESULT CALLBACK HarnessProc(HWND h,UINT m,WPARAM w,LPARAM l){return DefWindowProc(h,m,w,l);}
 int main(int argc,char** argv){
+  if(argc==2&&strcmp(argv[1],"--surface-limit-test")==0){
+    unsigned seed=20260922u;auto random=[&](){seed=1664525u*seed+1013904223u;return float((seed>>8)&65535)/32767.5f-1.f;};
+    for(int test=0;test<10000;test++){
+      V3 p[3],d[3];for(int i=0;i<3;i++){p[i]={random()*10,random()*10,random()*10};d[i]={random()*20,random()*20,random()*20};}
+      float floor=.20f+(test%3)*.075f,limit=SurfaceCorrectionLimit(p[0],p[1],p[2],d[0],d[1],d[2],floor);
+      V3 n=Cross(p[1]-p[0],p[2]-p[0]);float area=Dot(n,n);
+      if(!std::isfinite(limit)||limit<0||limit>1)return 91;
+      for(int sample=0;sample<=20;sample++){
+        float t=limit*sample/20.f;V3 a=p[0]+d[0]*t,b=p[1]+d[1]*t,c=p[2]+d[2]*t;
+        if(Dot(n,Cross(b-a,c-a))<(floor-1e-4f)*area)return 92;
+      }
+    }
+    // Cross a former 1 -> 1/2 backtracking boundary with a tiny change.
+    V3 a{0,0,0},b{1,0,0},c{0,1,0};
+    float left=SurfaceCorrectionLimit(a,b,c,V3{},V3{-.75001f,0,0},V3{},.25f);
+    float right=SurfaceCorrectionLimit(a,b,c,V3{},V3{-.74999f,0,0},V3{},.25f);
+    if(fabsf(left-right)>1e-4f)return 93;
+    printf("PASS: 10000 surface corrections retain projected area across 21 samples; continuous former half-step boundary\n");return 0;
+  }
   if(argc==2&&strcmp(argv[1],"--glans-controls-test")==0){
     // Run from a dedicated test directory: settings are sibling to this EXE.
     const int targets[18]={0,1,2,7,3,8,4,5,6,9,10,11,12,13,14,15,16,17};
@@ -33,23 +53,39 @@ int main(int argc,char** argv){
   if(argc>7)sliderUI[2]=(float)atof(argv[7]);if(argc>8)sliderUI[1]=(float)atof(argv[8]);
   if(argc>9)hangUI=(float)atof(argv[9]);
   if(argc>11)glansUI=max(0.f,min(100.f,(float)atof(argv[11])));
+  if(argc>12)sliderUI[6]=max(0.f,min(100.f,(float)atof(argv[12])));
+  if(argc>13)physUI[0]=(float)atof(argv[13]);
+  if(argc>14)sliderUI[5]=(float)atof(argv[14]);
   ApplyControlMapping();int frames=argc>6?atoi(argv[6]):240;
   HINSTANCE hi=GetModuleHandleA(nullptr);WNDCLASSA wc{};wc.lpfnWndProc=HarnessProc;wc.hInstance=hi;wc.lpszClassName="V071Inspection";RegisterClassA(&wc);
   HWND hw=CreateWindowA(wc.lpszClassName,"V0.7.1 inspection",WS_OVERLAPPEDWINDOW,0,0,320,240,nullptr,nullptr,hi,nullptr);
   LoadReal();IDirect3D9* d9=realCreate9(D3D_SDK_VERSION);if(!d9)return 10;
   D3DPRESENT_PARAMETERS pp{};pp.Windowed=TRUE;pp.SwapEffect=D3DSWAPEFFECT_DISCARD;pp.hDeviceWindow=hw;pp.BackBufferWidth=1000;pp.BackBufferHeight=750;pp.BackBufferFormat=D3DFMT_A8R8G8B8;pp.EnableAutoDepthStencil=TRUE;pp.AutoDepthStencilFormat=D3DFMT_D16;
-  IDirect3DDevice9* dev=nullptr;if(FAILED(d9->CreateDevice(0,D3DDEVTYPE_HAL,hw,D3DCREATE_SOFTWARE_VERTEXPROCESSING,&pp,&dev)))return 11;
-  if(FAILED(dev->CreateVertexBuffer(50915*32,D3DUSAGE_DYNAMIC,0,D3DPOOL_DEFAULT,&graftBuffer,nullptr)))return 12;
+  IDirect3DDevice9* dev=nullptr;HRESULT create=d9->CreateDevice(0,D3DDEVTYPE_HAL,hw,D3DCREATE_SOFTWARE_VERTEXPROCESSING,&pp,&dev);
+  if(FAILED(create))create=d9->CreateDevice(0,D3DDEVTYPE_REF,hw,D3DCREATE_SOFTWARE_VERTEXPROCESSING,&pp,&dev);
+  if(FAILED(create))printf("D3D unavailable: %08X; CPU geometry tests only, draw/reset tests skipped\n",create);
+  if(dev){if(FAILED(dev->CreateVertexBuffer(50915*32,D3DUSAGE_DYNAMIC,0,D3DPOOL_DEFAULT,&graftBuffer,nullptr)))return 12;}
+  else graftBuffer=new CpuVertexBuffer(50915*32);
   graftOffset=47050*32;void* raw=nullptr;graftBuffer->Lock(0,0,&raw,0);memset(raw,0,50915*32);
   for(UINT i=0;i<collarNormalTriangleCount*3;i++)memcpy((char*)raw+collarNormalTriangleIndices[i]*32,collarNormalTriangleBasePositions+i*3,12);
   for(UINT i=0;i<pelvisControlCount;i++)memcpy((char*)raw+pelvisControlIndices[i]*32,pelvisControlBasePositions+i*3,12);
   for(UINT i=0;i<graftCount;i++)memcpy((char*)raw+(47050+i)*32,morph_base+i*3,12);
   graftBuffer->Unlock();ApplyShape();
+  FILE* motion=nullptr;char motionName[MAX_PATH];
+  if(GetEnvironmentVariableA("ROOT_MOTION_TRACE",motionName,MAX_PATH))fopen_s(&motion,motionName,"wb");
   std::vector<V3> trace;
   for(int frame=0;frame<frames;frame++){for(int sub=0;sub<3;sub++){float drive=argc>10?(float)atof(argv[10]):0.f;float time=(frame+sub/3.f)/60.f;StepConstraintSolver(1.f/180.f,drive*sinf(time*5.f),drive*sinf(time*7.f));}ApplyShape();
+    if(motion){
+      float factors[3]={debugRampFraction,debugRapheFraction,debugSmoothFraction};fwrite(factors,sizeof(float),3,motion);
+      fwrite(r14Positions,sizeof(V3),r14NewStart,motion);
+      void* body=nullptr;graftBuffer->Lock(0,0,&body,0);
+      for(UINT i=0;i<pelvisControlCount;i++)fwrite((char*)body+pelvisControlIndices[i]*32,12,1,motion);
+      graftBuffer->Unlock();
+    }
     trace.push_back(ballNodes[0]);trace.push_back(ballNodes[1]);trace.push_back(BallAnchor(0));trace.push_back(BallAnchor(1));
     for(int band=0;band<4;band++){V3 sum{};int count=0;for(UINT i=0;i<graftCount;i++){float w=suspensionWeight[i];if(w>band*.25f&&w<=(band+1)*.25f){sum=sum+graftDeformedPositions[i];count++;}}trace.push_back(sum/(float)max(count,1));}
   }
+  if(motion)fclose(motion);
   std::vector<V3> output(graftCount+pelvisControlCount);graftBuffer->Lock(0,0,&raw,0);
   for(UINT i=0;i<graftCount;i++)memcpy(&output[i],(char*)raw+(47050+i)*32,12);
   for(UINT i=0;i<pelvisControlCount;i++)memcpy(&output[graftCount+i],(char*)raw+pelvisControlIndices[i]*32,12);
@@ -61,6 +97,6 @@ int main(int argc,char** argv){
   sprintf_s(nodesFile,"%s.trace",argv[1]);fopen_s(&fp,nodesFile,"wb");fwrite(trace.data(),sizeof(V3),trace.size(),fp);fclose(fp);
   sprintf_s(nodesFile,"%s.r14",argv[1]);fopen_s(&fp,nodesFile,"wb");fwrite(r14Positions,sizeof(V3),r14Count,fp);fclose(fp);
   sprintf_s(nodesFile,"%s.packed",argv[1]);fopen_s(&fp,nodesFile,"wb");fwrite(r14Packed,1,sizeof(r14Packed),fp);fclose(fp);
-  bool renderOK=TestR14Draw(dev,argv[1],pp);
-  ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}dev->Release();d9->Release();DestroyWindow(hw);return renderOK?0:71;
+  bool renderOK=dev?TestR14Draw(dev,argv[1],pp):true;
+  ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}if(dev)dev->Release();d9->Release();DestroyWindow(hw);return renderOK?0:71;
 }

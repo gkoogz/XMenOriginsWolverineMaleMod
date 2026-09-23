@@ -7,6 +7,116 @@ static V3 r14Positions[r14Count],r14Normals[r14Count],r14Tangents[r14Count];
 static unsigned char r14Packed[r14Count*32];
 static bool r14Ready=false,r14UploadPending=false;
 static UINT r14SuccessfulDraws=0;
+static IDirect3DTexture9* r14SkinTexture[2]{};
+static bool r14SkinTextureAttempted=false;
+static void ReleaseR14SkinTextures(){
+  for(auto& texture:r14SkinTexture)if(texture){texture->Release();texture=nullptr;}
+  r14SkinTextureAttempted=false;
+}
+static void LoadR14SkinTextures(IDirect3DDevice9* d){
+  if(r14SkinTextureAttempted)return;
+  r14SkinTextureAttempted=true;
+  const char* names[2]={"R14-skin-natural.png","R14-skin-erect.png"};
+  for(int i=0;i<2;i++){
+    char path[MAX_PATH];SiblingPath(path,names[i]);
+    HRESULT hr=D3DXCreateTextureFromFileExA(d,path,D3DX_DEFAULT,D3DX_DEFAULT,D3DX_DEFAULT,0,
+      D3DFMT_UNKNOWN,D3DPOOL_MANAGED,D3DX_FILTER_TRIANGLE,D3DX_FILTER_TRIANGLE,0,nullptr,nullptr,&r14SkinTexture[i]);
+    Log("R14 skin texture %s load=%08X",names[i],hr);
+  }
+}
+static float interLobeWebMask[r14NewStart];
+static float obliqueLobeMask[r14NewStart];
+static void ShapeObliqueLobes(){
+  if(!constraintSolverReady||!eggRestReady)return;
+  static V3 original[r14NewStart];memcpy(original,r14Positions,sizeof(original));
+  float scale=sqrtf(max(.35f,BallShapeScale()));
+  for(UINT i=0;i<r14NewStart;i++){
+    float membership=0.f;
+    for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++)membership+=r14Weight[k]*phys_scrotum_weight[r14Sources[k]];
+    float mask=Smoother01((membership-.55f)/.35f)*Smoother01((79.f-r14Base[i*3+2])/3.f);
+    obliqueLobeMask[i]=mask;if(mask<=0.f)continue;
+    float right=Smooth01(.5f+r14Base[i*3+1]/1.4f);V3 shift{};
+    for(int side=0;side<2;side++){
+      V3 restAxis=Unit(constraintBallRest[side]-RestBallAnchor(side));
+      V3 liveAxis=Unit(ballNodes[side]-BallAnchor(side));
+      V3 offset=RotateFromTo(original[i]-ballNodes[side],liveAxis,restAxis);
+      // Modest modeled resting obliquity, not a claimed universal anatomical
+      // angle. Upper pole anterior/lateral; lower pole posterior/medial.
+      float forward=(side?16.f:18.f)*.01745329252f,lateral=(side?10.f:-9.f)*.01745329252f;
+      V3 up=Unit(V3{sinf(forward),sinf(lateral),cosf(forward)*cosf(lateral)});
+      V3 tilted=RotateFromTo(offset,{0,0,1},up);
+      tilted.z+=(side?.05f:-.15f)*scale;
+      V3 change=RotateFromTo(tilted-offset,restAxis,liveAxis);
+      shift=shift+change*(side?right:1.f-right);
+    }
+    r14Positions[i]=original[i]+shift*mask;
+  }
+  // Restrict a strained attachment triangle locally, rather than letting one
+  // short seam edge cancel the resting tilt of both complete lobes.
+  for(int pass=0;pass<10;pass++)for(UINT k=0;k<r14IndexCount;k+=3){
+    UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
+    if(a>=r14NewStart||b>=r14NewStart||c>=r14NewStart)continue;
+    float local=SurfaceCorrectionLimit(original[a],original[b],original[c],r14Positions[a]-original[a],r14Positions[b]-original[b],r14Positions[c]-original[c],.35f);
+    if(local<.9999f){
+      r14Positions[a]=original[a]+(r14Positions[a]-original[a])*local;
+      r14Positions[b]=original[b]+(r14Positions[b]-original[b])*local;
+      r14Positions[c]=original[c]+(r14Positions[c]-original[c])*local;
+    }
+  }
+  float fraction=1.f;
+  for(UINT k=0;k<r14IndexCount;k+=3){
+    UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
+    if(a>=r14NewStart||b>=r14NewStart||c>=r14NewStart)continue;
+    fraction=min(fraction,SurfaceCorrectionLimit(original[a],original[b],original[c],r14Positions[a]-original[a],r14Positions[b]-original[b],r14Positions[c]-original[c],.35f));
+  }
+  if(fraction<1.f)for(UINT i=0;i<r14NewStart;i++)r14Positions[i]=original[i]+(r14Positions[i]-original[i])*fraction;
+}
+static void TightenInterLobeWeb(){
+  static bool initialized=false;
+  static std::vector<UINT> adjacent[r14NewStart];
+  static V3 original[r14NewStart],next[r14NewStart],normals[r14NewStart];
+  if(!initialized){
+    for(UINT i=0;i<r14NewStart;i++){
+      float membership=0.f;
+      for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++)membership+=r14Weight[k]*phys_scrotum_weight[r14Sources[k]];
+      float center=1.f-Smoother01((fabsf(r14Base[i*3+1])-.45f)/1.50f);
+      interLobeWebMask[i]=center*Smoother01((membership-.55f)/.30f);
+    }
+    for(UINT k=0;k<r14IndexCount;k+=3)for(int a=0;a<3;a++){
+      UINT i=r14Indices[k+a];if(i>=r14NewStart)continue;
+      for(int b=0;b<3;b++)if(a!=b){UINT j=r14Indices[k+b];auto& list=adjacent[i];if(std::find(list.begin(),list.end(),j)==list.end())list.push_back(j);}
+    }
+    initialized=true;
+  }
+  memcpy(original,r14Positions,sizeof(original));
+  // Fill only concave portions of the central skin. Convex lobe surfaces and
+  // the midline ridge are not shrunk; no simulation state is written here.
+  for(int pass=0;pass<18;pass++){
+    memset(normals,0,sizeof(normals));
+    for(UINT k=0;k<r14IndexCount;k+=3){
+      UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
+      if(a>=r14NewStart&&b>=r14NewStart&&c>=r14NewStart)continue;
+      V3 n=Cross(r14Positions[c]-r14Positions[a],r14Positions[b]-r14Positions[a]);
+      if(a<r14NewStart)normals[a]=normals[a]+n;if(b<r14NewStart)normals[b]=normals[b]+n;if(c<r14NewStart)normals[c]=normals[c]+n;
+    }
+    for(UINT i=0;i<r14NewStart;i++){
+      next[i]=r14Positions[i];if(interLobeWebMask[i]<=0.f||adjacent[i].empty())continue;
+      V3 mean{};for(UINT j:adjacent[i])mean=mean+r14Positions[j];mean=mean/float(adjacent[i].size());
+      V3 n=Unit(normals[i]);float outward=max(0.f,Dot(mean-r14Positions[i],n));
+      next[i]=next[i]+n*(outward*.28f*interLobeWebMask[i]);
+      V3 delta=next[i]-original[i];float cap=.48f*sqrtf(max(.35f,BallShapeScale()));
+      if(Length(delta)>cap)next[i]=original[i]+Unit(delta)*cap;
+    }
+    memcpy(r14Positions,next,sizeof(next));
+  }
+  float fraction=1.f;
+  for(UINT k=0;k<r14IndexCount;k+=3){
+    UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
+    if(a>=r14NewStart||b>=r14NewStart||c>=r14NewStart)continue;
+    fraction=min(fraction,SurfaceCorrectionLimit(original[a],original[b],original[c],r14Positions[a]-original[a],r14Positions[b]-original[b],r14Positions[c]-original[c],.35f));
+  }
+  if(fraction<1.f)for(UINT i=0;i<r14NewStart;i++)r14Positions[i]=original[i]+(r14Positions[i]-original[i])*fraction;
+}
 static float R14LegacyScale(float ui){return ui<=50.f?.85f+.003f*ui:1.f+.012f*(ui-50.f);}
 static float R16PreviousScale(float ui){
   ui=max(0.f,min(100.f,ui));
@@ -66,6 +176,30 @@ static void UpdateR14(const unsigned char* source){
     UINT cap=r14NewStart+r14RingCount*r14SegmentCount;
     for(UINT i=cap;i<r14Count;i++)r14Positions[i]=crown+(r14Positions[i]-crown)*axialScale;
   }
+  // Fair only the proximal ventral transition. Fixed boundary and crown
+  // vertices retain their exact positions; every pass reads a shared snapshot.
+  static V3 rapheNext[rapheSmoothCount];
+  static V3 rapheInput[r14Count];memcpy(rapheInput,r14Positions,sizeof(rapheInput));
+  for(int pass=0;pass<18;pass++){
+    for(UINT k=0;k<rapheSmoothCount;k++){
+      UINT i=rapheSmoothIDs[k],begin=rapheSmoothOffsets[k],end=rapheSmoothOffsets[k+1];
+      V3 mean{};for(UINT j=begin;j<end;j++)mean=mean+r14Positions[rapheSmoothNeighbors[j]];
+      rapheNext[k]=r14Positions[i]+(mean/float(end-begin)-r14Positions[i])*(.32f*rapheSmoothMask[k]);
+    }
+    for(UINT k=0;k<rapheSmoothCount;k++)r14Positions[rapheSmoothIDs[k]]=rapheNext[k];
+  }
+  float rapheFraction=1.f;
+  for(UINT k=0;k<r14IndexCount;k+=3){
+    UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
+    if(a>=r14NewStart&&b>=r14NewStart&&c>=r14NewStart)continue;
+    rapheFraction=min(rapheFraction,SurfaceCorrectionLimit(rapheInput[a],rapheInput[b],rapheInput[c],r14Positions[a]-rapheInput[a],r14Positions[b]-rapheInput[b],r14Positions[c]-rapheInput[c],.35f));
+  }
+  debugSmoothFraction=rapheFraction;
+  if(rapheFraction<1.f)for(UINT k=0;k<rapheSmoothCount;k++){
+    UINT i=rapheSmoothIDs[k];r14Positions[i]=rapheInput[i]+(r14Positions[i]-rapheInput[i])*rapheFraction;
+  }
+  ShapeObliqueLobes();
+  TightenInterLobeWeb();
   memset(r14Normals,0,sizeof(r14Normals));memset(r14Tangents,0,sizeof(r14Tangents));
   for(UINT k=0;k<r14IndexCount;k+=3){
     UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
@@ -77,7 +211,7 @@ static void UpdateR14(const unsigned char* source){
   }
   for(UINT i=0;i<r14Count;i++){
     V3 n=Unit(r14Normals[i]);
-    if(r14CustomNormals[i*3]!=0.f||r14CustomNormals[i*3+1]!=0.f||r14CustomNormals[i*3+2]!=0.f){
+    if((i>=r14NewStart||(interLobeWebMask[i]<=1e-4f&&obliqueLobeMask[i]<=1e-4f))&&rapheSmoothFull[i]<=1e-4f&&(r14CustomNormals[i*3]!=0.f||r14CustomNormals[i*3+1]!=0.f||r14CustomNormals[i*3+2]!=0.f)){
       V3 custom{r14CustomNormals[i*3],r14CustomNormals[i*3+1],r14CustomNormals[i*3+2]};
       n=Unit(Cross(columns[1],columns[2])*custom.x+Cross(columns[2],columns[0])*custom.y+Cross(columns[0],columns[1])*custom.z);
     }
@@ -114,6 +248,17 @@ static bool EnsureR14(IDirect3DDevice9* d){
 static HRESULT DrawR14(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original,UINT offset,UINT stride){
   IDirect3DIndexBuffer9* ib=nullptr;
   if(FAILED(d->GetIndices(&ib)))return E_FAIL;
+  LoadR14SkinTextures(d);
+  IDirect3DBaseTexture9* oldDiffuse=nullptr,*oldSkin=nullptr;
+  d->GetTexture(2,&oldDiffuse);d->GetTexture(10,&oldSkin);
+  bool replaced=false;
+  IDirect3DTexture9* chosen=r14SkinTexture[physicsState==0?1:0];
+  if(chosen&&oldDiffuse&&oldDiffuse==oldSkin&&oldDiffuse->GetType()==D3DRTYPE_TEXTURE){
+    D3DSURFACE_DESC desc{};
+    if(SUCCEEDED(static_cast<IDirect3DTexture9*>(oldDiffuse)->GetLevelDesc(0,&desc))&&desc.Width==4096&&desc.Height==4096){
+      d->SetTexture(2,chosen);d->SetTexture(10,chosen);replaced=true;
+    }
+  }
   HRESULT hr=d->SetStreamSource(0,r14VB,0,32);
   if(SUCCEEDED(hr))hr=d->SetIndices(r14IB);
   if(SUCCEEDED(hr)){
@@ -122,6 +267,8 @@ static HRESULT DrawR14(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original,UINT
     hr=capture?origDIP(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3):DrawWithLightingDirections(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3);
     if(capture)CaptureSurface(d,"after");
   }
+  if(replaced){d->SetTexture(2,oldDiffuse);d->SetTexture(10,oldSkin);}
+  if(oldDiffuse)oldDiffuse->Release();if(oldSkin)oldSkin->Release();
   d->SetStreamSource(0,original,offset,stride);d->SetIndices(ib);if(ib)ib->Release();
   if(SUCCEEDED(hr)){if(r14SuccessfulDraws++==0)Log("R14 replacement draw active: %u vertices, %u triangles",r14Count,r14IndexCount/3);}
   return hr;

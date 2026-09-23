@@ -13,7 +13,7 @@ static bool TestR14Draw(IDirect3DDevice9* dev,const char* output,D3DPRESENT_PARA
  dev->SetVertexDeclaration(decl);dev->SetVertexShader(vs);dev->SetPixelShader(nullptr);dev->SetTexture(0,nullptr);
  dev->SetTextureStageState(0,D3DTSS_COLOROP,D3DTOP_SELECTARG1);dev->SetTextureStageState(0,D3DTSS_COLORARG1,D3DTA_DIFFUSE);
  IDirect3DTexture9* texture=nullptr;char texturePath[MAX_PATH];
- if(GetEnvironmentVariableA("R14_TEST_TEXTURE",texturePath,MAX_PATH)&&SUCCEEDED(D3DXCreateTextureFromFileA(dev,texturePath,&texture))){dev->SetTexture(0,texture);dev->SetTextureStageState(0,D3DTSS_COLOROP,D3DTOP_MODULATE);dev->SetTextureStageState(0,D3DTSS_COLORARG2,D3DTA_TEXTURE);dev->SetSamplerState(0,D3DSAMP_MINFILTER,D3DTEXF_LINEAR);dev->SetSamplerState(0,D3DSAMP_MAGFILTER,D3DTEXF_LINEAR);}
+ if(GetEnvironmentVariableA("R14_TEST_TEXTURE",texturePath,MAX_PATH)&&SUCCEEDED(D3DXCreateTextureFromFileA(dev,texturePath,&texture))){dev->SetTexture(0,texture);dev->SetTexture(2,texture);dev->SetTexture(10,texture);dev->SetTextureStageState(0,D3DTSS_COLOROP,D3DTOP_MODULATE);dev->SetTextureStageState(0,D3DTSS_COLORARG2,D3DTA_TEXTURE);dev->SetSamplerState(0,D3DSAMP_MINFILTER,D3DTEXF_LINEAR);dev->SetSamplerState(0,D3DSAMP_MAGFILTER,D3DTEXF_LINEAR);}
  dev->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);dev->SetRenderState(D3DRS_ZENABLE,TRUE);dev->SetRenderState(D3DRS_ALPHABLENDENABLE,FALSE);
  dev->SetStreamSource(0,graftBuffer,0,32);dev->SetIndices(ib);
  float loX=1e6f,hiX=-1e6f,loZ=1e6f,hiZ=-1e6f;
@@ -25,10 +25,12 @@ static bool TestR14Draw(IDirect3DDevice9* dev,const char* output,D3DPRESENT_PARA
  IDirect3DVertexBuffer9* check=nullptr;IDirect3DIndexBuffer9* checkIB=nullptr;UINT offset=0,stride=0;
  dev->GetStreamSource(0,&check,&offset,&stride);dev->GetIndices(&checkIB);
  bool restored=check==graftBuffer&&checkIB==ib&&offset==0&&stride==32;if(check)check->Release();if(checkIB)checkIB->Release();
+ IDirect3DBaseTexture9* checkDiffuse=nullptr,*checkSkin=nullptr;dev->GetTexture(2,&checkDiffuse);dev->GetTexture(10,&checkSkin);
+ bool texturesRestored=!texture||(checkDiffuse==texture&&checkSkin==texture);if(checkDiffuse)checkDiffuse->Release();if(checkSkin)checkSkin->Release();
  IDirect3DSurface9* back=nullptr;dev->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&back);char file[MAX_PATH];sprintf_s(file,"%s.png",output);HRESULT saved=D3DXSaveSurfaceToFileA(file,D3DXIFF_PNG,back,nullptr,nullptr);back->Release();
  dev->SetStreamSource(0,nullptr,0,0);dev->SetIndices(nullptr);dev->SetVertexShader(nullptr);dev->SetVertexDeclaration(nullptr);ib->Release();vs->Release();decl->Release();
- dev->SetTexture(0,nullptr);if(texture)texture->Release();
+ dev->SetTexture(0,nullptr);dev->SetTexture(2,nullptr);dev->SetTexture(10,nullptr);if(texture)texture->Release();
  HRESULT reset=HookReset(dev,&pp);bool recreated=SUCCEEDED(reset)&&EnsureR14(dev);ReleaseR14();
- printf("R14 draw=%08X draws=%u restored=%d screenshot=%08X reset=%08X recreated=%d\n",hr,r14SuccessfulDraws,restored,saved,reset,recreated);
- return SUCCEEDED(hr)&&r14SuccessfulDraws>0&&restored&&SUCCEEDED(saved)&&recreated;
+ printf("R14 draw=%08X draws=%u restored=%d texture-restored=%d screenshot=%08X reset=%08X recreated=%d\n",hr,r14SuccessfulDraws,restored,texturesRestored,saved,reset,recreated);
+ return SUCCEEDED(hr)&&r14SuccessfulDraws>0&&restored&&texturesRestored&&SUCCEEDED(saved)&&recreated;
 }

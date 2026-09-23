@@ -1,3 +1,10 @@
+## v0.9
+
+Packages the current R36-based attachment and surface work, oblique resting shape, tauter central web, bounded shaft motion, animated chest necklace contact, prior collision asset adjustments, and state-specific diffuse texture variants.
+
+The installer supports original and existing Revision 161 Natural packages, verifies all payloads, preserves settings, and restores previous files on rollback. Clean-install and upgrade fixtures passed.
+
+Known issues: the reported underside indentation is not fixed; extreme-pose contact remains imperfect; current live visual validation is incomplete.
 ## 0.7.1 junction R2
 
 Final-pose scrotal junction fairing, broader upper attachment, adjacent ventral-row
@@ -6,7 +13,7 @@ matched captures, compiled-DLL smoke and both upgrade/rollback paths tested.
 Default/maximum sampled neck intersections removed; extreme-angle contacts remain.
 Live-game playtest pending.
 
-## 0.7.1 — Pelvic ramp
+## 0.7.1 ï¿½ Pelvic ramp
 
 Final-pose constrained body/collar fairing, angular-profile radial support,
 tangential vertex redistribution and bounded, orientation-checked correction.

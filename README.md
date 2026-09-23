@@ -1,29 +1,31 @@
-# Wolverine Anatomy Tool v0.8
+# Wolverine Anatomy Tool v0.9
 
-This release packages the current R33 anatomy runtime and the established Revision 161 character package. It adds the integrated R14 surface, expanded size controls, continuous fixed-step dynamics, ovoid internal supports, constrained shared-sack motion, and distinct floppy, semi, and erect response profiles.
+Version 0.9 packages the current R36-based runtime, necklace contact correction, surface refinements, and two skin texture variants.
 
 ## Install or upgrade
 
-Close Wolverine and extract the whole archive. For an unmodified game, run **Install.cmd**. For an existing v0.7-series installation, run **Upgrade-0.8.cmd**. The default location is `C:\Games\X-Men Origins Wolverine`; pass `-GamePath` from a command prompt for another location.
+Close Wolverine, extract the entire archive, and run **Install.cmd** for a clean installation or **Upgrade-0.9.cmd** for an existing installation. Both use the same checksum-verified installer. The original supported Natural package or the existing Revision 161 package is required. WGame must be the supported original or this release's patched version. Unsupported packages are rejected before changes.
 
-The installers verify checksums, preserve settings, and make version-specific backups. **Rollback-0.8.cmd** restores the runtime replaced by the upgrade. F6 displays **R33 DISTINCT STATES**.
+The default game path is `C:\Games\X-Men Origins Wolverine`. For another location run `powershell -ExecutionPolicy Bypass -File Install.ps1 -GamePath "D:\Games\Wolverine"`.
 
-The project is intended for adult anatomical visualization, postgraduate medical-education demonstration, geometric analysis, and biomechanical experimentation. It is not a diagnostic or clinical-decision system.
+**Uninstall.cmd** or **Rollback-0.9.cmd** restores the files present before installation. Settings are preserved. Backups are retained in `WGame\ModBackups\WolverineAnatomyTool-v0.9`. F6 opens the controls; F8 resets controls. The existing R36 overlay label is retained.
 
-## Major changes
+## Changes since 0.8
 
-- Integrated high-density R14 surface with regenerated runtime correspondence.
-- Remapped Glans Size range with a smaller lower half while retaining the previous range above midpoint.
-- Expanded low-end shaft Length range while preserving the crown at small values.
-- Fixed-step shaft and suspended-mass solver with continuous state transitions.
-- Ovoid support volumes and closer, constrained independent motion inside the shared sack.
-- Separate floppy, semi, and erect stiffness, damping, weight, and root-spring profiles.
-- Captured-material lighting correction with original texture bindings.
+- R36 attachment shaping and the existing midline continuation.
+- Stronger root damping and bounded shaft motion.
+- Oblique resting lobe shape and a shallower central skin dip.
+- Necklace clearance measured against the animated chest surface.
+- Earlier chest collider and necklace collision-flag adjustments.
+- Subtle diffuse skin detail and a stronger vascular-color variant for the erect state.
+- Unified installation and upgrade with package deltas, payload verification, and rollback.
 
-Build `src/runtime/build.cmd` with x86 Visual C++ BuildTools and the June 2010 DirectX SDK. The release payload is the exact installed and verified R33 DLL.
+## Validation and known limitations
 
-## Validation and limits
+Clean installation and upgrade fixtures pass package reconstruction, payload checks, settings preservation, existing-texture backup, and exact rollback. Runtime build, recorded necklace contact checks, and deterministic rendering/state restoration/device reset checks passed during development.
 
-Deterministic state-profile tests, continuity tests, long physics regressions, render-path checks, device-reset checks, installer tests, and checksum verification pass. The three states produce distinct measured bend and root-swing behavior.
+The newly reported underside indentation remains unresolved. Extreme poses can still produce contact or collision artifacts. Necklace correction is a rendered contact adjustment, not a repair of native rigid-body self-collision. Texture changes affect diffuse color; they do not add normal-map relief. Live visual validation is incomplete. This release is not medical validation.
 
-This is a research and visualization tool, not medical validation. Extreme-pose collision clearance remains imperfect, texture fidelity work is unfinished, and the newly reported ventral junction notch is documented but not repaired in this release.
+## Build
+
+Build `src/runtime/build.cmd` using x86 Visual C++ BuildTools and the June 2010 DirectX SDK. The payload DLL is the exact current installed build; `manifest.json` records every payload hash. Cooked game packages are distributed as WBX1 deltas requiring the supported local game files.

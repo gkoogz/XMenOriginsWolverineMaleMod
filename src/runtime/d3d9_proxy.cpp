@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <d3d9.h>
 #include <d3dx9shader.h>
+#include <d3dx9tex.h>
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
@@ -17,6 +18,7 @@
 #include "pelvic_ramp.h"
 #include "scrotal_junction.h"
 #include "suspension_weights.h"
+#include "necklace_contact.h"
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 static HMODULE realDll;
@@ -69,6 +71,7 @@ static int physicsState=2,menuPage=0,selectedPhysics=0;
 struct Spring2 {float pitch,yaw,pitchVelocity,yawVelocity;};
 static Spring2 shaftSpring{},ballsSpring{};
 struct V3 {float x,y,z;};
+static float debugRampFraction=1.f,debugRapheFraction=1.f,debugSmoothFraction=1.f;
 static V3 operator+(V3 a,V3 b){return {a.x+b.x,a.y+b.y,a.z+b.z};}
 static V3 operator-(V3 a,V3 b){return {a.x-b.x,a.y-b.y,a.z-b.z};}
 static V3 operator*(V3 a,float s){return {a.x*s,a.y*s,a.z*s};}
@@ -77,6 +80,7 @@ static float Dot(V3 a,V3 b){return a.x*b.x+a.y*b.y+a.z*b.z;}
 static V3 Cross(V3 a,V3 b){return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
 static float Length(V3 a){return sqrtf(Dot(a,a));}
 static V3 Unit(V3 a){float n=Length(a);return n>1e-6f?a/n:V3{1,0,0};}
+#include "surface_limit.h"
 static float Smooth01(float value);
 static float Smoother01(float value);
 static float Smoother01(float value);
@@ -121,6 +125,10 @@ static volatile LONG motionCandidateLogs;
 static volatile LONG motionBoneLogged;
 static float motionPelvisMatrix[12],motionLeftThighMatrix[12],motionRightThighMatrix[12];
 static bool motionCollisionBonesReady;
+static NcRig necklaceRig;
+static NcContactSolver necklaceContact;
+static LONG necklaceBodyFrame=-2;
+static DWORD necklaceDiagnosticTick;
 static bool collisionCapsuleOverride;
 static V3 overrideLeftA,overrideLeftB,overrideRightA,overrideRightB;
 static __declspec(thread) bool inOverlay;
@@ -204,7 +212,7 @@ static V3 LiveRootDirection(){
 static void StepRootSuspension(float dt,float gait,float side){
   shaftMode+=(physicsState-shaftMode)*(1.f-expf(-2.f*dt));
   float mass=(1.f+physValues[1]*.016f)*max(.65f,sqrtf(constraintRestLength/24.f));
-  float k=ModeValue(38.f,22.f,10.f),damping=2.f*sqrtf(k*mass)*ModeValue(.28f,.40f,.52f);
+  float k=ModeValue(38.f,22.f,10.f),damping=2.f*sqrtf(k*mass)*ModeValue(.60f,.72f,.86f);
   float droop=ModeValue(.015f,.11f,.28f),drive=ModeValue(7.f,9.f,12.f);
   shaftSpring.pitchVelocity+=(k*(droop-shaftSpring.pitch)-damping*shaftSpring.pitchVelocity-gait*drive)*dt/mass;
   shaftSpring.yawVelocity+=(-k*.8f*shaftSpring.yaw-damping*shaftSpring.yawVelocity+side*drive)*dt/mass;
@@ -324,13 +332,20 @@ static void ResolvePairWeightedHistory(V3& a,V3& previousA,V3& b,V3& previousB,f
   V3 beforeA=a,beforeB=b;ResolvePairWeighted(a,b,minimum,aShare);
   previousA=previousA+(a-beforeA);previousB=previousB+(b-beforeB);
 }
-static void ResolveBallCapsule(V3& p,V3& previous,V3 a,V3 b,float radius,int side,float relief=0.f){
+static void ResolveBallCapsule(V3& p,V3& previous,V3 a,V3 b,float radius,int side,float relief=0.f,float crouch=0.f,bool thighContact=false){
   V3 ab=b-a;float denom=Dot(ab,ab),t=denom>1e-6f?max(0.f,min(1.f,Dot(p-a,ab)/denom)):0.f;V3 q=a+ab*t,d=p-q;float n=Length(d);if(n>=radius)return;
   V3 normal=n>1e-5f?d/n:V3{.25f,side?.95f:-.95f,-.12f};
   // A thigh contact may separate in several mathematically valid directions.
   // Prefer lateral/forward/downward escape so the lobe cannot be solved above
   // the shaft or behind the pelvis and then remain trapped there.
-  if(normal.x<.05f||normal.z>.22f){V3 preferred={.24f,side?.82f:-.82f,-(.12f+.55f*relief)};normal=Unit(normal*.28f+preferred*.72f);}
+  if(crouch>.25f||normal.x<.05f||normal.z>.22f){
+    // A thigh must route the sack into the inter-thigh corridor. The old
+    // lobe-side sign pushed its center outward while skin contact pushed its
+    // vertices inward, producing the hooked, over-thigh deformation.
+    float lateral=thighContact?(a.y<0.f?1.f:-1.f):(side?1.f:-1.f);
+    V3 preferred={.24f+.12f*crouch,lateral*(.82f-.57f*crouch),-(.12f+.55f*relief+.78f*crouch)};
+    float guide=.72f+.20f*crouch;normal=Unit(normal*(1.f-guide)+preferred*guide);
+  }
   // Contact correction is compliant and is also applied to the Verlet history.
   // That removes the artificial velocity spike which made a deeply contacted
   // lobe visibly snap across the shaft or thigh on the following step.
@@ -371,6 +386,12 @@ static void ResolvePelvisAndGlutes(V3& p,V3& previous,float renderedRadius,float
   ResolveAnatomyCapsule(p,previous,{3.0f,0.f,70.0f},{5.4f,0.f,86.0f},6.4f+pad,.11f-.02f*relief,.09f,Unit(V3{.88f,0.f,-.34f}));
 }
 static void KeepBallAboveMinimum(float& value,float& previous,float minimum,float relief=0.f){if(value<minimum){float strength=.12f*(1.f-.55f*relief),cap=.10f*(1.f-.40f*relief);float shift=min((minimum-value)*strength,cap);value+=shift;previous+=shift;}}
+static void KeepBallOnSide(float& value,float& previous,float minimum){
+  if(value>=minimum)return;
+  float velocity=value-previous;
+  value=minimum;
+  previous=minimum-max(0.f,velocity);
+}
 static void KeepBallBelowMaximum(float& value,float& previous,float maximum,float relief=0.f){if(value>maximum){float strength=.12f*(1.f-.55f*relief),cap=.10f*(1.f-.40f*relief);float shift=min((value-maximum)*strength,cap);value-=shift;previous-=shift;}}
 static void CollisionCapsules(V3& leftA,V3& leftB,V3& rightA,V3& rightB){
   const V3 restLeftA={2.f,-7.8f,79.f},restLeftB={1.f,-8.2f,43.f},restRightA={2.f,7.8f,79.f},restRightB={1.f,8.2f,43.f};
@@ -380,7 +401,7 @@ static void CollisionCapsules(V3& leftA,V3& leftB,V3& rightA,V3& rightB){
 }
 static float CrouchFactor(V3 leftA,V3 leftB,V3 rightA,V3 rightB){
   V3 ld=Unit(leftB-leftA),rd=Unit(rightB-rightA);float verticality=(fabsf(ld.z)+fabsf(rd.z))*.5f;
-  return Smoother01(max(0.f,min(1.f,(.90f-verticality)/.55f)));
+  return Smoother01(max(0.f,min(1.f,(.98f-verticality)/.40f)));
 }
 static void StepConstraintSolver(float dt,float gait,float side){
   if(!constraintSolverReady)InitializeConstraintSolver();
@@ -388,6 +409,8 @@ static void StepConstraintSolver(float dt,float gait,float side){
   StepRootSuspension(dt,gait,side);
   V3 shaftStart[shaftNodeCount],ballStart[2],nutStart[2],neckStart[2];memcpy(shaftStart,shaftNodes,sizeof(shaftStart));memcpy(ballStart,ballNodes,sizeof(ballStart));memcpy(nutStart,nutNodes,sizeof(nutStart));memcpy(neckStart,neckNodes,sizeof(neckStart));
   V3 root=ShaftRoot(),restDir=LiveRootDirection();float segment=max(2.f,constraintRestLength/(shaftNodeCount-1));
+  V3 leftA{},leftB{},rightA{},rightB{};CollisionCapsules(leftA,leftB,rightA,rightB);
+  float crouch=CrouchFactor(leftA,leftB,rightA,rightB);
   // Drag is expressed per second, rather than multiplied by an arbitrary
   // fixed amount 240 times per second. Preserve natural coast-down.
   float shaftDamping=expf(-(ModeValue(.5f,.65f,.48f)+(100.f-physValues[2])*.006f)*dt);
@@ -422,8 +445,6 @@ static void StepConstraintSolver(float dt,float gait,float side){
   // their centers could be non-intersecting while the rendered surfaces were
   // deeply embedded in each other.
   float shaftRadius=ShaftCollisionRadius(),ballRadius=BallCollisionRadius(),thighRadius=7.2f;
-  V3 leftA{},leftB{},rightA{},rightB{};CollisionCapsules(leftA,leftB,rightA,rightB);
-  float crouch=CrouchFactor(leftA,leftB,rightA,rightB);
   float smallShape=Smoother01(max(0.f,min(1.f,(.95f-BallShapeScale())/.55f)));
   // Relief is intentionally concentrated where the bug occurs: a small live
   // morph in a folded-leg pose. Standing/default and large shapes retain the
@@ -472,11 +493,11 @@ static void StepConstraintSolver(float dt,float gait,float side){
       SolveDistanceHistory(neckNodes[b],neckPrevious[b],ballNodes[b],ballPrevious[b],lower,.42f,1.f,.27f,.070f);
       SolveMaximumHistory(ballAnchors[b],fixedPrevious,ballNodes[b],ballPrevious[b],ballTether[b]*1.08f,0.f,1.f,.55f,.10f);
       ResolvePelvisAndGlutes(ballNodes[b],ballPrevious[b],ballRadius,relief);
-      ResolveBallCapsule(ballNodes[b],ballPrevious[b],leftA,leftB,ballThighContact,b,relief);
-      ResolveBallCapsule(ballNodes[b],ballPrevious[b],rightA,rightB,ballThighContact,b,relief);
+      ResolveBallCapsule(ballNodes[b],ballPrevious[b],leftA,leftB,ballThighContact,b,relief,crouch,true);
+      ResolveBallCapsule(ballNodes[b],ballPrevious[b],rightA,rightB,ballThighContact,b,relief,crouch,true);
       V3 leftUpper=leftA+(leftB-leftA)*.34f,rightUpper=rightA+(rightB-rightA)*.34f;
-      ResolveBallCapsule(ballNodes[b],ballPrevious[b],leftA,leftUpper,ballThighContact+1.05f,b,relief);
-      ResolveBallCapsule(ballNodes[b],ballPrevious[b],rightA,rightUpper,ballThighContact+1.05f,b,relief);
+      ResolveBallCapsule(ballNodes[b],ballPrevious[b],leftA,leftUpper,ballThighContact+1.05f,b,relief,crouch,true);
+      ResolveBallCapsule(ballNodes[b],ballPrevious[b],rightA,rightUpper,ballThighContact+1.05f,b,relief,crouch,true);
       // The earlier solver checked lobes against downstream shaft nodes but
       // left a blind pocket around its first few links. A compliant capsule
       // chain closes that pocket without welding the independently moving
@@ -487,7 +508,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
       }
       float sign=b?1.f:-1.f,minimumSide=fabsf(ballAnchors[b].y)*(.38f-.13f*relief);
       float signedValue=sign*ballNodes[b].y,signedPrevious=sign*ballPrevious[b].y;
-      KeepBallAboveMinimum(signedValue,signedPrevious,minimumSide,relief);ballNodes[b].y=sign*signedValue;ballPrevious[b].y=sign*signedPrevious;
+      KeepBallOnSide(signedValue,signedPrevious,minimumSide);ballNodes[b].y=sign*signedValue;ballPrevious[b].y=sign*signedPrevious;
       KeepBallAboveMinimum(ballNodes[b].x,ballPrevious[b].x,ballForwardFloor,relief);
       KeepBallBelowMaximum(ballNodes[b].z,ballPrevious[b].z,ballVerticalCeiling,relief);
 
@@ -497,8 +518,8 @@ static void StepConstraintSolver(float dt,float gait,float side){
       SolveMaximumHistory(ballNodes[b],ballPrevious[b],nutNodes[b],nutPrevious[b],ballRadius*.44f,.30f,1.f,.48f,.075f);
 
       ResolvePelvisAndGlutes(nutNodes[b],nutPrevious[b],nutRadius,relief);
-      ResolveBallCapsule(nutNodes[b],nutPrevious[b],leftA,leftB,thighRadius+nutRadius*.72f,b,relief);
-      ResolveBallCapsule(nutNodes[b],nutPrevious[b],rightA,rightB,thighRadius+nutRadius*.72f,b,relief);
+      ResolveBallCapsule(nutNodes[b],nutPrevious[b],leftA,leftB,thighRadius+nutRadius*.72f,b,relief,crouch,true);
+      ResolveBallCapsule(nutNodes[b],nutPrevious[b],rightA,rightB,thighRadius+nutRadius*.72f,b,relief,crouch,true);
       KeepBallBelowMaximum(nutNodes[b].z,nutPrevious[b].z,ballVerticalCeiling+.18f,relief);
       SolveMaximumHistory(ballNodes[b],ballPrevious[b],nutNodes[b],nutPrevious[b],ballRadius*.44f,.22f,1.f,.72f,.080f);
     }
@@ -568,6 +589,13 @@ static void StepConstraintSolver(float dt,float gait,float side){
     V3 correction=pairDelta*((pairDistance-pairMaximum)/(pairDistance*2.f));
     ballNodes[0]=ballNodes[0]+correction;ballNodes[1]=ballNodes[1]-correction;
   }
+  for(int b=0;b<2;b++){
+    float sign=b?1.f:-1.f,value=sign*ballNodes[b].y,previous=sign*ballPrevious[b].y;
+    KeepBallOnSide(value,previous,.25f);
+    ballNodes[b].y=sign*value;ballPrevious[b].y=sign*previous;
+    V3 internal=nutNodes[b]-ballNodes[b];float extent=Length(internal),limit=ballRadius*.44f;
+    if(extent>limit){V3 target=ballNodes[b]+internal*(limit/extent),shift=target-nutNodes[b];nutNodes[b]=target;nutPrevious[b]=nutPrevious[b]+shift;}
+  }
 
   // Reconstruct velocities from the accepted constrained trajectory. Keeping
   // pre-projection history here stores impossible motion behind contacts.
@@ -575,6 +603,23 @@ static void StepConstraintSolver(float dt,float gait,float side){
   shaftNodes[0]=root;shaftNodes[1]=root+restDir*segment;
   for(int i=2;i<shaftNodeCount;i++)shaftNodes[i]=shaftNodes[i-1]+Unit(shaftNodes[i]-shaftNodes[i-1])*segment;
   ConstrainCurvatureGradient(root,restDir,segment,stiffnessSweep);
+  // Interpolate link directions, not positions. This retains exact length
+  // while bounding the total visible travel after the last projection.
+  V3 targetDirection[shaftNodeCount],oldDirection[shaftNodeCount];
+  for(int i=2;i<shaftNodeCount;i++){
+    targetDirection[i]=Unit(shaftNodes[i]-shaftNodes[i-1]);
+    oldDirection[i]=Unit(shaftStart[i]-shaftStart[i-1]);
+  }
+  float low=0.f,high=1.f;
+  for(int test=0;test<14;test++){
+    float fraction=(low+high)*.5f;V3 candidate=shaftNodes[1];float largest=0.f;
+    for(int i=2;i<shaftNodeCount;i++){
+      candidate=candidate+SlerpDirection(oldDirection[i],targetDirection[i],fraction)*segment;
+      largest=max(largest,Length(candidate-shaftStart[i]));
+    }
+    if(largest<=.42f)low=fraction;else high=fraction;
+  }
+  for(int i=2;i<shaftNodeCount;i++)shaftNodes[i]=shaftNodes[i-1]+SlerpDirection(oldDirection[i],targetDirection[i],low)*segment;
   for(int i=2;i<shaftNodeCount;i++)shaftPrevious[i]=shaftStart[i];
   for(int b=0;b<2;b++){
     ballPrevious[b]=ballStart[b];neckPrevious[b]=neckStart[b];nutPrevious[b]=nutStart[b];
@@ -1034,25 +1079,21 @@ static void WriteCollarMember(UINT globalIndex,V3 value,unsigned char* controlle
 // v0.7.1: finish the body/root as one constrained surface in the final pose.
 // The fixed spline correspondence never changes vertex IDs, UVs or skin palettes.
 // It preserves the outer body and pouch, while sharing every weld position.
-static V3 RampRadialFrame(V3 point,float& radius,float& theta){
-  float best=1e30f;V3 radial{},tangent=RestShaftDirection();
-  for(int link=0;link<shaftNodeCount-1;link++){
-    V3 span=shaftNodes[link+1]-shaftNodes[link];float length2=Dot(span,span);
-    if(length2<1e-8f)continue;
-    float t=max(link==0?-10.f:0.f,min(1.f,Dot(point-shaftNodes[link],span)/length2));
-    V3 offset=point-(shaftNodes[link]+span*t);float distance=Dot(offset,offset);
-    if(distance<best){best=distance;radial=offset;tangent=Unit(span);}
-  }
+static V3 RampRadialFrame(V3 point,float materialFlex,float& radius,float& theta){
+  // Material correspondence is fixed by the rest surface. Closest-link
+  // selection could jump between segments as a wide shaft crossed its cuff.
+  V3 center{},tangent{};SampleRestShaftFrame(materialFlex,center,tangent);
+  V3 offset=point-center,radial=offset-tangent*Dot(offset,tangent);
   V3 lateral=Unit(V3{0,1,0}-tangent*tangent.y),dorsal=Unit(Cross(tangent,lateral));
   radius=Length(radial);theta=atan2f(Dot(radial,dorsal),Dot(radial,lateral));return radial;
 }
 static void FinishPelvicRamp(unsigned char* controlled,UINT graftFirstVertex){
-  if(!constraintSolverReady)return;
+  if(!shaftRestFrameReady)return;
   const int sectors=24;float sum[sectors]{},mass[sectors]{},profile[sectors]{};
   // Follow the existing shaft's angular profile, not a circular cylinder.
   for(UINT i=0;i<graftCount;i++){
     if(max(phys_shaft_weight[i],phys_attachment_weight[i])<=.72f||phys_scrotum_weight[i]>=.05f||phys_flex_coordinate[i]<=.38f||phys_flex_coordinate[i]>=.64f)continue;
-    float radius,theta;RampRadialFrame(graftDeformedPositions[i],radius,theta);
+    float radius,theta;RampRadialFrame(graftDeformedPositions[i],graftRestFlex[i],radius,theta);
     for(int s=0;s<sectors;s++){
       float delta=theta-s*(6.283185307f/sectors);
       while(delta>3.141592654f)delta-=6.283185307f;while(delta< -3.141592654f)delta+=6.283185307f;
@@ -1061,12 +1102,20 @@ static void FinishPelvicRamp(unsigned char* controlled,UINT graftFirstVertex){
   }
   for(int s=0;s<sectors;s++)profile[s]=mass[s]>1e-6f?sum[s]/mass[s]:logicalShaftBodyRadius;
   static V3 input[collarFairGroupCount],target[collarFairGroupCount],result[collarFairGroupCount];
+  static float materialFlex[collarFairGroupCount];
   for(UINT group=0;group<collarFairGroupCount;group++){
     V3 p{};UINT begin=collarFairMemberOffsets[group],end=collarFairMemberOffsets[group+1];
     for(UINT m=begin;m<end;m++)p=p+ReadCollarMember(collarFairMembers[m],controlled,graftFirstVertex);
     p=p/(float)(end-begin);input[group]=target[group]=p;
+    float flex=0.f;UINT count=0;bool body=false;
+    for(UINT m=begin;m<end;m++){
+      UINT id=collarFairMembers[m];
+      if(id<graftFirstVertex)body=true;
+      else if(id<graftFirstVertex+graftCount){flex+=graftRestFlex[id-graftFirstVertex];count++;}
+    }
+    materialFlex[group]=body||!count?0.f:flex/float(count);
     if(rampSupport[group]<=1e-5f)continue;
-    float radius,theta;V3 radial=RampRadialFrame(p,radius,theta);if(radius<1e-5f)continue;
+    float radius,theta;V3 radial=RampRadialFrame(p,materialFlex[group],radius,theta);if(radius<1e-5f)continue;
     if(theta<0)theta+=6.283185307f;float u=theta*(sectors/6.283185307f);int a=min(sectors-1,(int)u);float f=u-a;
     float goal=(profile[a]*(1-f)+profile[(a+1)%sectors]*f)*1.025f;
     float expansion=max(0.f,goal-radius)*rampSupport[group];
@@ -1103,7 +1152,7 @@ static void FinishPelvicRamp(unsigned char* controlled,UINT graftFirstVertex){
   // A C1 positive-part projection restores the measured angular envelope,
   // fading continuously into the untouched outer body and downstream shaft.
   for(UINT g=0;g<collarFairGroupCount;g++){
-    if(rampSupport[g]<=1e-5f)continue;float radius,theta;V3 radial=RampRadialFrame(result[g],radius,theta);if(radius<1e-5f)continue;
+    if(rampSupport[g]<=1e-5f)continue;float radius,theta;V3 radial=RampRadialFrame(result[g],materialFlex[g],radius,theta);if(radius<1e-5f)continue;
     if(theta<0)theta+=6.283185307f;float u=theta*(sectors/6.283185307f);int a=min(sectors-1,(int)u);float f=u-a;
     float goal=(profile[a]*(1-f)+profile[(a+1)%sectors]*f)*1.025f;
     float gap=goal-radius,epsilon=max(.03f,goal*.025f),correction=gap>=epsilon?gap:gap<=-epsilon?0.f:(gap+epsilon)*(gap+epsilon)/(4.f*epsilon);
@@ -1114,23 +1163,19 @@ static void FinishPelvicRamp(unsigned char* controlled,UINT graftFirstVertex){
     V3 delta=result[group]-input[group];float length=Length(delta),limit=min(3.f,.50f+.50f*logicalShaftBodyRadius);
     if(length>limit)result[group]=input[group]+delta*(limit/length);
   }
-  // A global line search retains a smooth field at extreme angle/size settings.
-  // Never reverse a formerly valid face or crush its projected area below 20%.
+  // One continuous area bound for the shared attachment, without discrete
+  // changes of correction strength as triangles approach their safety limit.
   float fraction=1.f;
-  for(int attempt=0;attempt<9;attempt++){
-    bool valid=true;
-    for(UINT t=0;t<collarNormalTriangleCount&&valid;t++){
-      V3 original[3],candidate[3];
-      for(int c=0;c<3;c++){
-        UINT k=t*3+c,g=collarNormalTriangleGroups[k],id=collarNormalTriangleIndices[k];
-        V3 fixed=id>=graftFirstVertex&&id<graftFirstVertex+graftCount?graftDeformedPositions[id-graftFirstVertex]:V3{collarNormalTriangleBasePositions[k*3],collarNormalTriangleBasePositions[k*3+1],collarNormalTriangleBasePositions[k*3+2]};
-        original[c]=g!=65535u?input[g]:fixed;candidate[c]=g!=65535u?input[g]+(result[g]-input[g])*fraction:fixed;
-      }
-      V3 a=Cross(original[1]-original[0],original[2]-original[0]),b=Cross(candidate[1]-candidate[0],candidate[2]-candidate[0]);
-      float area2=Dot(a,a);if(area2>1e-14f&&Dot(a,b)<.20f*area2)valid=false;
+  for(UINT t=0;t<collarNormalTriangleCount;t++){
+    V3 original[3],delta[3];
+    for(int c=0;c<3;c++){
+      UINT k=t*3+c,g=collarNormalTriangleGroups[k],id=collarNormalTriangleIndices[k];
+      V3 fixed=id>=graftFirstVertex&&id<graftFirstVertex+graftCount?graftDeformedPositions[id-graftFirstVertex]:V3{collarNormalTriangleBasePositions[k*3],collarNormalTriangleBasePositions[k*3+1],collarNormalTriangleBasePositions[k*3+2]};
+      original[c]=g!=65535u?input[g]:fixed;delta[c]=g!=65535u?result[g]-input[g]:V3{};
     }
-    if(valid)break;fraction=attempt==8?0.f:fraction*.5f;
+    fraction=min(fraction,SurfaceCorrectionLimit(original[0],original[1],original[2],delta[0],delta[1],delta[2],.20f,1e-14f));
   }
+  debugRampFraction=fraction;
   for(UINT group=0;group<collarFairGroupCount;group++){
     if(rampSupport[group]<=1e-5f)continue;
     V3 p=input[group]+(result[group]-input[group])*fraction;
@@ -1597,7 +1642,9 @@ static float SampleOverallWidthVertex(UINT q,float overall,float width){
 }
 #include "render_capture.h"
 #include "lighting_direction_fix.h"
+#include "continuous_raphe.h"
 #include "r14_runtime.h"
+#include "hourglass_neck.h"
 static void ApplyShape(){
   if(!graftBuffer)return;bool report=shapeDirty;void* raw=nullptr;
   const UINT graftFirstVertex=graftOffset/graftStride;
@@ -1650,10 +1697,16 @@ static void ApplyShape(){
   // tessellation and needlessly worsen its least-regular triangles.
   BuildShaftRestFrame();
   SculptConvergentVentralRaphe();
+  // Fit the pelvic cuff in the rest shape, once before skin is transported
+  // by the live chain. Refitting its radius from swinging skin made the
+  // body attachment repeatedly expand and contract during otherwise smooth motion.
+  FinishPelvicRamp(controlled,graftFirstVertex);
   // Cache the corrected authored cross-sections and transport them through
   // physics as a single shaft.  The scrotum remains a separate hanging system.
   ConstructLogicalShaftSurface(false);
-  CaptureLogicalShaftSurface();
+  // Author the seam with the rest surface as well. Letting a compressed
+  // moving pouch change its global relief limit also pulsed the fixed pelvis.
+  ExtendSurfaceRaphe(controlled,graftFirstVertex);
   for(UINT i=0;i<graftCount;i++)graftDeformedPositions[i].z+=HangOffset()*suspensionWeight[i];
   for(UINT i=0;i<graftCount;i++){
     V3 value=graftDeformedPositions[i];
@@ -1661,6 +1714,10 @@ static void ApplyShape(){
     float rawBallWeight=phys_scrotum_weight[i];if(rawBallWeight>.55f){int side=value.y<0?0:1;ballSum[side]=ballSum[side]+value;ballCount[side]++;}
   }
   FitEggRestShapes();
+  // Preserve the established lobe supports, then broaden only their shared
+  // skin connection. Cache the wider shaft-side blend for live transport.
+  BroadenScrotalNeck();
+  CaptureLogicalShaftSurface();
   if(!constraintSolverReady)InitializeConstraintSolver();
   for(UINT i=0;i<graftCount;i++){
     float value[3]={graftDeformedPositions[i].x,graftDeformedPositions[i].y,graftDeformedPositions[i].z};
@@ -1677,7 +1734,6 @@ static void ApplyShape(){
   // belongs to the shared pelvic ramp, whose support fades at .40. Restoring
   // the old tube at .04-.10 would undo that ramp and recreate the shelf.
   static V3 solidCore[graftCount];memcpy(solidCore,graftDeformedPositions,sizeof(solidCore));
-  FinishPelvicRamp(controlled,graftFirstVertex);
   FinishScrotalJunction();
   for(UINT i=0;i<graftCount;i++){
     if(suspensionWeight[i]!=0.f||max(phys_shaft_weight[i],phys_attachment_weight[i])<.5f)continue;
@@ -1796,7 +1852,7 @@ static void OverlayFrame(IDirect3DDevice9* d){
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
   IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=18;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,captureComplete?"R33 CAPTURE SAVED (F10 AGAIN)":lightingDirectionsEnabled?"R33 DISTINCT STATES | LIGHT FIX":"R33 DISTINCT STATES | ORIGINAL LIGHT",title,D3DCOLOR_ARGB(255,255,255,255));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,captureComplete?"R36 CAPTURE SAVED (F10 AGAIN)":lightingDirectionsEnabled?"R36 HOURGLASS BLEND | LIGHT FIX":"R36 HOURGLASS BLEND | ORIGINAL LIGHT",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       int control=i<3?i:i-1;
@@ -1823,7 +1879,7 @@ static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const R
   if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}frameRendered=false;d->Release();}
   return origSwapPresent(sc,src,dst,wnd,dirty,flags);
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){captureRemaining=0;ReleaseLightingDirections();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
 
 static void Log(const char* fmt, ...) {
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);
@@ -1846,6 +1902,47 @@ static bool IsFullResolutionScenePass(IDirect3DDevice9* dev){
   if(candidate<=20)Log("motion pass candidate rt=%p bb=%p rt=%ux%u fmt=%u bb=%ux%u fmt=%u vp=%u,%u %ux%u accepted=%d",rt,bb,rd.Width,rd.Height,(UINT)rd.Format,bd.Width,bd.Height,(UINT)bd.Format,vp.X,vp.Y,vp.Width,vp.Height,full?1:0);
   if(full&&InterlockedCompareExchange(&motionPassLogged,1,0)==0)Log("character motion source selected: full-resolution scene target (%ux%u, backbuffer=%d)",rd.Width,rd.Height,rt==bb?1:0);
   if(rt)rt->Release();if(bb)bb->Release();return full;
+}
+// Read the exact palettes used by the body draws preceding the necklace.
+// Contact geometry is exported from the installed chest, including its sculpt.
+static void CaptureNecklaceBodyPose(IDirect3DDevice9* dev,UINT start,UINT count){
+  const unsigned char* palette=nullptr;UINT size=0;
+  if(start==3456u&&count==21930u){palette=ncPalette1;size=sizeof(ncPalette1);necklaceRig=NcRig{};necklaceBodyFrame=-2;}
+  else if(start==69246u&&count==3960u){palette=ncPalette2;size=sizeof(ncPalette2);}
+  else return;
+  ShaderLayout* layout=GetShaderLayout(dev);if(!layout||!layout->valid||layout->boneCount<size*3)return;
+  float matrices[75*12];if(FAILED(dev->GetVertexShaderConstantF(layout->boneRegister,matrices,size*3)))return;
+  for(UINT i=0;i<size;i++){memcpy(necklaceRig.matrix[palette[i]],matrices+i*12,12*sizeof(float));necklaceRig.valid[palette[i]]=true;}
+  if(start==3456u)necklaceBodyFrame=renderFrameSerial;
+}
+static bool PrepareNecklaceClearance(IDirect3DDevice9* dev,float original[48],UINT& boneRegister){
+  if(necklaceBodyFrame!=renderFrameSerial)return false;
+  ShaderLayout* layout=GetShaderLayout(dev);
+  if(!layout||!layout->valid||layout->boneCount<27)return false;
+  boneRegister=layout->boneRegister;
+  float matrices[108];if(FAILED(dev->GetVertexShaderConstantF(boneRegister,matrices,27)))return false;
+  memcpy(original,matrices,48*sizeof(float));
+  for(UINT i=0;i<sizeof(ncPalette3);i++){memcpy(necklaceRig.matrix[ncPalette3[i]],matrices+i*12,12*sizeof(float));necklaceRig.valid[ncPalette3[i]]=true;}
+  float shift[4];NcContactStats stats;
+  if(!necklaceContact.solve(necklaceRig,shift,stats))return false;
+  float corrected[48];memcpy(corrected,original,sizeof(corrected));
+  // Displace along the ANIMATED chest's forward axis. A static model X axis
+  // and bind-pose height profile were the cause of the rejected floating tags.
+  const float* spine=necklaceRig.matrix[6];
+  for(int i=0;i<4;i++){
+    float amount=shift[ncPalette3[i]-103];
+    corrected[i*12+3]+=spine[0]*amount;
+    corrected[i*12+7]+=spine[4]*amount;
+    corrected[i*12+11]+=spine[8]*amount;
+  }
+  DWORD now=GetTickCount();
+  if(!necklaceDiagnosticTick||now-necklaceDiagnosticTick>=2000u){
+    necklaceDiagnosticTick=now;
+    Log("necklace surface contact: points=%d shift=%.3f %.3f %.3f %.3f penetration=%.3f residual=%.5f limited=%d",stats.contacts,shift[0],shift[1],shift[2],shift[3],stats.penetrationBefore,stats.remaining,stats.limited?1:0);
+    char path[MAX_PATH];SiblingPath(path,"NecklaceContactPose.bin");FILE* f=nullptr;fopen_s(&f,path,"wb");
+    if(f){fwrite(necklaceRig.matrix,1,sizeof(necklaceRig.matrix),f);fclose(f);}
+  }
+  return SUCCEEDED(dev->SetVertexShaderConstantF(boneRegister,corrected,12));
 }
 static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count) {
   if(inOverlay)return origDIP(dev,type,base,minv,nv,start,count);
@@ -1879,9 +1976,18 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
         if(match||drawSignature){graftBuffer=vb;graftBuffer->AddRef();graftOffset=47050u*graftStride;InterlockedExchange(&logged,1);shapeDirty=true;ApplyShape();Log("graft buffer solidly connected at vertex %u via %s signature",graftOffset/graftStride,match?"geometry":"section-draw");}
       }
     }
+    if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST)CaptureNecklaceBodyPose(dev,start,count);
     if(vb==graftBuffer && type==D3DPT_TRIANGLELIST && start==graftTriangleIndexStart && count==graftTriangleIndexCount/3u && EnsureR14(dev)){
       HRESULT replacement=DrawR14(dev,vb,offset,stride);
       if(SUCCEEDED(replacement)){vb->Release();return replacement;}
+    }
+    if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST&&start==81126u&&count==1440u){
+      float original[48]{};UINT boneRegister=0;
+      if(PrepareNecklaceClearance(dev,original,boneRegister)){
+        HRESULT result=origDIP(dev,type,base,minv,nv,start,count);
+        dev->SetVertexShaderConstantF(boneRegister,original,12);
+        vb->Release();return result;
+      }
     }
     vb->Release();
   }
