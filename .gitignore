@@ -16,3 +16,5 @@ __pycache__/
 /tools/r14/deterministic_harness.exe
 /backups/
 **/WolverineLive.ini
+/release/WolverineAnatomyTool-1.0-beta.1.zip
+/release/SHA256SUMS-1.0-beta.1.txt
