@@ -5,6 +5,9 @@ static IDirect3DVertexBuffer9* r14VB;
 static IDirect3DIndexBuffer9* r14IB;
 static V3 r14Positions[r14Count],r14Normals[r14Count],r14Tangents[r14Count];
 static unsigned char r14Packed[r14Count*32];
+#include "underside_blend.h"
+#include "firm_lobes.h"
+#include "ventral_tube.h"
 static bool r14Ready=false,r14UploadPending=false;
 static UINT r14SuccessfulDraws=0;
 static IDirect3DTexture9* r14SkinTexture[2]{};
@@ -200,6 +203,9 @@ static void UpdateR14(const unsigned char* source){
   }
   ShapeObliqueLobes();
   TightenInterLobeWeb();
+  BlendContinuousUnderside();
+  PreserveRigidLobeSurfaces();
+  CompleteVentralTube();
   memset(r14Normals,0,sizeof(r14Normals));memset(r14Tangents,0,sizeof(r14Tangents));
   for(UINT k=0;k<r14IndexCount;k+=3){
     UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
@@ -211,7 +217,7 @@ static void UpdateR14(const unsigned char* source){
   }
   for(UINT i=0;i<r14Count;i++){
     V3 n=Unit(r14Normals[i]);
-    if((i>=r14NewStart||(interLobeWebMask[i]<=1e-4f&&obliqueLobeMask[i]<=1e-4f))&&rapheSmoothFull[i]<=1e-4f&&(r14CustomNormals[i*3]!=0.f||r14CustomNormals[i*3+1]!=0.f||r14CustomNormals[i*3+2]!=0.f)){
+    if(firmLobeMask[i]<=1e-6f&&undersideBlendMoved[i]<=1e-6f&&(i>=r14NewStart||(interLobeWebMask[i]<=1e-4f&&obliqueLobeMask[i]<=1e-4f))&&rapheSmoothFull[i]<=1e-4f&&(r14CustomNormals[i*3]!=0.f||r14CustomNormals[i*3+1]!=0.f||r14CustomNormals[i*3+2]!=0.f)){
       V3 custom{r14CustomNormals[i*3],r14CustomNormals[i*3+1],r14CustomNormals[i*3+2]};
       n=Unit(Cross(columns[1],columns[2])*custom.x+Cross(columns[2],columns[0])*custom.y+Cross(columns[0],columns[1])*custom.z);
     }

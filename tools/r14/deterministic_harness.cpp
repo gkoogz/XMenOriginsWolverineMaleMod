@@ -6,6 +6,38 @@
 #include "cpu_buffer.h"
 static LRESULT CALLBACK HarnessProc(HWND h,UINT m,WPARAM w,LPARAM l){return DefWindowProc(h,m,w,l);}
 int main(int argc,char** argv){
+  if(argc==2&&strcmp(argv[1],"--throb-test")==0){
+    ResetStudyControls();
+    for(int i=1;i<=3;i++)sliderUI[i]=100.f;
+    glansUI=100.f;sliderUI[4]=50.f;
+    const float expected[4]={100.f,120.f,136.f,152.f};
+    const float expectedAngle[4]={50.f,42.f,36.f,30.f};
+    for(int mode=0;mode<4;mode++){
+      throbMode=mode;throbSizePulse=throbTwitchPulse=throbAngleSizePulse=1.f;ApplyControlMapping();
+      for(int i=1;i<=3;i++)if(fabsf(effectiveShapeUI[i]-expected[mode])>1e-5f||sliderUI[i]!=100.f)return 101;
+      if(fabsf(effectiveGlansUI-expected[mode])>1e-5f||glansUI!=100.f)return 102;
+      if(mode&&!(sliderValues[1]>sliderSpecs[1].hi&&sliderValues[2]>sliderSpecs[2].hi&&sliderValues[3]>sliderSpecs[3].hi))return 103;
+      if(fabsf(effectiveShapeUI[4]-expectedAngle[mode])>1e-5f)return 104;
+    }
+    throbMode=3;throbSizePulse=0.f;throbAngleSizePulse=1.f;throbTwitchPulse=0.f;ApplyControlMapping();
+    if(effectiveShapeUI[1]!=126.f||effectiveGlansUI!=126.f||effectiveShapeUI[4]!=50.f)return 113;
+    throbSizePulse=1.f;throbAngleSizePulse=0.f;ApplyControlMapping();
+    if(effectiveShapeUI[1]!=126.f||effectiveGlansUI!=126.f)return 114;
+    sliderUI[4]=4.f;throbMode=3;throbSizePulse=throbTwitchPulse=throbAngleSizePulse=1.f;ApplyControlMapping();
+    if(effectiveShapeUI[1]!=100.f||effectiveShapeUI[4]!=1.f||effectiveGlansUI!=100.f)return 110;
+    sliderUI[4]=10.f;ApplyControlMapping();
+    if(effectiveShapeUI[4]!=1.f||effectiveShapeUI[1]!=100.f||effectiveGlansUI!=100.f)return 111;
+    if(ThrobEnvelope(.2f,.2f,1.05f,false)!=0.f||ThrobEnvelope(1.25f,.2f,1.05f,false)!=0.f||ThrobEnvelope(.725f,.2f,1.05f,false)<.99f)return 105;
+    if(ThrobEnvelope(1.15f,1.15f,4.6f,true)!=0.f||ThrobEnvelope(1.29f,1.15f,4.6f,true)<.999f
+       ||ThrobEnvelope(3.45f,1.15f,4.6f,true)<.45f||ThrobEnvelope(3.45f,1.15f,4.6f,true)>.6f
+       ||ThrobEnvelope(5.75f,1.15f,4.6f,true)!=0.f)return 106;
+    if(ThrobEnvelope(1.29f,1.15f,1.05f,true)<.999f||ThrobEnvelope(2.2f,1.15f,1.05f,true)!=0.f)return 115;
+    if(AdvanceTwitchClock(5.74f,.02f)<1.15f||AdvanceTwitchClock(5.74f,.02f)>1.17f)return 112;
+    ResetStudyControls();AdjustStudyControl(18,-1,1.f);if(throbMode!=3)return 107;
+    SaveSettings();ResetStudyControls();settingsLoaded=false;LoadSettings();if(throbMode!=3)return 108;
+    throbMode=0;ResetThrobClock();ApplyControlMapping();if(effectiveShapeUI[1]!=sliderUI[1]||effectiveGlansUI!=glansUI)return 109;
+    printf("PASS: four modes, max-slider overdrive, independent envelopes, menu cycle, persistence, off restores base\n");return 0;
+  }
   if(argc==2&&strcmp(argv[1],"--surface-limit-test")==0){
     unsigned seed=20260922u;auto random=[&](){seed=1664525u*seed+1013904223u;return float((seed>>8)&65535)/32767.5f-1.f;};
     for(int test=0;test<10000;test++){
@@ -56,6 +88,7 @@ int main(int argc,char** argv){
   if(argc>12)sliderUI[6]=max(0.f,min(100.f,(float)atof(argv[12])));
   if(argc>13)physUI[0]=(float)atof(argv[13]);
   if(argc>14)sliderUI[5]=(float)atof(argv[14]);
+  if(argc>15){throbMode=max(0,min(3,atoi(argv[15])));throbSizePulse=argc>16?(float)atof(argv[16]):1.f;throbTwitchPulse=argc>17?(float)atof(argv[17]):1.f;throbAngleSizePulse=argc>18?(float)atof(argv[18]):throbTwitchPulse;}
   ApplyControlMapping();int frames=argc>6?atoi(argv[6]):240;
   HINSTANCE hi=GetModuleHandleA(nullptr);WNDCLASSA wc{};wc.lpfnWndProc=HarnessProc;wc.hInstance=hi;wc.lpszClassName="V071Inspection";RegisterClassA(&wc);
   HWND hw=CreateWindowA(wc.lpszClassName,"V0.7.1 inspection",WS_OVERLAPPEDWINDOW,0,0,320,240,nullptr,nullptr,hi,nullptr);

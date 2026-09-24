@@ -13,3 +13,6 @@ proxy_harness.png
 /src/runtime/d3d9.dll
 __pycache__/
 /tools/deterministic_harness.exe
+/tools/r14/deterministic_harness.exe
+/backups/
+**/WolverineLive.ini

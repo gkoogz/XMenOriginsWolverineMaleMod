@@ -7,6 +7,7 @@ $GamePath=[IO.Path]::GetFullPath($GamePath.Trim('"')).TrimEnd('\')
 $manifest=Get-Content (Join-Path $PSScriptRoot 'manifest.json') -Raw | ConvertFrom-Json
 function Hash($p){(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash}
 function WriteFile($p,$bytes,$readOnly){
+ New-Item -ItemType Directory -Path (Split-Path -Path $p -Parent) -Force | Out-Null
  if(Test-Path -LiteralPath $p){(Get-Item -LiteralPath $p).IsReadOnly=$false}
  [IO.File]::WriteAllBytes($p,$bytes)
  (Get-Item -LiteralPath $p).IsReadOnly=$readOnly
@@ -19,12 +20,12 @@ function Restore($records){
 }
 if(-not(Test-Path -LiteralPath (Join-Path $GamePath 'Binaries\Wolverine.exe'))){throw 'Select the folder containing Binaries\Wolverine.exe.'}
 if(Get-Process -Name Wolverine -ErrorAction SilentlyContinue){throw 'Close Wolverine before installing or restoring.'}
-$backupRoot=Join-Path $GamePath 'WGame\ModBackups\WolverineAnatomyTool-v0.9'
+$backupRoot=Join-Path $GamePath 'WGame\ModBackups\WolverineAnatomyTool-v1.0.0-beta.1'
 $statePath=Join-Path $backupRoot 'state.json'
 if($Mode -eq 'Uninstall'){
  $state=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
- if($state.GamePath -ne $GamePath -or $state.Version -ne '0.9'){throw 'Backup identity mismatch.'}
- if($state.Status -eq 'Uninstalled'){Write-Output 'v0.9 is already restored.';return}
+ if($state.GamePath -ne $GamePath -or $state.Version -ne '1.0.0-beta.1'){throw 'Backup identity mismatch.'}
+ if($state.Status -eq 'Uninstalled'){Write-Output 'Beta 1.0 is already restored.';return}
  foreach($r in $state.Files){
   if($r.Existed -and (Hash $r.Backup) -ne $r.OriginalHash){throw "Backup mismatch: $($r.Backup)"}
   if(-not(Test-Path -LiteralPath $r.Target) -or (Hash $r.Target) -ne $r.InstalledHash){throw "Installed file changed: $($r.Target)"}
@@ -33,10 +34,12 @@ if($Mode -eq 'Uninstall'){
  $state.Status='Uninstalled';$state|ConvertTo-Json -Depth 8|Set-Content $statePath -Encoding UTF8
  Write-Output 'Previous files restored. Saved settings preserved.';return
 }
-if(Test-Path -LiteralPath $statePath){throw 'A v0.9 backup already exists. Restore it before another installation; retained backups are never overwritten.'}
+if(Test-Path -LiteralPath $statePath){throw 'A Beta 1.0 backup already exists. Restore it before another installation; retained backups are never overwritten.'}
 foreach($p in $manifest.payload.PSObject.Properties){if((Hash (Join-Path $PSScriptRoot ('payload\'+$p.Name))) -ne $p.Value){throw "Payload checksum mismatch: $($p.Name)"}}
+if(@($manifest.idleClips.PSObject.Properties).Count -ne 22){throw 'Idle clip manifest must list all 22 WAV files.'}
+foreach($p in $manifest.idleClips.PSObject.Properties){if((Hash (Join-Path $PSScriptRoot ('payload\WolverineIdle\'+$p.Name))) -ne $p.Value){throw "Idle clip checksum mismatch: $($p.Name)"}}
 if(-not('WolverinePatchCodec' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'tools\PatchCodec.cs')}
-$stage=Join-Path ([IO.Path]::GetTempPath()) ('Wolverine09-'+[guid]::NewGuid().ToString('N'))
+$stage=Join-Path ([IO.Path]::GetTempPath()) ('WolverineBeta10-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $stage|Out-Null
 $changes=@()
 try{
@@ -55,6 +58,9 @@ try{
  foreach($name in @('d3d9.dll','R14-skin-natural.png','R14-skin-erect.png')){
   $changes+=@{Target=(Join-Path $GamePath ('Binaries\'+$name));Bytes=[IO.File]::ReadAllBytes((Join-Path $PSScriptRoot ('payload\'+$name)))}
  }
+ foreach($p in $manifest.idleClips.PSObject.Properties){
+  $changes+=@{Target=(Join-Path $GamePath ('Binaries\WolverineIdle\'+$p.Name));Bytes=[IO.File]::ReadAllBytes((Join-Path $PSScriptRoot ('payload\WolverineIdle\'+$p.Name)))}
+ }
  $encoding=[Text.Encoding]::GetEncoding(28591)
  foreach($p in @((Join-Path $GamePath 'WGame\Config\DefaultCheckpoints.ini'),(Join-Path $DocumentsPath 'Wolverine\WGame\Config\WCheckpoints.ini'))){
   if(Test-Path -LiteralPath $p){
@@ -71,13 +77,13 @@ try{
   $sha=[Security.Cryptography.SHA256]::Create();$installed=[BitConverter]::ToString($sha.ComputeHash($c.Bytes)).Replace('-','');$sha.Dispose()
   $records+=@{Target=$c.Target;Backup=$backup;Existed=$exists;OriginalHash=$hash;ReadOnly=$ro;InstalledHash=$installed}
  }
- $state=@{Version='0.9';GamePath=$GamePath;Status='Pending';Files=$records}
+ $state=@{Version='1.0.0-beta.1';GamePath=$GamePath;Status='Pending';Files=$records}
  $state|ConvertTo-Json -Depth 8|Set-Content $statePath -Encoding UTF8
  try{
   for($i=0;$i -lt $changes.Count;$i++){WriteFile $changes[$i].Target $changes[$i].Bytes ([bool]$records[$i].ReadOnly);if((Hash $changes[$i].Target) -ne $records[$i].InstalledHash){throw 'Installation verification failed.'}}
   $state.Status='Installed';$state|ConvertTo-Json -Depth 8|Set-Content $statePath -Encoding UTF8
  }catch{Restore $records;$state.Status='Uninstalled';$state|ConvertTo-Json -Depth 8|Set-Content $statePath -Encoding UTF8;throw}
- Write-Output 'v0.9 installed and verified. F6 opens the controls. Saved settings preserved.'
+ Write-Output 'Beta 1.0 installed and verified. F6 opens the controls. Saved settings preserved.'
 }finally{
  # Only known staged files are removed; never recursively remove a computed path.
  foreach($name in @('CH_Wolverine_Natural_SF.xxx','WGame.xxx')){$p=Join-Path $stage $name;if(Test-Path -LiteralPath $p){Remove-Item -LiteralPath $p}}

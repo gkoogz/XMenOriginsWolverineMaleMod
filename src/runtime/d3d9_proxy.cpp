@@ -3,6 +3,9 @@
 #include <d3d9.h>
 #include <d3dx9shader.h>
 #include <d3dx9tex.h>
+#include <xaudio2.h>
+#include <objbase.h>
+#include <mmsystem.h>
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
@@ -61,7 +64,13 @@ static const float coherentShapeLow[7]={.85f,1.0f,.95f,1.0f,-80.f,-2.f,-3.f};
 static float hangUI=50.f;
 static float glansUI=50.f;
 static float sliderUI[7]={50.f,50.f,50.f,50.f,50.f,50.f,50.f};
+static float effectiveShapeUI[7]={50.f,50.f,50.f,50.f,50.f,50.f,50.f};
+static float effectiveGlansUI=50.f;
 static float sliderValues[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
+static int throbMode;
+static bool idleChatterEnabled;
+static float throbSizeTime,throbTwitchTime,throbSizePulse,throbTwitchPulse,throbAngleSizePulse;
+static DWORD throbLastTick;
 struct PhysSpec {const char* name;float lo,hi,def,step;};
 static const PhysSpec physSpecs[8]={{"SHAFT STIFF",-100,400,70,1},{"SHAFT WEIGHT",0,100,65,1},{"SHAFT BOUNCE",0,100,20,1},{"SHAFT VELOCITY",10,200,40,1},{"BALLS STIFF",0,100,70,1},{"BALLS WEIGHT",0,100,75,1},{"BALLS BOUNCE",0,100,35,1},{"BALLS VELOCITY",10,200,105,1}};
 static const float neutralPhysics[8]={78.f,86.f,12.f,62.f,28.f,94.f,18.f,72.f};
@@ -100,6 +109,7 @@ static V3 logicalShaftRestRadial[graftCount];
 static float logicalShaftOwnership[graftCount];
 static float logicalShaftBodyRadius;
 static bool shaftRestFrameReady;
+static V3 firmLobeRestSkin[graftCount];
 static V3 graftDeformedPositions[graftCount],graftDynamicNormalSums[graftNormalGroupCount],graftDynamicTangentSums[graftCount];
 static V3 collarFairA[collarFairGroupCount],collarFairB[collarFairGroupCount];
 static V3 collarNormalSums[collarFairGroupCount],collarTangentSums[collarFairGroupCount];
@@ -656,25 +666,75 @@ static void UpdatePhysics(){
 }
 static void SiblingPath(char* path,const char* name){GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);char* slash=strrchr(path,'\\');if(slash)strcpy_s(slash+1,MAX_PATH-(slash+1-path),name);}
 static bool ReadIniFloat(const char* path,const char* section,const char* key,float lo,float hi,float& value){char text[64]{};GetPrivateProfileStringA(section,key,"",text,sizeof(text),path);if(!text[0])return false;char* end=nullptr;float parsed=strtof(text,&end);if(end==text||!std::isfinite(parsed)||parsed<lo||parsed>hi)return false;value=parsed;return true;}
-static float MapControl100(float ui,float lo,float neutral,float hi){ui=max(1.f,min(100.f,ui));return ui<=50.f?lo+(neutral-lo)*((ui-1.f)/49.f):neutral+(hi-neutral)*((ui-50.f)/50.f);}
+static float MapControl100(float ui,float lo,float neutral,float hi){ui=max(1.f,ui);return ui<=50.f?lo+(neutral-lo)*((ui-1.f)/49.f):neutral+(hi-neutral)*((ui-50.f)/50.f);}
 static float UnmapControl100(float value,float lo,float neutral,float hi){value=max(lo,min(hi,value));return value<=neutral?1.f+49.f*(value-lo)/max(1e-6f,neutral-lo):50.f+50.f*(value-neutral)/max(1e-6f,hi-neutral);}
 // Preserve the accepted midpoint and upper range. Below 50, use a dedicated
 // smooth envelope so Length 0 reaches one half of the Length 50 value without
 // introducing a slope discontinuity at the midpoint.
 static float MapLength100(float ui){
-  ui=max(0.f,min(100.f,ui));
+  ui=max(0.f,ui);
   if(ui<50.f)return .40f+(neutralShape[1]-.40f)*Smoother01(ui/50.f);
   return neutralShape[1]+(sliderSpecs[1].hi-neutralShape[1])*((ui-50.f)/50.f);
 }
 // Version 4 moves the immediately preceding zero-size glans to 50 and
 // compresses that complete 0..100 response into the upper half again.
-static float LegacyGlansControl(float ui){return max(0.f,min(100.f,(ui-50.f)*2.f));}
+static float LegacyGlansControl(float ui){return max(0.f,(ui-50.f)*2.f);}
 static float GlansIndependentScale(float ui){
-  ui=max(0.f,min(100.f,ui));
+  ui=max(0.f,ui);
   if(ui<50.f)return .82f+.18f*Smoother01(ui/50.f);
   return MapControl100(LegacyGlansControl(ui),1.f,1.40f,1.60f);
 }
-static void ApplyControlMapping(){for(int i=0;i<7;i++)sliderValues[i]=i==1?MapLength100(sliderUI[i]):MapControl100(sliderUI[i],coherentShapeLow[i],neutralShape[i],sliderSpecs[i].hi);for(int i=0;i<8;i++)physValues[i]=MapControl100(physUI[i],physSpecs[i].lo,neutralPhysics[i],physSpecs[i].hi);}
+static float ThrobEnvelope(float cycle,float delay,float duration,bool twitch){
+  float x=(cycle-delay)/duration;
+  if(x<=0.f||x>=1.f)return 0.f;
+  if(twitch){
+    // Reach the twitch peak quickly, then spend the entire remaining cycle
+    // settling back to the saved angle before the next twitch begins.
+    float rise=.14f/duration;
+    return x<rise?Smoother01(x/rise):1.f-Smoother01((x-rise)/(1.f-rise));
+  }
+  return x<.5f?Smoother01(x*2.f):1.f-Smoother01((x-.5f)*2.f);
+}
+static void ApplyControlMapping();
+static void ResetThrobClock(){throbSizeTime=throbTwitchTime=throbSizePulse=throbTwitchPulse=throbAngleSizePulse=0.f;throbLastTick=0;}
+// Keep the first 1.15-second delay only when the mode starts. Later cycles
+// wrap to the onset, so the return phase fills the whole 4.6-second period.
+static float AdvanceTwitchClock(float time,float dt){
+  time+=dt;
+  return time>=5.75f?time-4.6f:time;
+}
+static void UpdateThrob(){
+  DWORD now=GetTickCount();
+  if(!throbMode){throbSizePulse=throbTwitchPulse=throbAngleSizePulse=0.f;throbLastTick=now;ApplyControlMapping();return;}
+  float dt=throbLastTick?min(.1f,(now-throbLastTick)*.001f):0.f;throbLastTick=now;
+  throbSizeTime=fmodf(throbSizeTime+dt,3.0f);
+  throbTwitchTime=AdvanceTwitchClock(throbTwitchTime,dt);
+  throbSizePulse=ThrobEnvelope(throbSizeTime,.20f,1.05f,false);
+  throbTwitchPulse=ThrobEnvelope(throbTwitchTime,1.15f,4.6f,true);
+  throbAngleSizePulse=ThrobEnvelope(throbTwitchTime,1.15f,1.05f,true);
+  ApplyControlMapping();
+}
+static void ApplyControlMapping(){
+  const float size[4]={0.f,10.f,18.f,26.f},twitch[4]={0.f,8.f,14.f,20.f};
+  int mode=max(0,min(3,throbMode));
+  // Keep size pulses out of the folded extremes. The angle twitch may reach
+  // the steepest supported pose, but its eased motion must not overshoot it.
+  float upperFade=1.f-Smoother01((sliderUI[4]-65.f)/20.f);
+  float angleReach=min(twitch[mode],max(0.f,sliderUI[4]-1.f));
+  float angleOffset=-angleReach*throbTwitchPulse*upperFade;
+  float sizePoseFactor=Smoother01((sliderUI[4]-5.f)/14.f)*upperFade
+    *Smoother01((sliderUI[4]+angleOffset-1.f)/9.f);
+  float combinedSizePulse=throbSizePulse+throbAngleSizePulse;
+  for(int i=0;i<7;i++){
+    float offset=(i>=1&&i<=3)?size[mode]*combinedSizePulse*sizePoseFactor:i==4?angleOffset:0.f;
+    // Size pulses may briefly exceed the user slider's 100-point endpoint.
+    // The stored sliderUI remains in its ordinary range.
+    effectiveShapeUI[i]=max(i==1?0.f:1.f,sliderUI[i]+offset);
+    sliderValues[i]=i==1?MapLength100(effectiveShapeUI[i]):MapControl100(effectiveShapeUI[i],coherentShapeLow[i],neutralShape[i],sliderSpecs[i].hi);
+  }
+  effectiveGlansUI=max(0.f,glansUI+size[mode]*combinedSizePulse*sizePoseFactor);
+  for(int i=0;i<8;i++)physValues[i]=MapControl100(physUI[i],physSpecs[i].lo,neutralPhysics[i],physSpecs[i].hi);
+}
 static void LoadSettings(){
   if(settingsLoaded)return;settingsLoaded=true;char path[MAX_PATH];SiblingPath(path,"WolverineLive.ini");
   int version=GetPrivateProfileIntA("Meta","ControlScaleVersion",0,path);
@@ -695,10 +755,12 @@ static void LoadSettings(){
     else glansUI=75.f+.25f*storedGlans;
     if(version<4){settingsPending=true;settingsChangedTick=GetTickCount();}
   }
+  int savedThrob=GetPrivateProfileIntA("Animation","Throb",0,path);throbMode=max(0,min(3,savedThrob));ResetThrobClock();
+  idleChatterEnabled=GetPrivateProfileIntA("Animation","Idle Chatter",0,path)!=0;
   ApplyControlMapping();float state=(float)physicsState;if(ReadIniFloat(path,"Physics","State",0,2,state))physicsState=(int)(state+.5f);
   Log("1-100 controls loaded version=%d state=%d neutral shape=(%.3f %.3f %.3f %.3f %.1f %.3f %.3f)",version,physicsState,sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6]);
 }
-static void SaveSettings(){char path[MAX_PATH],value[64];SiblingPath(path,"WolverineLive.ini");WritePrivateProfileStringA("Meta","ControlScaleVersion","4",path);for(int i=0;i<7;i++){sprintf_s(value,"%.0f",sliderUI[i]);WritePrivateProfileStringA("Shape",sliderSpecs[i].name,value,path);}for(int i=0;i<8;i++){sprintf_s(value,"%.0f",physUI[i]);WritePrivateProfileStringA("Physics",physSpecs[i].name,value,path);}sprintf_s(value,"%.0f",hangUI);WritePrivateProfileStringA("Shape","Hang",value,path);sprintf_s(value,"%.0f",glansUI);WritePrivateProfileStringA("Shape","Glans Size",value,path);sprintf_s(value,"%d",physicsState);WritePrivateProfileStringA("Physics","State",value,path);settingsPending=false;Log("control settings saved with centered glans scale v4");}
+static void SaveSettings(){char path[MAX_PATH],value[64];SiblingPath(path,"WolverineLive.ini");WritePrivateProfileStringA("Meta","ControlScaleVersion","4",path);for(int i=0;i<7;i++){sprintf_s(value,"%.0f",sliderUI[i]);WritePrivateProfileStringA("Shape",sliderSpecs[i].name,value,path);}for(int i=0;i<8;i++){sprintf_s(value,"%.0f",physUI[i]);WritePrivateProfileStringA("Physics",physSpecs[i].name,value,path);}sprintf_s(value,"%.0f",hangUI);WritePrivateProfileStringA("Shape","Hang",value,path);sprintf_s(value,"%.0f",glansUI);WritePrivateProfileStringA("Shape","Glans Size",value,path);sprintf_s(value,"%d",physicsState);WritePrivateProfileStringA("Physics","State",value,path);sprintf_s(value,"%d",throbMode);WritePrivateProfileStringA("Animation","Throb",value,path);WritePrivateProfileStringA("Animation","Idle Chatter",idleChatterEnabled?"1":"0",path);settingsPending=false;Log("control settings saved with centered glans scale v4, throb=%d idle=%d",throbMode,idleChatterEnabled?1:0);}
 static void QueueSettingsSave(){settingsPending=true;settingsChangedTick=GetTickCount();}
 static void FlushSettingsIfDue(){if(settingsPending&&GetTickCount()-settingsChangedTick>=700)SaveSettings();}
 static float Smooth01(float value){value=max(0.f,min(1.f,value));return value*value*(3.f-2.f*value);}
@@ -1404,7 +1466,7 @@ static void SculptVentralContourStudy(){
 }
 static void ScaleGlansIndependently(){
   if(!constraintSolverReady)return;
-  float scale=GlansIndependentScale(glansUI);
+  float scale=GlansIndependentScale(effectiveGlansUI);
   V3 anchor{},axis{};SampleShaftChain(.76f,anchor,axis);
   V3 lateral=Unit(V3{0,1,0}-axis*axis.y),dorsal=Unit(Cross(axis,lateral));
   for(UINT i=0;i<graftCount;i++){
@@ -1645,6 +1707,7 @@ static float SampleOverallWidthVertex(UINT q,float overall,float width){
 #include "continuous_raphe.h"
 #include "r14_runtime.h"
 #include "hourglass_neck.h"
+#include "pelvic_tube_node.h"
 static void ApplyShape(){
   if(!graftBuffer)return;bool report=shapeDirty;void* raw=nullptr;
   const UINT graftFirstVertex=graftOffset/graftStride;
@@ -1717,6 +1780,7 @@ static void ApplyShape(){
   // Preserve the established lobe supports, then broaden only their shared
   // skin connection. Cache the wider shaft-side blend for live transport.
   BroadenScrotalNeck();
+  memcpy(firmLobeRestSkin,graftDeformedPositions,sizeof(firmLobeRestSkin));
   CaptureLogicalShaftSurface();
   if(!constraintSolverReady)InitializeConstraintSolver();
   for(UINT i=0;i<graftCount;i++){
@@ -1744,6 +1808,7 @@ static void ApplyShape(){
   // Glans Size is evaluated on the approved R14 mesh, not on the donor cage.
   ResolveSuspendedSkinContact();
   PreserveEggSupports();
+  SculptPelvicTubeNode(controlled,graftFirstVertex);
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
   // follows every physics bend.  Wolverine's meshes use the opposite of the
@@ -1822,16 +1887,16 @@ static void Text(IDirect3DDevice9* d,const char* text,RECT r,D3DCOLOR c,DWORD fl
   }}
   if(v.empty())return;d->SetTexture(0,nullptr);d->SetVertexShader(nullptr);d->SetPixelShader(nullptr);d->SetFVF(D3DFVF_XYZRHW|D3DFVF_DIFFUSE);d->SetTextureStageState(0,D3DTSS_COLOROP,D3DTOP_SELECTARG1);d->SetTextureStageState(0,D3DTSS_COLORARG1,D3DTA_DIFFUSE);d->SetTextureStageState(0,D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);d->SetTextureStageState(0,D3DTSS_ALPHAARG1,D3DTA_DIFFUSE);d->SetRenderState(D3DRS_ZENABLE,FALSE);d->SetRenderState(D3DRS_ZWRITEENABLE,FALSE);d->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);d->SetRenderState(D3DRS_ALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_COLORWRITEENABLE,0xF);HRESULT hr=d->DrawPrimitiveUP(D3DPT_TRIANGLELIST,(UINT)v.size()/3,v.data(),sizeof(OV));if(InterlockedCompareExchange(&overlayLogged,1,0)==0)Log("HUD bitmap text DrawPrimitiveUP=%08X vertices=%u",hr,(unsigned)v.size());
 }
-static void ResetStudyControls(){hangUI=glansUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
+static void ResetStudyControls(){hangUI=glansUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;throbMode=0;idleChatterEnabled=false;ResetThrobClock();ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
 static void AdjustStudyControl(int index,int dir,float mult){
-  int control=index<3?index:index-1;
-  if(index==3)glansUI=max(0.f,min(100.f,glansUI+dir*mult));
-  else{
-      if(control==4)hangUI=max(1.f,min(100.f,hangUI+dir*mult));
-      else if(control<8){int shape=control<4?control:control-1;float low=shape==1?0.f:1.f;sliderUI[shape]=max(low,min(100.f,sliderUI[shape]+dir*mult));}
-      else if(control==8){physicsState=(physicsState+dir+3)%3;}
-      else physUI[control-9]=max(1.f,min(100.f,physUI[control-9]+dir*mult));
-  }
+  if(index==0){physicsState=(physicsState+dir+3)%3;shapeDirty=true;return;}
+  if(index==1){throbMode=(throbMode+dir+4)%4;ResetThrobClock();ApplyControlMapping();shapeDirty=true;return;}
+  if(index==2){idleChatterEnabled=!idleChatterEnabled;shapeDirty=true;return;}
+  int control=index-3;
+  if(control==3)glansUI=max(0.f,min(100.f,glansUI+dir*mult));
+  else if(control==5)hangUI=max(1.f,min(100.f,hangUI+dir*mult));
+  else if(control<9){int shape=control<3?control:control-1;if(control>5)shape--;float low=shape==1?0.f:1.f;sliderUI[shape]=max(low,min(100.f,sliderUI[shape]+dir*mult));}
+  else physUI[control-9]=max(1.f,min(100.f,physUI[control-9]+dir*mult));
   ApplyControlMapping();shapeDirty=true;
 }
 static void OverlayFrame(IDirect3DDevice9* d){
@@ -1841,7 +1906,7 @@ static void OverlayFrame(IDirect3DDevice9* d){
   CaptureFinish(d);CapturePoll();
   if(KeyEdge(VK_F9)){captureComplete=false;lightingDirectionsEnabled=!lightingDirectionsEnabled;Log("R28 layered physics lighting F9: %s",lightingDirectionsEnabled?"ON":"ORIGINAL");}
   if(menuOpen){
-    const int count=18;
+    const int count=20;
     if(KeyEdge(VK_UP))selectedSlider=(selectedSlider+count-1)%count;
     if(KeyEdge(VK_DOWN))selectedSlider=(selectedSlider+1)%count;
     if(KeyEdge(VK_F8))ResetStudyControls();
@@ -1850,21 +1915,23 @@ static void OverlayFrame(IDirect3DDevice9* d){
       AdjustStudyControl(selectedSlider,dir,mult);
     }
   }
-  if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
-  IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=18;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,captureComplete?"R36 CAPTURE SAVED (F10 AGAIN)":lightingDirectionsEnabled?"R36 HOURGLASS BLEND | LIGHT FIX":"R36 HOURGLASS BLEND | ORIGINAL LIGHT",title,D3DCOLOR_ARGB(255,255,255,255));
+  if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdateThrob();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
+  IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=20;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,"R36 HOURGLASS BLEND  F6 SHOW/HIDE",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
-      int control=i<3?i:i-1;
-      if(i==3){name="GLANS SIZE";value=glansUI;lo=0;hi=100;sprintf_s(val,"%.0f",value);}
-      else if(control==4){name="HANG";value=hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
-      else if(control<8){int shape=control<4?control:control-1;const auto& s=sliderSpecs[shape];name=s.name;value=sliderUI[shape];lo=shape==1?0.f:1.f;hi=100;sprintf_s(val,"%.0f",value);}
-      else if(control==8){name="STATE";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}
+      int control=i-3;
+      if(i==0){name="ERECTION";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}
+      else if(i==1){name="THROB";value=(float)throbMode;lo=0;hi=3;sprintf_s(val,"%s",throbMode==0?"OFF":throbMode==1?"GENTLE":throbMode==2?"MEDIUM":"INTENSE");}
+      else if(i==2){name="IDLE CHATTER";value=idleChatterEnabled?1.f:0.f;lo=0;hi=1;sprintf_s(val,"%s",idleChatterEnabled?"ON":"OFF");}
+      else if(control==3){name="GLANS SIZE";value=effectiveGlansUI;lo=0;hi=100;sprintf_s(val,"%.0f",value);}
+      else if(control==5){name="HANG";value=hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      else if(control<9){int shape=control<3?control:control-1;if(control>5)shape--;const auto& s=sliderSpecs[shape];name=s.name;value=effectiveShapeUI[shape];lo=shape==1?0.f:1.f;hi=100;sprintf_s(val,"%.0f",value);}
       else{const auto& s=physSpecs[control-9];name=s.name;value=physUI[control-9];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
-      RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(control==8){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=(value-lo)/(hi-lo);Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
+      RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(i<3){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=max(0.f,min(1.f,(value-lo)/(hi-lo)));Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
     }
     DWORD transformAge=motionLastCaptureTick?GetTickCount()-motionLastCaptureTick:0xFFFFFFFFu;bool transformLive=motionCollisionBonesReady&&transformAge<=1200u;
-    D3DCOLOR statusColor=transformLive?D3DCOLOR_ARGB(255,92,230,130):graftBuffer?D3DCOLOR_ARGB(255,80,190,235):D3DCOLOR_ARGB(255,255,190,70);const char* statusText=transformLive?"STATUS: CHARACTER TRANSFORM LIVE":graftBuffer?"STATUS: TRANSFORM UNAVAILABLE":"STATUS: WAITING FOR WOLVERINE";RECT status{(LONG)x+10,(LONG)statusY,(LONG)(x+w-10),(LONG)statusY+20};Text(d,statusText,status,statusColor);RECT help1{(LONG)x+10,(LONG)statusY+22,(LONG)(x+w-10),(LONG)statusY+41};Text(d,"UP/DOWN SELECT  LEFT/RIGHT ADJUST",help1,D3DCOLOR_ARGB(255,185,185,190));RECT help2{(LONG)x+10,(LONG)statusY+42,(LONG)(x+w-10),(LONG)statusY+63};Text(d,"SHIFT = COARSE  F8 = RESET ALL",help2,D3DCOLOR_ARGB(255,185,185,190));
+    D3DCOLOR statusColor=transformLive?D3DCOLOR_ARGB(255,92,230,130):graftBuffer?D3DCOLOR_ARGB(255,80,190,235):D3DCOLOR_ARGB(255,255,190,70);const char* statusText=transformLive?"STATUS: CHARACTER TRANSFORM LIVE":graftBuffer?"STATUS: TRANSFORM UNAVAILABLE":"STATUS: WAITING FOR WOLVERINE";RECT status{(LONG)x+10,(LONG)statusY,(LONG)(x+w-10),(LONG)statusY+20};Text(d,statusText,status,statusColor);RECT help1{(LONG)x+10,(LONG)statusY+22,(LONG)(x+w-10),(LONG)statusY+41};Text(d,"UP/DOWN SELECT  LEFT/RIGHT ADJUST",help1,D3DCOLOR_ARGB(255,185,185,190));RECT help2{(LONG)x+10,(LONG)statusY+42,(LONG)(x+w-10),(LONG)statusY+63};Text(d,"SHIFT COARSE  F8 RESET  F6 SHOW/HIDE",help2,D3DCOLOR_ARGB(255,185,185,190));
   }
   if(state){state->Apply();state->Release();}inOverlay=false;
 }
@@ -1879,7 +1946,7 @@ static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const R
   if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}frameRendered=false;d->Release();}
   return origSwapPresent(sc,src,dst,wnd,dirty,flags);
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
 
 static void Log(const char* fmt, ...) {
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);
@@ -1891,6 +1958,91 @@ static void Patch(void** slot, void* replacement, void** original) {
   DWORD old; VirtualProtect(slot,sizeof(void*),PAGE_EXECUTE_READWRITE,&old);
   if(original && !*original)*original=*slot; *slot=replacement;
   VirtualProtect(slot,sizeof(void*),old,&old); FlushInstructionCache(GetCurrentProcess(),slot,sizeof(void*));
+}
+// The two spoken bored animations already supply their talking motion and
+// FaceFX notify. Replace only their PCM submissions, preserving those motions.
+typedef HRESULT (WINAPI *CoCreateInstanceFn)(REFCLSID,LPUNKNOWN,DWORD,REFIID,LPVOID*);
+typedef HRESULT (STDMETHODCALLTYPE *CreateSourceVoiceFn)(IXAudio2*,IXAudio2SourceVoice**,const WAVEFORMATEX*,UINT32,float,IXAudio2VoiceCallback*,const XAUDIO2_VOICE_SENDS*,const XAUDIO2_EFFECT_CHAIN*);
+typedef HRESULT (STDMETHODCALLTYPE *SubmitSourceBufferFn)(IXAudio2SourceVoice*,const XAUDIO2_BUFFER*,const XAUDIO2_BUFFER_WMA*);
+static CoCreateInstanceFn origCoCreateInstance;
+static CreateSourceVoiceFn origCreateSourceVoice;
+static SubmitSourceBufferFn origSubmitSourceBuffer;
+static volatile LONG audioCreateLogs,audioSubmitLogs;
+static std::vector<unsigned char> boredPcm[2];
+static bool idlePoolReady;
+static char idleWavPaths[22][MAX_PATH];
+static unsigned char silentBoredPcm[120660]{};
+static volatile LONG idlePickSerial;
+static bool LoadWavePcm(const char* path,std::vector<unsigned char>& pcm){
+  FILE* f=nullptr;fopen_s(&f,path,"rb");if(!f)return false;
+  unsigned char header[44]{};bool ok=fread(header,1,sizeof(header),f)==sizeof(header)&&!memcmp(header,"RIFF",4)&&!memcmp(header+8,"WAVEfmt ",8)&&header[20]==1&&header[22]==1&&header[24]==0x44&&header[25]==0xAC&&header[34]==16&&!memcmp(header+36,"data",4);
+  if(ok){unsigned int bytes=*(const unsigned int*)(header+40);ok=bytes>0&&bytes<1024*1024;if(ok){pcm.resize(bytes);ok=fread(pcm.data(),1,bytes,f)==bytes;}}
+  fclose(f);if(!ok)pcm.clear();return ok;
+}
+static void LoadIdlePool(){
+  char module[MAX_PATH];GetModuleFileNameA((HMODULE)&__ImageBase,module,MAX_PATH);char* slash=strrchr(module,'\\');if(!slash)return;*(slash+1)=0;
+  for(int i=0;i<22;i++){
+    char name[32];if(i<3)sprintf_s(name,"standard-%02d.wav",i+1);else sprintf_s(name,"custom-%02d.wav",i-2);
+    sprintf_s(idleWavPaths[i],"%sWolverineIdle\\%s",module,name);
+    if(GetFileAttributesA(idleWavPaths[i])==INVALID_FILE_ATTRIBUTES){Log("idle pool missing %s",idleWavPaths[i]);return;}
+  }
+  if(!LoadWavePcm(idleWavPaths[0],boredPcm[0])||!LoadWavePcm(idleWavPaths[2],boredPcm[1])){Log("idle pool: original reference WAV invalid");return;}
+  idlePoolReady=boredPcm[0].size()==120660&&boredPcm[1].size()==120424;
+  Log("idle pool %s: 3 standard + 19 custom clips",idlePoolReady?"ready":"invalid");
+}
+static bool MatchesBoredWave(const XAUDIO2_BUFFER* buffer,const std::vector<unsigned char>& reference){
+  if(!buffer||!buffer->pAudioData||buffer->AudioBytes!=reference.size())return false;
+  const short* a=(const short*)buffer->pAudioData;const short* b=(const short*)reference.data();
+  const unsigned int samples=buffer->AudioBytes/2;double dot=0,aa=0,bb=0;
+  for(unsigned int i=300;i<samples;i+=113){double x=a[i],y=b[i];dot+=x*y;aa+=x*x;bb+=y*y;}
+  return aa>1e7&&bb>1e7&&dot>0.82*sqrt(aa*bb);
+}
+static HRESULT STDMETHODCALLTYPE HookSubmitSourceBuffer(IXAudio2SourceVoice* voice,const XAUDIO2_BUFFER* buffer,const XAUDIO2_BUFFER_WMA* wma){
+  if(buffer){LONG n=InterlockedIncrement(&audioSubmitLogs);if(n<=24||(buffer->AudioBytes>=100000&&buffer->AudioBytes<=140000&&n<=10000))Log("audio submit #%ld voice=%p bytes=%u flags=%u first=%02X%02X%02X%02X idle=%d",n,voice,buffer->AudioBytes,buffer->Flags,buffer->AudioBytes>3?buffer->pAudioData[0]:0,buffer->AudioBytes>3?buffer->pAudioData[1]:0,buffer->AudioBytes>3?buffer->pAudioData[2]:0,buffer->AudioBytes>3?buffer->pAudioData[3]:0,idleChatterEnabled?1:0);
+  }
+  if(idleChatterEnabled&&idlePoolReady&&buffer){
+    int original=MatchesBoredWave(buffer,boredPcm[0])?0:MatchesBoredWave(buffer,boredPcm[1])?2:-1;
+    if(original>=0){
+      unsigned int seed=GetTickCount()+(unsigned int)InterlockedIncrement(&idlePickSerial)*0x9E3779B9u;
+      seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;int pick=seed%22;
+      Log("idle chatter original=%d selected=%d",original+1,pick+1);
+      if(pick!=original){
+        XAUDIO2_BUFFER silence=*buffer;silence.pAudioData=silentBoredPcm;
+        HRESULT hr=origSubmitSourceBuffer(voice,&silence,wma);
+        if(SUCCEEDED(hr))PlaySoundA(idleWavPaths[pick],nullptr,SND_FILENAME|SND_ASYNC|SND_NODEFAULT);
+        return hr;
+      }
+    }
+  }
+  return origSubmitSourceBuffer(voice,buffer,wma);
+}
+static HRESULT STDMETHODCALLTYPE HookCreateSourceVoice(IXAudio2* engine,IXAudio2SourceVoice** voice,const WAVEFORMATEX* format,UINT32 flags,float ratio,IXAudio2VoiceCallback* callback,const XAUDIO2_VOICE_SENDS* sends,const XAUDIO2_EFFECT_CHAIN* effects){
+  HRESULT hr=origCreateSourceVoice(engine,voice,format,flags,ratio,callback,sends,effects);
+  if(SUCCEEDED(hr)&&voice&&*voice){void** vt=*(void***)*voice;Patch(&vt[19],(void*)HookSubmitSourceBuffer,(void**)&origSubmitSourceBuffer);LONG n=InterlockedIncrement(&audioCreateLogs);if(n<=24)Log("audio voice #%ld=%p format=%u channels=%u rate=%u bits=%u",n,*voice,format?format->wFormatTag:0,format?format->nChannels:0,format?format->nSamplesPerSec:0,format?format->wBitsPerSample:0);}
+  return hr;
+}
+static HRESULT WINAPI HookCoCreateInstance(REFCLSID clsid,LPUNKNOWN outer,DWORD context,REFIID iid,LPVOID* result){
+  HRESULT hr=origCoCreateInstance(clsid,outer,context,iid,result);
+  if(SUCCEEDED(hr)&&result&&*result){
+    void** vt=*(void***)*result;HMODULE module=nullptr;
+    if(GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)vt[8],&module)&&module){char path[MAX_PATH]{};GetModuleFileNameA(module,path,MAX_PATH);if((strstr(path,"XAudio2")||strstr(path,"xaudio2"))&&iid.Data1==0x8BCF1F58&&iid.Data2==0x9FE7&&iid.Data3==0x4583&&clsid.Data1==0xB802058A){Patch(&vt[8],(void*)HookCreateSourceVoice,(void**)&origCreateSourceVoice);Log("XAudio2 engine hooked: module=%p %s",module,path);}}
+  }
+  return hr;
+}
+static void HookAudioFactory(){
+  BYTE* base=(BYTE*)GetModuleHandleA(nullptr);auto dos=(IMAGE_DOS_HEADER*)base;if(!base||dos->e_magic!=IMAGE_DOS_SIGNATURE)return;
+  auto nt=(IMAGE_NT_HEADERS*)(base+dos->e_lfanew);if(nt->Signature!=IMAGE_NT_SIGNATURE)return;
+  auto& directory=nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];if(!directory.VirtualAddress)return;
+  auto imports=(IMAGE_IMPORT_DESCRIPTOR*)(base+directory.VirtualAddress);
+  for(;imports->Name;imports++){
+    const char* dll=(const char*)(base+imports->Name);if(_stricmp(dll,"ole32.dll"))continue;
+    auto names=(IMAGE_THUNK_DATA*)(base+(imports->OriginalFirstThunk?imports->OriginalFirstThunk:imports->FirstThunk));auto slots=(IMAGE_THUNK_DATA*)(base+imports->FirstThunk);
+    for(;names->u1.AddressOfData;names++,slots++){
+      if(IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal))continue;
+      auto name=(IMAGE_IMPORT_BY_NAME*)(base+names->u1.AddressOfData);
+      if(!strcmp((const char*)name->Name,"CoCreateInstance")){Patch((void**)&slots->u1.Function,(void*)HookCoCreateInstance,(void**)&origCoCreateInstance);Log("audio factory import hooked");}
+    }
+  }
 }
 static bool IsFullResolutionScenePass(IDirect3DDevice9* dev){
   IDirect3DSurface9* rt=nullptr;IDirect3DSurface9* bb=nullptr;
@@ -1995,7 +2147,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
 }
 static HRESULT STDMETHODCALLTYPE HookCreateDevice(IDirect3D9* self,UINT adapter,D3DDEVTYPE type,HWND wnd,DWORD flags,D3DPRESENT_PARAMETERS* pp,IDirect3DDevice9** out) {
   HRESULT hr=origCreateDevice(self,adapter,type,wnd,flags,pp,out);
-  if(SUCCEEDED(hr)&&out&&*out){LoadSettings();void** vt=*(void***)*out;Patch(&vt[16],(void*)HookReset,(void**)&origReset);Patch(&vt[17],(void*)HookPresent,(void**)&origPresent);Patch(&vt[42],(void*)HookEndScene,(void**)&origEndScene);Patch(&vt[82],(void*)HookDIP,(void**)&origDIP);IDirect3DSwapChain9* sc=nullptr;if(SUCCEEDED((*out)->GetSwapChain(0,&sc))&&sc){void** svt=*(void***)sc;Patch(&svt[3],(void*)HookSwapPresent,(void**)&origSwapPresent);sc->Release();}Log("CreateDevice hooked %ux%u windowed=%d",pp->BackBufferWidth,pp->BackBufferHeight,pp->Windowed);}
+  if(SUCCEEDED(hr)&&out&&*out){LoadSettings();LoadIdlePool();void** vt=*(void***)*out;Patch(&vt[16],(void*)HookReset,(void**)&origReset);Patch(&vt[17],(void*)HookPresent,(void**)&origPresent);Patch(&vt[42],(void*)HookEndScene,(void**)&origEndScene);Patch(&vt[82],(void*)HookDIP,(void**)&origDIP);IDirect3DSwapChain9* sc=nullptr;if(SUCCEEDED((*out)->GetSwapChain(0,&sc))&&sc){void** svt=*(void***)sc;Patch(&svt[3],(void*)HookSwapPresent,(void**)&origSwapPresent);sc->Release();}Log("CreateDevice hooked %ux%u windowed=%d",pp->BackBufferWidth,pp->BackBufferHeight,pp->Windowed);}
   return hr;
 }
 static void LoadReal(){
@@ -2005,4 +2157,4 @@ static void LoadReal(){
 IDirect3D9* WINAPI Direct3DCreate9(UINT sdk){LoadReal();IDirect3D9* d=realCreate9(sdk);if(d){void** vt=*(void***)d;Patch(&vt[16],(void*)HookCreateDevice,(void**)&origCreateDevice);}return d;}
 int WINAPI D3DPERF_BeginEvent(D3DCOLOR c,LPCWSTR n){LoadReal();return realBegin?realBegin(c,n):-1;}
 int WINAPI D3DPERF_EndEvent(){LoadReal();return realEnd?realEnd():-1;}
-BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");}return TRUE;}
+BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");HookAudioFactory();}return TRUE;}

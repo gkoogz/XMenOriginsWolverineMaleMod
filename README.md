@@ -1,30 +1,28 @@
-# Wolverine Anatomy Tool v0.9
+# Wolverine Anatomy Tool 1.0 Beta 1
 
-Version 0.9 packages the current R36-based runtime, necklace contact correction, surface refinements, and two skin texture variants.
+Beta 1.0 packages the currently installed runtime, the 22-clip idle chatter pool, shape and motion refinements, and the two skin texture variants.
 
 ## Install or upgrade
 
-Close Wolverine, extract the entire archive, and run **Install.cmd** for a clean installation or **Upgrade-0.9.cmd** for an existing installation. Both use the same checksum-verified installer. The original supported Natural package or the existing Revision 161 package is required. WGame must be the supported original or this release's patched version. Unsupported packages are rejected before changes.
+Close Wolverine, extract the entire archive, and run **Install.cmd** for a clean installation or **Upgrade-Beta-1.0.cmd** for an existing installation. Both use the same checksum-verified installer. The original supported Natural package or the existing Revision 161 package is required. WGame must be the supported original or this release's patched version. Unsupported packages are rejected before changes.
 
 The default game path is `C:\Games\X-Men Origins Wolverine`. For another location run `powershell -ExecutionPolicy Bypass -File Install.ps1 -GamePath "D:\Games\Wolverine"`.
 
-**Uninstall.cmd** or **Rollback-0.9.cmd** restores the files present before installation. Settings are preserved. Backups are retained in `WGame\ModBackups\WolverineAnatomyTool-v0.9`. F6 opens the controls; F8 resets controls. The existing R36 overlay label is retained.
+**Uninstall.cmd** or **Rollback-Beta-1.0.cmd** restores the files present before installation, including any idle WAVs that were already present. Settings are preserved. Backups are retained in `WGame\ModBackups\WolverineAnatomyTool-v1.0.0-beta.1`. F6 shows or hides the controls; F8 resets them.
 
-## Changes since 0.8
+## Changes since 0.9
 
-- R36 attachment shaping and the existing midline continuation.
-- Stronger root damping and bounded shaft motion.
-- Oblique resting lobe shape and a shallower central skin dip.
-- Necklace clearance measured against the animated chest surface.
-- Earlier chest collider and necklace collision-flag adjustments.
-- Subtle diffuse skin detail and a stronger vascular-color variant for the erect state.
-- Unified installation and upgrade with package deltas, payload verification, and rollback.
+- Erection, Throb, and Idle Chatter controls appear above the sliders; F6 is labeled in the header and control legend.
+- Four throb settings animate size and angle independently, with pulses available at maximum slider values.
+- Idle Chatter switches immediately in-game between standard cues and a pool of the three originals plus 19 supplied clips. It uses the existing spoken idle animations.
+- Additional surface and support adjustments in the runtime.
+- The installer verifies and backs up the new audio files as well as the runtime and textures.
 
 ## Validation and known limitations
 
-Clean installation and upgrade fixtures pass package reconstruction, payload checks, settings preservation, existing-texture backup, and exact rollback. Runtime build, recorded necklace contact checks, and deterministic rendering/state restoration/device reset checks passed during development.
+Clean installation and upgrade fixtures pass package reconstruction, payload and audio checks, settings preservation, and exact rollback. The runtime build and rendering harness pass. The user heard new idle speech in Weapon X with Idle Chatter on; every clip and later chapters have not been checked in-game.
 
-The newly reported underside indentation remains unresolved. Extreme poses can still produce contact or collision artifacts. Necklace correction is a rendered contact adjustment, not a repair of native rigid-body self-collision. Texture changes affect diffuse color; they do not add normal-map relief. Live visual validation is incomplete. This release is not medical validation.
+The reported underside ridge still ends prematurely and remains unresolved. Extreme poses can still produce contact or collision artifacts. The longer custom speech clips reuse the game's existing talking animation and do not have matching lip sync. Texture changes affect diffuse color; they do not add normal-map relief. This release is not medical validation.
 
 ## Build
 

@@ -1,3 +1,7 @@
+## 1.0 Beta 1
+
+Packages the currently installed runtime and 22-clip idle chatter pool. Adds an immediate in-game Idle Chatter toggle, four throb modes, and reordered controls with F6 guidance. The installer verifies and backs up all audio files. The underside ridge issue remains open.
+
 ## v0.9
 
 Packages the current R36-based attachment and surface work, oblique resting shape, tauter central web, bounded shaft motion, animated chest necklace contact, prior collision asset adjustments, and state-specific diffuse texture variants.
