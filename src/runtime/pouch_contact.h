@@ -20,9 +20,19 @@ static V3 CPCenter(int s){return ballNodes[s]-cpBasis[s][2]*(CPRadii(s).z*.23f);
 static V3 CPSupportLocal(V3 n,V3 r){
  float h=sqrtf(n.x*n.x*r.x*r.x+n.y*n.y*r.y*r.y),v=n.z*r.z;
  if(h<1e-8f)return {0,0,copysignf(r.z,v)};
- float lo=-.999999f,hi=.999999f;
- for(int i=0;i<22;i++){float z=(lo+hi)*.5f,s=sqrtf(max(1e-12f,1.f-z*z)),d=h*(-.13f*s-(1.f-.13f*z)*z/s)+v;if(d>0)lo=z;else hi=z;}
- float z=(lo+hi)*.5f,section=(1.f-.13f*z)*sqrtf(max(0.f,1.f-z*z));return {r.x*r.x*n.x/h*section,r.y*r.y*n.y/h*section,r.z*z};
+ // The tapered ellipse has strictly negative support-objective curvature.
+ // Newton from the untapered ellipse converges without the quantization of
+ // a 22-step float bisection, and is cheaper during normal refinement.
+ double z=double(v)/sqrt(double(h)*h+double(v)*v),ratio=double(v)/h;
+ z=max(-.999999999999,min(.999999999999,z));
+ for(int i=0;i<6;i++){
+  double radial=sqrt(max(1e-24,1.-z*z));
+  double derivative=-.13*radial-(1.-.13*z)*z/radial+ratio;
+  double curvature=(-1.+.39*z-.26*z*z*z)/(radial*radial*radial);
+  z=max(-.999999999999,min(.999999999999,z-derivative/curvature));
+ }
+ float section=float((1.-.13*z)*sqrt(max(0.,1.-z*z)));
+ return {r.x*r.x*n.x/h*section,r.y*r.y*n.y/h*section,float(r.z*z)};
 }
 static V3 CPSupport(int s,V3 n){return CPTransform(CPSupportLocal(CPTranspose(n,s),CPRadii(s)),s);}
 static float CPLevel(V3 p,int s,V3 radius){V3 a=CPDiv(CPInverse(p-CPCenter(s),s),radius);float t=1.f-.13f*max(-1.f,min(1.f,a.z));a.x/=t;a.y/=t;return Length(a)-1.f;}

@@ -443,7 +443,7 @@ static float CrouchFactor(V3 leftA,V3 leftB,V3 rightA,V3 rightB){
   return Smoother01(max(0.f,min(1.f,(.98f-verticality)/.40f)));
 }
 #include "compliant_dynamics.h"
-static void UpdateConstraintSolver(float dt,float gait,float side){constraintAccumulator+=min(dt,.10f);const float fixed=1.f/240.f;int steps=0;while(constraintAccumulator>=fixed&&steps<24){StepConstraintSolver(fixed,gait,side);constraintAccumulator-=fixed;++steps;}}
+static void UpdateConstraintSolver(float dt,float gait,float side){UpdateCompliantDynamics(dt,gait,side);}
 static void UpdatePhysics(){
   DWORD now=GetTickCount();if(!physicsLastTick){physicsLastTick=now;return;}float dt=(now-physicsLastTick)*.001f;physicsLastTick=now;if(dt<=0||dt>.15f)dt=1.f/60.f;
   // Unified-skin Weapon X passes can be sparse. Hold the last validated bone
@@ -736,7 +736,7 @@ static void BuildShaftRestFrame(){
   }
   logicalShaftBodyRadius=weightSum>1e-5f?radiusSum/weightSum:2.52f*ShaftWidthScale();
   float arc=0.f;for(int i=1;i<shaftRestSampleCount;i++)arc+=Length(shaftRestCenters[i]-shaftRestCenters[i-1]);
-  float measured=max(8.f,min(60.f,arc));constraintRestLength=shaftRestFrameReady?constraintRestLength*.82f+measured*.18f:measured;
+  float measured=max(8.f,min(60.f,arc));constraintRestLength=measured;
   shaftRestFrameReady=true;
 }
 static void SampleRestShaftFrame(float t,V3& center,V3& tangent){
@@ -1658,7 +1658,7 @@ static void ApplyShape(){
   UpdateR14(p);
   ApplyPelvicAttachment(fullBuffer);
   ApplyRoundedShape(fullBuffer);
-  if(tipCount){V3 tip=tipSum/(float)tipCount;float newLength=max(8.f,min(60.f,Length(tip-ShaftRoot())));constraintRestLength=constraintRestLength*.92f+newLength*.08f;}
+  if(tipCount){V3 tip=tipSum/(float)tipCount;float newLength=max(8.f,min(60.f,Length(tip-ShaftRoot())));constraintRestLength=(constraintRestLength*.1656f+newLength*.08f)/.2456f;}
   float written[3];memcpy(written,p,12);graftBuffer->Unlock();shapeDirty=false;if(report)Log("live controls, recruited pelvis collar, and dynamic tangent basis applied state=%d collar=%.3f shape=%.2f %.2f %.2f %.2f %.1f %.2f %.2f shaft=%.0f %.0f %.0f %.0f balls=%.0f %.0f %.0f %.0f first=(%.4f %.4f %.4f)",physicsState,collarGrowth,sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6],physValues[0],physValues[1],physValues[2],physValues[3],physValues[4],physValues[5],physValues[6],physValues[7],written[0],written[1],written[2]);
 }
 static bool KeyEdge(int vk){static bool old[256]{};bool now=(GetAsyncKeyState(vk)&0x8000)!=0;bool edge=now&&!old[vk];old[vk]=now;return edge;}
