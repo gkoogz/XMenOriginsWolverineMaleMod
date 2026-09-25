@@ -1,16 +1,15 @@
-// Each lower lobe has one fixed material-space ovoid and one rigid transform.
-// Only the upper attachment and narrow central skin bridge blend transforms.
+// Each lower lobe retains its authored ovoid and a bounded pressure transform.
+// The solid core preserves volume; the attachment and central skin can yield.
 static float firmLobeMask[r14Count];
 static void PreserveRigidLobeSurfaces(){
   if(!constraintSolverReady||!eggRestReady)return;
   float scale=sqrtf(max(.35f,BallShapeScale()));
   for(UINT i=0;i<r14NewStart;i++){
-    V3 rest{r14Base[i*3],r14Base[i*3+1],r14Base[i*3+2]};float membership=0.f,rapheRelief=0.f;
+    V3 rest{r14Base[i*3],r14Base[i*3+1],r14Base[i*3+2]};float membership=0.f;
     for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++){
       UINT j=r14Sources[k];float w=r14Weight[k];
       rest=rest+(firmLobeRestSkin[j]-V3{r14Reference[j*3],r14Reference[j*3+1],r14Reference[j*3+2]})*w;
       membership+=w*phys_scrotum_weight[j];
-      rapheRelief+=w*rapheGraft[j];
     }
     float lower=Smoother01((81.f-r14Base[i*3+2])/5.f);
     float mask=lower*Smoother01((membership-.55f)/.35f);
@@ -27,16 +26,14 @@ static void PreserveRigidLobeSurfaces(){
       V3 envelope=EggSurface(V3{offset.x,0.f,offset.z},eggRadii[side]);
       offset.x+=(envelope.x-offset.x)*fill;
       offset.z+=(envelope.z-offset.z)*fill;
-      // Preserve the authored external seam as part of the rigid rest shape.
-      // Egg projection otherwise discards this relief on the entire pouch.
-      offset=offset+Unit(offset)*(rapheRelief*completeRapheActivation*max(.6f,min(1.8f,sqrtf(sliderValues[0]/sliderSpecs[0].def))));
+      // No wraparound scrotal ridge: the shaft owns the axial continuation.
       float forward=(side?16.f:18.f)*.01745329252f,lateral=(side?10.f:-9.f)*.01745329252f;
       V3 up=Unit(V3{sinf(forward),sinf(lateral),cosf(forward)*cosf(lateral)});
       offset=RotateFromTo(offset,{0,0,1},up);
       offset.y=RotateFromTo(originalOffset,{0,0,1},up).y;offset.z+=(side?.05f:-.15f)*scale;
       V3 restAxis=Unit(constraintBallRest[side]-RestBallAnchor(side));
       V3 liveAxis=Unit(ballNodes[side]-BallAnchor(side));
-      target=target+(ballNodes[side]+RotateFromTo(offset,restAxis,liveAxis))*(side?right:1.f-right);
+      target=target+(ballNodes[side]+LobePressureOffset(RotateFromTo(offset,restAxis,liveAxis),side))*(side?right:1.f-right);
     }
     r14Positions[i]=r14Positions[i]*(1.f-mask)+target*mask;
   }

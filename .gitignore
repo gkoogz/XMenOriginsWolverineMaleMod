@@ -16,3 +16,7 @@ __pycache__/
 /tools/r14/deterministic_harness.exe
 /backups/
 **/WolverineLive.ini
+
+/tools/beta11/*.exe
+/tools/beta11/*.bin*
+/tools/beta11/validation.json

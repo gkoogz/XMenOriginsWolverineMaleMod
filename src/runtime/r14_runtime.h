@@ -1,6 +1,8 @@
 // R14 render mesh. The original 2388-point cage still owns the established
 // pelvis, shape and physics solver. This surface consumes its FINAL positions.
 #include "r14_asset.h"
+#include "rounded_render_data.h"
+static unsigned char rsPacked[rsCount*32];
 static IDirect3DVertexBuffer9* r14VB;
 static IDirect3DIndexBuffer9* r14IB;
 static V3 r14Positions[r14Count],r14Normals[r14Count],r14Tangents[r14Count];
@@ -8,6 +10,8 @@ static unsigned char r14Packed[r14Count*32];
 #include "underside_blend.h"
 #include "firm_lobes.h"
 #include "ventral_tube.h"
+#include "raphe_support.h"
+#include "axial_raphe.h"
 static bool r14Ready=false,r14UploadPending=false;
 static UINT r14SuccessfulDraws=0;
 static IDirect3DTexture9* r14SkinTexture[2]{};
@@ -138,8 +142,8 @@ static void ReleaseR14(){
   r14UploadPending=true;
 }
 static void UpdateR14(const unsigned char* source){
-  const float amount=R14Scale(glansUI)-1.f;
-  const float lowerFactor=R14LowerFactor(glansUI);
+  const float amount=R14Scale(GlansControlV4(glansUI))-1.f;
+  const float lowerFactor=R14LowerFactor(GlansControlV4(glansUI));
   static V3 delta[graftCount];
   for(UINT i=0;i<graftCount;i++)delta[i]=graftDeformedPositions[i]-V3{r14Reference[i*3],r14Reference[i*3+1],r14Reference[i*3+2]};
   V3 columns[3]={{1,0,0},{0,1,0},{0,0,1}};
@@ -203,9 +207,10 @@ static void UpdateR14(const unsigned char* source){
   }
   ShapeObliqueLobes();
   TightenInterLobeWeb();
-  BlendContinuousUnderside();
+  memset(undersideBlendMoved,0,sizeof(undersideBlendMoved));
   PreserveRigidLobeSurfaces();
-  CompleteVentralTube();
+  PreserveShaftRaphe();
+  PreserveAxialRaphe();
   memset(r14Normals,0,sizeof(r14Normals));memset(r14Tangents,0,sizeof(r14Tangents));
   for(UINT k=0;k<r14IndexCount;k+=3){
     UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
@@ -237,17 +242,17 @@ static void UpdateR14(const unsigned char* source){
 static bool EnsureR14(IDirect3DDevice9* d){
   if(!r14Ready)return false;
   if(!r14VB){
-    if(FAILED(d->CreateVertexBuffer(sizeof(r14Packed),D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY,0,D3DPOOL_DEFAULT,&r14VB,nullptr)))return false;
+    if(FAILED(d->CreateVertexBuffer(sizeof(rsPacked),D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY,0,D3DPOOL_DEFAULT,&r14VB,nullptr)))return false;
     r14UploadPending=true;
   }
   if(!r14IB){
-    if(FAILED(d->CreateIndexBuffer(sizeof(r14Indices),D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_DEFAULT,&r14IB,nullptr)))return false;
+    if(FAILED(d->CreateIndexBuffer(sizeof(rsIndices),D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_DEFAULT,&r14IB,nullptr)))return false;
     void* raw=nullptr;if(FAILED(r14IB->Lock(0,0,&raw,0))){ReleaseR14();return false;}
-    memcpy(raw,r14Indices,sizeof(r14Indices));r14IB->Unlock();
+    memcpy(raw,rsIndices,sizeof(rsIndices));r14IB->Unlock();
   }
   if(r14UploadPending){
-    void* raw=nullptr;if(FAILED(r14VB->Lock(0,sizeof(r14Packed),&raw,D3DLOCK_DISCARD)))return false;
-    memcpy(raw,r14Packed,sizeof(r14Packed));r14VB->Unlock();r14UploadPending=false;
+    void* raw=nullptr;if(FAILED(r14VB->Lock(0,sizeof(rsPacked),&raw,D3DLOCK_DISCARD)))return false;
+    memcpy(raw,rsPacked,sizeof(rsPacked));r14VB->Unlock();r14UploadPending=false;
   }
   return true;
 }
@@ -269,13 +274,13 @@ static HRESULT DrawR14(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original,UINT
   if(SUCCEEDED(hr))hr=d->SetIndices(r14IB);
   if(SUCCEEDED(hr)){
     bool capture=captureRemaining>0&&captureDraw<16;
-    if(capture){CaptureDraw(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3,r14Packed,sizeof(r14Packed),r14Indices,sizeof(r14Indices));CaptureSurface(d,"before");}
-    hr=capture?origDIP(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3):DrawWithLightingDirections(d,D3DPT_TRIANGLELIST,0,0,r14Count,0,r14IndexCount/3);
+    if(capture){CaptureDraw(d,D3DPT_TRIANGLELIST,0,0,rsCount,0,rsIndexCount/3,rsPacked,sizeof(rsPacked),rsIndices,sizeof(rsIndices));CaptureSurface(d,"before");}
+    hr=capture?origDIP(d,D3DPT_TRIANGLELIST,0,0,rsCount,0,rsIndexCount/3):DrawWithLightingDirections(d,D3DPT_TRIANGLELIST,0,0,rsCount,0,rsIndexCount/3);
     if(capture)CaptureSurface(d,"after");
   }
   if(replaced){d->SetTexture(2,oldDiffuse);d->SetTexture(10,oldSkin);}
   if(oldDiffuse)oldDiffuse->Release();if(oldSkin)oldSkin->Release();
   d->SetStreamSource(0,original,offset,stride);d->SetIndices(ib);if(ib)ib->Release();
-  if(SUCCEEDED(hr)){if(r14SuccessfulDraws++==0)Log("R14 replacement draw active: %u vertices, %u triangles",r14Count,r14IndexCount/3);}
+  if(SUCCEEDED(hr)){if(r14SuccessfulDraws++==0)Log("R14 rounded replacement draw active: %u vertices, %u triangles",rsCount,rsIndexCount/3);}
   return hr;
 }

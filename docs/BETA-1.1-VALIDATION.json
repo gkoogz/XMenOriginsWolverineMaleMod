@@ -1,0 +1,185 @@
+{
+  "version": "1.1.0-beta.1",
+  "runtime_sha256": "5D016CE01A1AED0FC0644AF1D2F546A7C1DEF58F04345997672431055931BC54",
+  "control_persistence_checks": "passed",
+  "surface_limit_check": "passed",
+  "installer_clean_upgrade_rollback": "passed",
+  "live_gameplay_verified": false,
+  "cases": [
+    {
+      "case": "large-gentle",
+      "variant": "after",
+      "exit_code": 0,
+      "elapsed_seconds": 26.42710279999301,
+      "frames": 480,
+      "fps": 20,
+      "finite": true,
+      "speed_p95": 7.354801177978516,
+      "jerk_p95": 3847.6376953125,
+      "last2_seconds_motion": [
+        2.8758761882781982,
+        2.8267722129821777
+      ],
+      "minimum_triangle_area2": 2.15434829442529e-05,
+      "invalid_vertices": 0,
+      "seam_error": 0.0,
+      "metrics": [
+        "SOLVER maximum_tether_ratio 0.963663",
+        "BOUNDS minimum_surface_z=45.351631 maximum_tether=15.910970 maximum_tether_ratio=0.856552",
+        "POUCH gap=0.02341223 compression=0.00443396"
+      ],
+      "render_draw_restore_reset_recreation": "passed",
+      "fine_faces_opposed_to_parent_max": 289
+    },
+    {
+      "case": "tight-shift",
+      "variant": "after",
+      "exit_code": 0,
+      "elapsed_seconds": 27.596930399973644,
+      "frames": 480,
+      "fps": 20,
+      "finite": true,
+      "speed_p95": 2.805358409881592,
+      "jerk_p95": 125.12496948242188,
+      "last2_seconds_motion": [
+        1.6038981676101685,
+        5.478000164031982
+      ],
+      "minimum_triangle_area2": 3.750838368432596e-05,
+      "invalid_vertices": 0,
+      "seam_error": 0.0,
+      "metrics": [
+        "SOLVER maximum_tether_ratio 0.958231",
+        "BOUNDS minimum_surface_z=45.002773 maximum_tether=12.419765 maximum_tether_ratio=0.845686",
+        "POUCH gap=0.02499388 compression=0.00156750"
+      ],
+      "render_draw_restore_reset_recreation": "passed",
+      "fine_faces_opposed_to_parent_max": 182
+    },
+    {
+      "case": "tight-gentle-shift",
+      "variant": "after",
+      "exit_code": 0,
+      "elapsed_seconds": 27.09812090001651,
+      "frames": 480,
+      "fps": 20,
+      "finite": true,
+      "speed_p95": 19.898801803588867,
+      "jerk_p95": 3701.2314453125,
+      "last2_seconds_motion": [
+        1.9939048290252686,
+        2.502014636993408
+      ],
+      "minimum_triangle_area2": 4.626950976671651e-05,
+      "invalid_vertices": 0,
+      "seam_error": 0.0,
+      "metrics": [
+        "SOLVER maximum_tether_ratio 0.958231",
+        "BOUNDS minimum_surface_z=45.082520 maximum_tether=12.460337 maximum_tether_ratio=0.845686",
+        "POUCH gap=0.02496033 compression=0.00446501"
+      ],
+      "render_draw_restore_reset_recreation": "passed",
+      "fine_faces_opposed_to_parent_max": 235
+    },
+    {
+      "case": "default-off",
+      "variant": "after",
+      "exit_code": 0,
+      "elapsed_seconds": 22.699398700002348,
+      "frames": 400,
+      "fps": 20,
+      "finite": true,
+      "speed_p95": 0.028692295774817467,
+      "jerk_p95": 9.185144424438477,
+      "last2_seconds_motion": [
+        0.01030068751424551,
+        0.009156569838523865
+      ],
+      "minimum_triangle_area2": 7.223780357890064e-06,
+      "invalid_vertices": 0,
+      "seam_error": 0.0,
+      "metrics": [
+        "SOLVER maximum_tether_ratio 0.977610",
+        "BOUNDS minimum_surface_z=61.534367 maximum_tether=6.098628 maximum_tether_ratio=0.863636",
+        "POUCH gap=0.02499942 compression=0.00446570"
+      ],
+      "render_draw_restore_reset_recreation": "passed",
+      "fine_faces_opposed_to_parent_max": 257
+    },
+    {
+      "case": "stress",
+      "variant": "after",
+      "exit_code": 0,
+      "elapsed_seconds": 14.191515499987872,
+      "frames": 240,
+      "fps": 20,
+      "finite": true,
+      "speed_p95": 57.55815124511719,
+      "jerk_p95": 17525.775390625,
+      "last2_seconds_motion": [
+        17.41228485107422,
+        16.163005828857422
+      ],
+      "minimum_triangle_area2": 8.501927368342876e-06,
+      "invalid_vertices": 0,
+      "seam_error": 0.0,
+      "metrics": [
+        "SOLVER maximum_tether_ratio 0.965434",
+        "BOUNDS minimum_surface_z=55.084702 maximum_tether=9.436648 maximum_tether_ratio=0.963316",
+        "POUCH gap=0.02452943 compression=0.01323334"
+      ],
+      "render_draw_restore_reset_recreation": "passed",
+      "fine_faces_opposed_to_parent_max": 279
+    },
+    {
+      "case": "erect",
+      "variant": "after",
+      "exit_code": 0,
+      "elapsed_seconds": 13.116555200016592,
+      "frames": 240,
+      "fps": 30,
+      "finite": true,
+      "speed_p95": 0.02643894962966442,
+      "jerk_p95": 3.7190308570861816,
+      "last2_seconds_motion": [
+        0.03551306948065758,
+        0.036830514669418335
+      ],
+      "minimum_triangle_area2": 2.0124329239479266e-05,
+      "invalid_vertices": 0,
+      "seam_error": 0.0,
+      "metrics": [
+        "SOLVER maximum_tether_ratio 0.986213",
+        "BOUNDS minimum_surface_z=64.504051 maximum_tether=10.694245 maximum_tether_ratio=0.894235",
+        "POUCH gap=0.02352681 compression=0.00640691"
+      ],
+      "render_draw_restore_reset_recreation": "passed",
+      "fine_faces_opposed_to_parent_max": 205
+    },
+    {
+      "case": "low-fps",
+      "variant": "after",
+      "exit_code": 0,
+      "elapsed_seconds": 13.933850700006587,
+      "frames": 240,
+      "fps": 15,
+      "finite": true,
+      "speed_p95": 12.5594482421875,
+      "jerk_p95": 2657.161376953125,
+      "last2_seconds_motion": [
+        3.1990082263946533,
+        2.7420918941497803
+      ],
+      "minimum_triangle_area2": 3.159669358865358e-05,
+      "invalid_vertices": 0,
+      "seam_error": 0.0,
+      "metrics": [
+        "SOLVER maximum_tether_ratio 0.963663",
+        "BOUNDS minimum_surface_z=45.316517 maximum_tether=15.913667 maximum_tether_ratio=0.850302",
+        "POUCH gap=0.02450347 compression=0.00298538"
+      ],
+      "render_draw_restore_reset_recreation": "passed",
+      "fine_faces_opposed_to_parent_max": 366
+    }
+  ]
+}
