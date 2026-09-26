@@ -1,0 +1,82 @@
+[
+  {
+    "core_core": 0,
+    "core_transition": 0,
+    "transition": 41,
+    "shaft_related": 51,
+    "case": "previous-large.bin",
+    "crossing_pairs": 92,
+    "skin_vertices_inside_support": 0,
+    "minimum_skin_level": 0.01802888002494485
+  },
+  {
+    "core_core": 0,
+    "core_transition": 0,
+    "transition": 0,
+    "shaft_related": 51,
+    "case": "material-large.bin",
+    "crossing_pairs": 51,
+    "skin_vertices_inside_support": 0,
+    "minimum_skin_level": 0.018012810724477246
+  },
+  {
+    "core_core": 0,
+    "core_transition": 0,
+    "transition": 81,
+    "shaft_related": 51,
+    "case": "previous-rest.bin",
+    "crossing_pairs": 132,
+    "skin_vertices_inside_support": 0,
+    "minimum_skin_level": 0.018005787028861908
+  },
+  {
+    "core_core": 0,
+    "core_transition": 0,
+    "transition": 98,
+    "shaft_related": 53,
+    "case": "material-rest.bin",
+    "crossing_pairs": 151,
+    "skin_vertices_inside_support": 0,
+    "minimum_skin_level": 0.01801047243777365
+  },
+  {
+    "core_core": 0,
+    "core_transition": 0,
+    "transition": 103,
+    "shaft_related": 53,
+    "case": "previous-tight.bin",
+    "crossing_pairs": 156,
+    "skin_vertices_inside_support": 0,
+    "minimum_skin_level": 0.018053432389044
+  },
+  {
+    "core_core": 0,
+    "core_transition": 0,
+    "transition": 287,
+    "shaft_related": 468,
+    "case": "material-tight.bin",
+    "crossing_pairs": 755,
+    "skin_vertices_inside_support": 0,
+    "minimum_skin_level": 0.018019955397606813
+  },
+  {
+    "core_core": 0,
+    "core_transition": 48,
+    "transition": 207,
+    "shaft_related": 140,
+    "case": "previous-tight-pulse.bin",
+    "crossing_pairs": 395,
+    "skin_vertices_inside_support": 740,
+    "minimum_skin_level": -0.1586525494219384
+  },
+  {
+    "core_core": 0,
+    "core_transition": 0,
+    "transition": 0,
+    "shaft_related": 51,
+    "case": "material-tight-pulse.bin",
+    "crossing_pairs": 51,
+    "skin_vertices_inside_support": 0,
+    "minimum_skin_level": 0.018003273614407567
+  }
+]

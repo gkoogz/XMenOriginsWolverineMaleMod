@@ -1,0 +1,3 @@
+1.2 installed and verified. F6 opens the controls. Saved settings preserved.
+Previous files restored. Saved settings preserved.
+PASS: upgrade=True reconstruction, install, existing texture backup, settings and exact restoration. C:\Users\Administrator\AppData\Local\Temp\release-12-test-a4b950ff9b154bc9a99b0b753b6b05a5

@@ -1,0 +1,1 @@
+PASS: ovoid support accuracy, static hold without drift, dissipative sliding, moving-surface friction at 120/240/480 Hz; unequal-mass momentum

@@ -1,0 +1,4 @@
+PASS: ovoid support accuracy, static hold without drift, dissipative sliding, moving-surface friction at 120/240/480 Hz; unequal-mass momentum
+PASS: four modes, max-slider overdrive, independent envelopes, menu cycle, persistence, off restores base
+PASS: 20 menu rows, glans bounds, persistence, missing-key default, reset
+PASS: 10000 surface corrections retain projected area across 21 samples; continuous former half-step boundary

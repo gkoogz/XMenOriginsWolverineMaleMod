@@ -1,3 +1,7 @@
+## 1.2
+
+Packages the verified September 25 coupled-contact solver update from f8d354f: static/sliding friction, damped suspension and step-interpolated dimensions. Restores the exact DLL requested by the user; later geometry candidates are excluded. Retains the documented tight-pose fold limitations. Adds a version-specific verified installer and rollback.
+
 ## 1.0 Beta 1
 
 Packages the currently installed runtime and 22-clip idle chatter pool. Adds an immediate in-game Idle Chatter toggle, four throb modes, and reordered controls with F6 guidance. The installer verifies and backs up all audio files. The underside ridge issue remains open.

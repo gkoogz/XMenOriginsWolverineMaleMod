@@ -20,12 +20,12 @@ function Restore($records){
 }
 if(-not(Test-Path -LiteralPath (Join-Path $GamePath 'Binaries\Wolverine.exe'))){throw 'Select the folder containing Binaries\Wolverine.exe.'}
 if(Get-Process -Name Wolverine -ErrorAction SilentlyContinue){throw 'Close Wolverine before installing or restoring.'}
-$backupRoot=Join-Path $GamePath 'WGame\ModBackups\WolverineAnatomyTool-v1.1.0-beta.1'
+$backupRoot=Join-Path $GamePath 'WGame\ModBackups\WolverineAnatomyTool-v1.2.0'
 $statePath=Join-Path $backupRoot 'state.json'
 if($Mode -eq 'Uninstall'){
  $state=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
- if($state.GamePath -ne $GamePath -or $state.Version -ne '1.1.0-beta.1'){throw 'Backup identity mismatch.'}
- if($state.Status -eq 'Uninstalled'){Write-Output 'Beta 1.1 is already restored.';return}
+ if($state.GamePath -ne $GamePath -or $state.Version -ne '1.2.0'){throw 'Backup identity mismatch.'}
+ if($state.Status -eq 'Uninstalled'){Write-Output '1.2 is already restored.';return}
  foreach($r in $state.Files){
   if($r.Existed -and (Hash $r.Backup) -ne $r.OriginalHash){throw "Backup mismatch: $($r.Backup)"}
   if(-not(Test-Path -LiteralPath $r.Target) -or (Hash $r.Target) -ne $r.InstalledHash){throw "Installed file changed: $($r.Target)"}
@@ -34,7 +34,7 @@ if($Mode -eq 'Uninstall'){
  $state.Status='Uninstalled';$state|ConvertTo-Json -Depth 8|Set-Content $statePath -Encoding UTF8
  Write-Output 'Previous files restored. Saved settings preserved.';return
 }
-if(Test-Path -LiteralPath $statePath){throw 'A Beta 1.1 backup already exists. Restore it before another installation; retained backups are never overwritten.'}
+if(Test-Path -LiteralPath $statePath){throw 'A 1.2 backup already exists. Restore it before another installation; retained backups are never overwritten.'}
 foreach($p in $manifest.payload.PSObject.Properties){if((Hash (Join-Path $PSScriptRoot ('payload\'+$p.Name))) -ne $p.Value){throw "Payload checksum mismatch: $($p.Name)"}}
 if(@($manifest.idleClips.PSObject.Properties).Count -ne 22){throw 'Idle clip manifest must list all 22 WAV files.'}
 foreach($p in $manifest.idleClips.PSObject.Properties){if((Hash (Join-Path $PSScriptRoot ('payload\WolverineIdle\'+$p.Name))) -ne $p.Value){throw "Idle clip checksum mismatch: $($p.Name)"}}
@@ -77,13 +77,13 @@ try{
   $sha=[Security.Cryptography.SHA256]::Create();$installed=[BitConverter]::ToString($sha.ComputeHash($c.Bytes)).Replace('-','');$sha.Dispose()
   $records+=@{Target=$c.Target;Backup=$backup;Existed=$exists;OriginalHash=$hash;ReadOnly=$ro;InstalledHash=$installed}
  }
- $state=@{Version='1.1.0-beta.1';GamePath=$GamePath;Status='Pending';Files=$records}
+ $state=@{Version='1.2.0';GamePath=$GamePath;Status='Pending';Files=$records}
  $state|ConvertTo-Json -Depth 8|Set-Content $statePath -Encoding UTF8
  try{
   for($i=0;$i -lt $changes.Count;$i++){WriteFile $changes[$i].Target $changes[$i].Bytes ([bool]$records[$i].ReadOnly);if((Hash $changes[$i].Target) -ne $records[$i].InstalledHash){throw 'Installation verification failed.'}}
   $state.Status='Installed';$state|ConvertTo-Json -Depth 8|Set-Content $statePath -Encoding UTF8
  }catch{Restore $records;$state.Status='Uninstalled';$state|ConvertTo-Json -Depth 8|Set-Content $statePath -Encoding UTF8;throw}
- Write-Output 'Beta 1.1 installed and verified. F6 opens the controls. Saved settings preserved.'
+ Write-Output '1.2 installed and verified. F6 opens the controls. Saved settings preserved.'
 }finally{
  # Only known staged files are removed; never recursively remove a computed path.
  foreach($name in @('CH_Wolverine_Natural_SF.xxx','WGame.xxx')){$p=Join-Path $stage $name;if(Test-Path -LiteralPath $p){Remove-Item -LiteralPath $p}}

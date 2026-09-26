@@ -1,0 +1,210 @@
+{
+  "method": "20 seconds at 30 FPS; high-frequency RMS is a third-order Butterworth high-pass above 6 Hz, measured from 6 through 19 seconds. Model coordinates, not calibrated medical units. Synthetic harness, not live gameplay.",
+  "comparisons": [
+    {
+      "case": "large",
+      "before": {
+        "case": "large",
+        "variant": "previous",
+        "exit": 0,
+        "seconds": 31.66906809998909,
+        "finite": true,
+        "body": {
+          "speed95": 32.7342529296875,
+          "jerk95": 57766.91015625,
+          "hf_rms": 0.10838389507851644,
+          "last2_speed95": 37.95448684692383
+        },
+        "rod": {
+          "speed95": 30.433515548706055,
+          "jerk95": 3415.917724609375,
+          "hf_rms": 0.007360610079978987,
+          "last2_speed95": 30.35413360595703
+        },
+        "checks": [
+          "BOUNDS minimum_surface_z=44.266117 maximum_tether=18.801811 maximum_tether_ratio=1.000859",
+          "POUCH gap=0.04728751 compression=0.06499992"
+        ]
+      },
+      "after": {
+        "case": "large",
+        "variant": "material",
+        "exit": 0,
+        "seconds": 37.04697480000323,
+        "finite": true,
+        "body": {
+          "speed95": 2.248979330062866,
+          "jerk95": 1569.6844482421875,
+          "hf_rms": 0.00332221051437731,
+          "last2_speed95": 3.6283395290374756
+        },
+        "rod": {
+          "speed95": 16.69043731689453,
+          "jerk95": 2811.211669921875,
+          "hf_rms": 0.004723811971619459,
+          "last2_speed95": 18.480342864990234
+        },
+        "checks": [
+          "SOLVER maximum_tether_ratio 0.857065",
+          "BOUNDS minimum_surface_z=45.084000 maximum_tether=15.930422 maximum_tether_ratio=0.855711",
+          "POUCH gap=0.02496490 compression=0.06499989"
+        ]
+      },
+      "lobe_high_frequency_reduction_percent": 96.93477475415457
+    },
+    {
+      "case": "tight",
+      "before": {
+        "case": "tight",
+        "variant": "previous",
+        "exit": 0,
+        "seconds": 30.556250900001032,
+        "finite": true,
+        "body": {
+          "speed95": 7.192776203155518,
+          "jerk95": 7699.9365234375,
+          "hf_rms": 0.015653493875666044,
+          "last2_speed95": 7.856988430023193
+        },
+        "rod": {
+          "speed95": 0.5729070901870728,
+          "jerk95": 34.126197814941406,
+          "hf_rms": 5.85453945838305e-05,
+          "last2_speed95": 0.5272951126098633
+        },
+        "checks": [
+          "BOUNDS minimum_surface_z=46.006165 maximum_tether=14.720220 maximum_tether_ratio=1.000000",
+          "POUCH gap=0.04809126 compression=0.00600064"
+        ]
+      },
+      "after": {
+        "case": "tight",
+        "variant": "material",
+        "exit": 0,
+        "seconds": 37.3162685999996,
+        "finite": true,
+        "body": {
+          "speed95": 0.9228684306144714,
+          "jerk95": 1342.110107421875,
+          "hf_rms": 0.002679583867430217,
+          "last2_speed95": 0.9702122807502747
+        },
+        "rod": {
+          "speed95": 1.1641031503677368,
+          "jerk95": 554.6089477539062,
+          "hf_rms": 0.0011478154976497115,
+          "last2_speed95": 1.3816018104553223
+        },
+        "checks": [
+          "SOLVER maximum_tether_ratio 0.845869",
+          "BOUNDS minimum_surface_z=50.342495 maximum_tether=12.380005 maximum_tether_ratio=0.841021",
+          "POUCH gap=0.02497199 compression=0.06499989"
+        ]
+      },
+      "lobe_high_frequency_reduction_percent": 82.88187998977192
+    },
+    {
+      "case": "tight-pulse",
+      "before": {
+        "case": "tight-pulse",
+        "variant": "previous",
+        "exit": 0,
+        "seconds": 31.34235940000508,
+        "finite": true,
+        "body": {
+          "speed95": 31.55223274230957,
+          "jerk95": 83072.1484375,
+          "hf_rms": 0.09689366411802464,
+          "last2_speed95": 36.93406677246094
+        },
+        "rod": {
+          "speed95": 30.2255802154541,
+          "jerk95": 3490.995849609375,
+          "hf_rms": 0.007930461389913247,
+          "last2_speed95": 29.736806869506836
+        },
+        "checks": [
+          "BOUNDS minimum_surface_z=44.982883 maximum_tether=14.910671 maximum_tether_ratio=1.000598",
+          "POUCH gap=0.04808066 compression=0.06499992"
+        ]
+      },
+      "after": {
+        "case": "tight-pulse",
+        "variant": "material",
+        "exit": 0,
+        "seconds": 38.13387300001341,
+        "finite": true,
+        "body": {
+          "speed95": 2.2453737258911133,
+          "jerk95": 2327.892822265625,
+          "hf_rms": 0.0045729894739291186,
+          "last2_speed95": 3.481567621231079
+        },
+        "rod": {
+          "speed95": 15.06855297088623,
+          "jerk95": 2738.95849609375,
+          "hf_rms": 0.004494859429313842,
+          "last2_speed95": 17.38999366760254
+        },
+        "checks": [
+          "SOLVER maximum_tether_ratio 0.845869",
+          "BOUNDS minimum_surface_z=49.162792 maximum_tether=12.443106 maximum_tether_ratio=0.841021",
+          "POUCH gap=0.02492817 compression=0.06499989"
+        ]
+      },
+      "lobe_high_frequency_reduction_percent": 95.28040402274515
+    },
+    {
+      "case": "rest",
+      "before": {
+        "case": "rest",
+        "variant": "previous",
+        "exit": 0,
+        "seconds": 30.297453799983487,
+        "finite": true,
+        "body": {
+          "speed95": 0.4046505093574524,
+          "jerk95": 352.68157958984375,
+          "hf_rms": 0.0006179297779378604,
+          "last2_speed95": 0.38491830229759216
+        },
+        "rod": {
+          "speed95": 0.11364425718784332,
+          "jerk95": 14.063702583312988,
+          "hf_rms": 2.9453426859295212e-05,
+          "last2_speed95": 0.0
+        },
+        "checks": [
+          "BOUNDS minimum_surface_z=61.859016 maximum_tether=6.560047 maximum_tether_ratio=0.938200",
+          "POUCH gap=0.02173405 compression=0.00443515"
+        ]
+      },
+      "after": {
+        "case": "rest",
+        "variant": "material",
+        "exit": 0,
+        "seconds": 36.59703139998601,
+        "finite": true,
+        "body": {
+          "speed95": 0.1293308585882187,
+          "jerk95": 129.92845153808594,
+          "hf_rms": 0.00024792023928575614,
+          "last2_speed95": 0.12997128069400787
+        },
+        "rod": {
+          "speed95": 0.1560717225074768,
+          "jerk95": 45.355587005615234,
+          "hf_rms": 9.834574326798376e-05,
+          "last2_speed95": 0.15920595824718475
+        },
+        "checks": [
+          "SOLVER maximum_tether_ratio 0.847078",
+          "BOUNDS minimum_surface_z=63.149822 maximum_tether=5.965864 maximum_tether_ratio=0.844835",
+          "POUCH gap=0.02499616 compression=0.06499989"
+        ]
+      },
+      "lobe_high_frequency_reduction_percent": 59.87889754834129
+    }
+  ],
+  "startup_guard_replay_identical": true
+}
