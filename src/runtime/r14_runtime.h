@@ -234,9 +234,15 @@ static void UpdateR14(const unsigned char* source){
     // Preserve exact normals at the body attachment, including its weld locks.
     if(r14Flex[i]<.04f&&r14Offsets[i+1]-r14Offsets[i]==1&&fabsf(r14Weight[r14Offsets[i]]-1.f)<1e-6f)
       memcpy(v+12,source+r14Sources[r14Offsets[i]]*32+12,8);
+  }
+  // Authored skin palettes and UVs do not depend on pose or dimensions. CPU
+  // packed storage survives D3D device resets; only GPU resources are recreated.
+  static bool materialReady=false;
+  if(!materialReady){for(UINT i=0;i<r14Count;i++){
+    unsigned char* v=r14Packed+i*32;
     memcpy(v+20,r14Bones+i*4,4);memcpy(v+24,r14Weights+i*4,4);
     D3DXFloat32To16Array(reinterpret_cast<D3DXFLOAT16*>(v+28),r14UV+i*2,2);
-  }
+  }materialReady=true;}
   r14Ready=true;r14UploadPending=true;
 }
 static bool EnsureR14(IDirect3DDevice9* d){

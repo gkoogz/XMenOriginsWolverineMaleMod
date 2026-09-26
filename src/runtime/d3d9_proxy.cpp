@@ -110,6 +110,7 @@ static V3 logicalShaftRestRadial[graftCount];
 static float logicalShaftOwnership[graftCount];
 static float logicalShaftBodyRadius;
 static bool shaftRestFrameReady;
+static bool restFrameUsesPreviousLength=false;
 static V3 firmLobeRestSkin[graftCount];
 static V3 graftDeformedPositions[graftCount],graftDynamicNormalSums[graftNormalGroupCount],graftDynamicTangentSums[graftCount];
 static V3 collarFairA[collarFairGroupCount],collarFairB[collarFairGroupCount];
@@ -681,18 +682,26 @@ static float ClosestRestShaftFlex(V3 point){
 }
 static void BuildShaftRestFrame(){
   const float sigma=.082f,invTwoSigma2=1.f/(2.f*sigma*sigma);
+  static float weights[shaftRestSampleCount][graftCount];static bool weightsReady=false;
+  if(!weightsReady){
+    for(int sample=0;sample<shaftRestSampleCount;sample++)for(UINT i=0;i<graftCount;i++){
+      float target=(float)sample/(shaftRestSampleCount-1),shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]),ball=min(1.f,phys_scrotum_weight[i]);
+      float q=phys_flex_coordinate[i]-target;
+      weights[sample][i]=shaft*shaft*(1.f-ball)*(1.f-ball)*expf(-q*q*invTwoSigma2);
+    }
+    weightsReady=true;
+  }
   for(int sample=0;sample<shaftRestSampleCount;sample++){
     float target=(float)sample/(shaftRestSampleCount-1),sum=0.f;V3 center{};
     for(UINT i=0;i<graftCount;i++){
       float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]);
       float ball=min(1.f,phys_scrotum_weight[i]);
       if(shaft<.20f||suspensionWeight[i]>0.f)continue;
-      float q=phys_flex_coordinate[i]-target;
-      float w=shaft*shaft*(1.f-ball)*(1.f-ball)*expf(-q*q*invTwoSigma2);
+      float w=weights[sample][i];
       center=center+graftDeformedPositions[i]*w;sum+=w;
     }
     if(sum>1e-5f)center=center/sum;
-    else center=ShaftRoot()+RestShaftDirection()*(constraintRestLength*target);
+    else {restFrameUsesPreviousLength=true;center=ShaftRoot()+RestShaftDirection()*(constraintRestLength*target);}
     center.y=0.f;shaftRestCenters[sample]=center;
   }
   shaftRestCenters[0]=ShaftRoot();
@@ -720,7 +729,7 @@ static void BuildShaftRestFrame(){
     }
   }else{
     V3 axisEnd=shaftRestCenters[shaftRestSampleCount-1],axisSpan=axisEnd-ShaftRoot();axisSpan.y=0.f;
-    if(Length(axisSpan)<8.f)axisSpan=RestShaftDirection()*constraintRestLength;
+    if(Length(axisSpan)<8.f){restFrameUsesPreviousLength=true;axisSpan=RestShaftDirection()*constraintRestLength;}
     for(int i=0;i<shaftRestSampleCount;i++)shaftRestCenters[i]=ShaftRoot()+axisSpan*((float)i/(shaftRestSampleCount-1));
   }
   for(UINT i=0;i<graftCount;i++)graftRestFlex[i]=ClosestRestShaftFlex(graftDeformedPositions[i]);
@@ -1514,6 +1523,7 @@ static float SampleOverallWidthVertex(UINT q,float overall,float width){
 #include "pelvic_tube_node.h"
 #include "pelvic_attachment.h"
 #include "rounded_shape.h"
+#include "prepared_shape.h"
 static void ApplyShape(){
   if(!graftBuffer)return;bool report=shapeDirty;void* raw=nullptr;
   const UINT graftFirstVertex=graftOffset/graftStride;
@@ -1524,73 +1534,8 @@ static void ApplyShape(){
   ResetPelvicAttachmentBody(fullBuffer);
   auto* controlled=fullBuffer+pelvisControlFirstVertex*graftStride;
   auto* p=controlled+(graftFirstVertex-pelvisControlFirstVertex)*graftStride;
-  float collarGrowth=PelvisCollarGrowth();
-  for(UINT i=0;i<pelvisControlCount;i++){
-    float value[3]={pelvisControlBasePositions[i*3],pelvisControlBasePositions[i*3+1],pelvisControlBasePositions[i*3+2]};
-    ApplyPelvisCollar(value,pelvisControlDistances[i],collarGrowth,false);
-    unsigned char* bodyVertex=controlled+(pelvisControlIndices[i]-pelvisControlFirstVertex)*graftStride;
-    memcpy(bodyVertex,value,12);
-  }
-  V3 tipSum{},ballSum[2]{};int tipCount=0,ballCount[2]{};
-  for(UINT i=0;i<graftCount;i++){
-    float shaft=max(phys_shaft_weight[i],phys_attachment_weight[i]),ball=min(1.f,phys_scrotum_weight[i]);
-    // Lobe cores scale independently, but the broad upper neck must open with
-    // the shaft it hangs from.  The former early pouch takeover stranded the
-    // mixed rows at neutral width during large shaft dilation and stretched
-    // their triangles into a narrow fan.  This later C2 handoff preserves the
-    // independent sack while recruiting its throat into the supporting tube.
-    float pouchOwner=Smoother01((ball-.18f)/.60f)*Smoother01((ball-shaft+.18f)/.70f);
-    float value[3];for(UINT axis=0;axis<3;axis++){
-      UINT q=i*3+axis;
-      float shaftValue=SampleOverallWidthVertex(q,sliderValues[0],sliderValues[2]);
-      float pouchValue=SampleOverallWidthVertex(q,sliderValues[0],neutralShape[2]);
-      value[axis]=shaftValue*(1.f-pouchOwner)+pouchValue*pouchOwner;
-      for(int s=1;s<7;s++){
-        if(s==2||s==4)continue;const auto& spec=sliderSpecs[s];float v=sliderValues[s],delta=0.f;
-        if(v<spec.def)delta=(spec.low[q]-morph_base[q])*(spec.def-v)/(spec.def-spec.lo);
-        else if(v>spec.def)delta=(spec.high[q]-morph_base[q])*(v-spec.def)/(spec.hi-spec.def);
-        // Scrotum scale is pouch-only.  It cannot alter any shaft-owned ring.
-        value[axis]+=delta*(s==3?pouchOwner:1.f);
-      }
-    }
-    ApplyPelvisCollar(value,graftCollarDistances[i],collarGrowth,true);
-    ApplyShaftPoseAngle(value,i);
-    FlareAttachment(value,i);
-    graftDeformedPositions[i]=V3{value[0],value[1],value[2]};
-  }
-  FairUnifiedCollar(controlled,graftFirstVertex,collarGrowth);
-  FairRetopologyBands();
-  BuildShaftRestFrame();
-  RegularizeSharedRootProfile();
-  // Refit after the profile correction so capture and physics use the
-  // corrected common centerline rather than the donor's scrotal-biased frame.
-  // A second radial projection would over-constrain the irregular donor
-  // tessellation and needlessly worsen its least-regular triangles.
-  BuildShaftRestFrame();
-  SculptConvergentVentralRaphe();
-  // Fit the pelvic cuff in the rest shape, once before skin is transported
-  // by the live chain. Refitting its radius from swinging skin made the
-  // body attachment repeatedly expand and contract during otherwise smooth motion.
-  FinishPelvicRamp(controlled,graftFirstVertex);
-  // Cache the corrected authored cross-sections and transport them through
-  // physics as a single shaft.  The scrotum remains a separate hanging system.
-  ConstructLogicalShaftSurface(false);
-  // Author the seam with the rest surface as well. Letting a compressed
-  // moving pouch change its global relief limit also pulsed the fixed pelvis.
-  // The requested ridge follows the shaft axis through the upper pouch.
-  // Do not trace an external seam around the scrotal/perineal centerline.
-  for(UINT i=0;i<graftCount;i++)graftDeformedPositions[i].z+=HangOffset()*suspensionWeight[i];
-  for(UINT i=0;i<graftCount;i++){
-    V3 value=graftDeformedPositions[i];
-    if(phys_flex_coordinate[i]>.98f&&phys_shaft_weight[i]>.5f){tipSum=tipSum+value;tipCount++;}
-    float rawBallWeight=phys_scrotum_weight[i];if(rawBallWeight>.55f){int side=value.y<0?0:1;ballSum[side]=ballSum[side]+value;ballCount[side]++;}
-  }
-  FitEggRestShapes();
-  // Preserve the established lobe supports, then broaden only their shared
-  // skin connection. Cache the wider shaft-side blend for live transport.
-  BroadenScrotalNeck();
-  memcpy(firmLobeRestSkin,graftDeformedPositions,sizeof(firmLobeRestSkin));
-  CaptureLogicalShaftSurface();
+  V3 tipSum{};int tipCount=0;
+  PrepareShape(controlled,graftFirstVertex,tipSum,tipCount);
   if(!constraintSolverReady)InitializeConstraintSolver();
   for(UINT i=0;i<graftCount;i++){
     float value[3]={graftDeformedPositions[i].x,graftDeformedPositions[i].y,graftDeformedPositions[i].z};
@@ -1659,7 +1604,7 @@ static void ApplyShape(){
   ApplyPelvicAttachment(fullBuffer);
   ApplyRoundedShape(fullBuffer);
   if(tipCount){V3 tip=tipSum/(float)tipCount;float newLength=max(8.f,min(60.f,Length(tip-ShaftRoot())));constraintRestLength=(constraintRestLength*.1656f+newLength*.08f)/.2456f;}
-  float written[3];memcpy(written,p,12);graftBuffer->Unlock();shapeDirty=false;if(report)Log("live controls, recruited pelvis collar, and dynamic tangent basis applied state=%d collar=%.3f shape=%.2f %.2f %.2f %.2f %.1f %.2f %.2f shaft=%.0f %.0f %.0f %.0f balls=%.0f %.0f %.0f %.0f first=(%.4f %.4f %.4f)",physicsState,collarGrowth,sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6],physValues[0],physValues[1],physValues[2],physValues[3],physValues[4],physValues[5],physValues[6],physValues[7],written[0],written[1],written[2]);
+  float written[3];memcpy(written,p,12);graftBuffer->Unlock();shapeDirty=false;if(report)Log("live controls, recruited pelvis collar, and dynamic tangent basis applied state=%d collar=%.3f shape=%.2f %.2f %.2f %.2f %.1f %.2f %.2f shaft=%.0f %.0f %.0f %.0f balls=%.0f %.0f %.0f %.0f first=(%.4f %.4f %.4f)",physicsState,PelvisCollarGrowth(),sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6],physValues[0],physValues[1],physValues[2],physValues[3],physValues[4],physValues[5],physValues[6],physValues[7],written[0],written[1],written[2]);
 }
 static bool KeyEdge(int vk){static bool old[256]{};bool now=(GetAsyncKeyState(vk)&0x8000)!=0;bool edge=now&&!old[vk];old[vk]=now;return edge;}
 struct OV {float x,y,z,rhw;D3DCOLOR color;};

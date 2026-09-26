@@ -1,4 +1,5 @@
 #pragma once
+#include <xmmintrin.h>
 #include "pouch_surface_data.h"
 static V3 cpSurfaceBefore[rsCount],cpSurfaceNext[rsCount],cpSurfaceDelta[rsCount],cpTemplate[rsCount];
 static V3 cpCenters[2],cpInverseBasis[2][3],cpWorldBasis[2][3],cpRenderRadii[2],cpSkinRadii[2];
@@ -6,10 +7,13 @@ static float cpSurfaceK=.55f;
 static V3 CPLocalPoint(V3 p,int s){V3 d=p-cpCenters[s];return cpInverseBasis[s][0]*d.x+cpInverseBasis[s][1]*d.y+cpInverseBasis[s][2]*d.z;}
 static V3 CPWorldPoint(V3 p,int s){return cpCenters[s]+cpWorldBasis[s][0]*p.x+cpWorldBasis[s][1]*p.y+cpWorldBasis[s][2]*p.z;}
 static float CPPouchLevel(V3 local,V3 r){V3 a=CPDiv(local,r);float t=1.f-.13f*max(-1.f,min(1.f,a.z));a.x/=t;a.y/=t;return Length(a)-1.f;}
-static float CPNormalizedRayLevel(V3 origin,V3 direction,float distance){
- float z=origin.z+direction.z*distance,t=1.f-.13f*max(-1.f,min(1.f,z));
- float x=(origin.x+direction.x*distance)/t,y=(origin.y+direction.y*distance)/t;
- return sqrtf(x*x+y*y+z*z)-1.f;
+static __m128 CPRayLevel4(const __m128* origin,const __m128* direction,__m128 distance){
+ const __m128 one=_mm_set1_ps(1.f);
+ __m128 z=_mm_add_ps(origin[2],_mm_mul_ps(direction[2],distance));
+ __m128 t=_mm_sub_ps(one,_mm_mul_ps(_mm_set1_ps(.13f),_mm_max_ps(_mm_set1_ps(-1.f),_mm_min_ps(one,z))));
+ __m128 x=_mm_div_ps(_mm_add_ps(origin[0],_mm_mul_ps(direction[0],distance)),t);
+ __m128 y=_mm_div_ps(_mm_add_ps(origin[1],_mm_mul_ps(direction[1],distance)),t);
+ return _mm_sub_ps(_mm_sqrt_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(x,x),_mm_mul_ps(y,y)),_mm_mul_ps(z,z))),one);
 }
 static float CPPouchField(V3 p){float a=CPPouchLevel(CPLocalPoint(p,0),cpSkinRadii[0]),b=CPPouchLevel(CPLocalPoint(p,1),cpSkinRadii[1]);float h=max(0.f,min(1.f,.5f+.5f*(b-a)/cpSurfaceK));return b*(1.f-h)+a*h-cpSurfaceK*h*(1.f-h);}
 static void CPKeepSkinOutside(){
@@ -35,19 +39,37 @@ static void ApplyPouchSurface(){
  V3 scale=CPDiv((cpRenderRadii[0]+cpRenderRadii[1])*.5f,{5.724f,4.86f,7.87f});
  float atCenter=max(CPPouchLevel(CPLocalPoint(center,0),cpSkinRadii[0]),CPPouchLevel(CPLocalPoint(center,1),cpSkinRadii[1]));cpSurfaceK=max(.55f,4.f*max(0.f,atCenter)+.08f);
  float reach=30.f*max(scale.x,max(scale.y,scale.z));
- for(unsigned k=0;k<cpActiveCount;k++){
-  unsigned id=cpActive[k];V3 d=CPMul({cpDirections[k*3],cpDirections[k*3+1],cpDirections[k*3+2]},scale);d=Unit(pair[0]*d.x+pair[1]*d.y+pair[2]*d.z);
-  V3 origins[2],directions[2];
-  for(int s=0;s<2;s++){
-   origins[s]=CPDiv(CPLocalPoint(center,s),cpSkinRadii[s]);
-   directions[s]=CPDiv(cpInverseBasis[s][0]*d.x+cpInverseBasis[s][1]*d.y+cpInverseBasis[s][2]*d.z,cpSkinRadii[s]);
+ // Four independent material rays share the same field and bisection depth.
+ // This is full-precision SIMD, with the original arithmetic and branching;
+ // no approximate reciprocal, relaxed accuracy or skipped ray samples.
+ __m128 origins[2][3];
+ for(int s=0;s<2;s++){V3 p=CPDiv(CPLocalPoint(center,s),cpSkinRadii[s]);origins[s][0]=_mm_set1_ps(p.x);origins[s][1]=_mm_set1_ps(p.y);origins[s][2]=_mm_set1_ps(p.z);}
+ const __m128 zero=_mm_setzero_ps(),one=_mm_set1_ps(1.f),half=_mm_set1_ps(.5f),fieldK=_mm_set1_ps(cpSurfaceK);
+ for(unsigned k=0;k<cpActiveCount;k+=4){
+  V3 d[4],local[2][4];
+  for(unsigned lane=0;lane<4;lane++){
+   unsigned q=min(k+lane,cpActiveCount-1);V3 v=CPMul({cpDirections[q*3],cpDirections[q*3+1],cpDirections[q*3+2]},scale);
+   d[lane]=Unit(pair[0]*v.x+pair[1]*v.y+pair[2]*v.z);
+   for(int s=0;s<2;s++)local[s][lane]=CPDiv(cpInverseBasis[s][0]*d[lane].x+cpInverseBasis[s][1]*d[lane].y+cpInverseBasis[s][2]*d[lane].z,cpSkinRadii[s]);
   }
-  float lo=0.f,hi=reach;for(int j=0;j<18;j++){
-   float mid=(lo+hi)*.5f,a=CPNormalizedRayLevel(origins[0],directions[0],mid),b=CPNormalizedRayLevel(origins[1],directions[1],mid);
-   float h=max(0.f,min(1.f,.5f+.5f*(b-a)/cpSurfaceK));
-   if(b*(1.f-h)+a*h-cpSurfaceK*h*(1.f-h)<0.f)lo=mid;else hi=mid;
+  __m128 directions[2][3];for(int s=0;s<2;s++){
+   directions[s][0]=_mm_set_ps(local[s][3].x,local[s][2].x,local[s][1].x,local[s][0].x);
+   directions[s][1]=_mm_set_ps(local[s][3].y,local[s][2].y,local[s][1].y,local[s][0].y);
+   directions[s][2]=_mm_set_ps(local[s][3].z,local[s][2].z,local[s][1].z,local[s][0].z);
   }
-  V3 target=center+d*((lo+hi)*.5f);rsPositions[id]=rsPositions[id]+(target-rsPositions[id])*cpWeights[k];
+  __m128 lo=zero,hi=_mm_set1_ps(reach);
+  for(int j=0;j<18;j++){
+   __m128 mid=_mm_mul_ps(_mm_add_ps(lo,hi),half),a=CPRayLevel4(origins[0],directions[0],mid),b=CPRayLevel4(origins[1],directions[1],mid);
+   __m128 h=_mm_max_ps(zero,_mm_min_ps(one,_mm_add_ps(half,_mm_div_ps(_mm_mul_ps(half,_mm_sub_ps(b,a)),fieldK))));
+   __m128 inv=_mm_sub_ps(one,h),field=_mm_sub_ps(_mm_add_ps(_mm_mul_ps(b,inv),_mm_mul_ps(a,h)),_mm_mul_ps(_mm_mul_ps(fieldK,h),inv));
+   __m128 inside=_mm_cmplt_ps(field,zero);
+   lo=_mm_or_ps(_mm_and_ps(inside,mid),_mm_andnot_ps(inside,lo));
+   hi=_mm_or_ps(_mm_and_ps(inside,hi),_mm_andnot_ps(inside,mid));
+  }
+  float distance[4];_mm_storeu_ps(distance,_mm_mul_ps(_mm_add_ps(lo,hi),half));
+  for(unsigned lane=0;lane<4&&k+lane<cpActiveCount;lane++){
+   unsigned q=k+lane,id=cpActive[q];V3 target=center+d[lane]*distance[lane];rsPositions[id]=rsPositions[id]+(target-rsPositions[id])*cpWeights[q];
+  }
  }
  V3 anchor=(BallAnchor(0)+BallAnchor(1))*.5f;
  V3 lateral=Unit(span),up=Unit(anchor-center-lateral*Dot(anchor-center,lateral)),forward=Unit(Cross(lateral,up));
@@ -61,10 +83,27 @@ static void ApplyPouchSurface(){
   unsigned id=cpNeckIDs[k];V3 target=cpTemplate[id];for(unsigned j=cpNeckRows[k];j<cpNeckRows[k+1];j++){const V3& v=cpSurfaceDelta[cpNeckSources[j]];float w=cpNeckWeights[j];target.x+=v.x*w;target.y+=v.y*w;target.z+=v.z*w;}
   rsPositions[id]=rsPositions[id]+(target-rsPositions[id])*cpNeckBlend[k];
  }
+ // Fixed topology is prepared once; SIMD evaluates XYZ together without
+ // changing neighbor order, pass count or the interleaved contact projection.
+ // Keep the public V3 layout intact (GPU buffers and replay captures use it).
+ static __m128 positions[rsCount],next[cpFairCount],counts[cpFairCount],amounts[cpFairCount];
+ static bool fairReady=false;
+ if(!fairReady){for(unsigned k=0;k<cpFairCount;k++){
+   unsigned id=cpFair[k];counts[k]=_mm_set1_ps(float(cpRows[id+1]-cpRows[id]));amounts[k]=_mm_set1_ps(.4f*cpFairWeight[k]);
+ }fairReady=true;}
+ for(unsigned i=0;i<rsCount;i++){const V3& p=rsPositions[i];positions[i]=_mm_set_ps(0.f,p.z,p.y,p.x);}
  for(int pass=0;pass<60;pass++){
-  for(unsigned k=0;k<cpFairCount;k++){unsigned id=cpFair[k];V3 mean{};unsigned first=cpRows[id],last=cpRows[id+1];for(unsigned j=first;j<last;j++){const V3& v=rsPositions[cpNeighbors[j]];mean.x+=v.x;mean.y+=v.y;mean.z+=v.z;}cpSurfaceNext[id]=rsPositions[id]+(mean/float(last-first)-rsPositions[id])*(.4f*cpFairWeight[k]);}
-  for(unsigned k=0;k<cpFairCount;k++)rsPositions[cpFair[k]]=cpSurfaceNext[cpFair[k]];
-  if(pass%5==4)CPKeepSkinOutside();
+  for(unsigned k=0;k<cpFairCount;k++){
+   unsigned id=cpFair[k];__m128 mean=_mm_setzero_ps();
+   for(unsigned j=cpRows[id];j<cpRows[id+1];j++)mean=_mm_add_ps(mean,positions[cpNeighbors[j]]);
+   next[k]=_mm_add_ps(positions[id],_mm_mul_ps(_mm_sub_ps(_mm_div_ps(mean,counts[k]),positions[id]),amounts[k]));
+  }
+  for(unsigned k=0;k<cpFairCount;k++)positions[cpFair[k]]=next[k];
+  if(pass%5==4){
+   for(unsigned k=0;k<cpFairCount;k++){unsigned id=cpFair[k];float p[4];_mm_storeu_ps(p,positions[id]);rsPositions[id]={p[0],p[1],p[2]};}
+   CPKeepSkinOutside();
+   for(unsigned k=0;k<cpActiveCount;k++){unsigned id=cpActive[k];const V3& p=rsPositions[id];positions[id]=_mm_set_ps(0.f,p.z,p.y,p.x);}
+  }
  }
  // The collider and visible lower skin share the same pressure transform.
  CPKeepSkinOutside();

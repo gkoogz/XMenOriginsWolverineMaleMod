@@ -86,11 +86,17 @@ static void ApplyRoundedShape(unsigned char* body){
     float uv[2]{};for(int j=0;j<3;j++){uv[0]+=w[j]*r14UV[tri[j]*2];uv[1]+=w[j]*r14UV[tri[j]*2+1];}D3DXFloat32To16Array(reinterpret_cast<D3DXFLOAT16*>(dst+28),uv,2);
   }
   attributesReady=true;
+  // UV topology is immutable; only the geometric edges change with the pose.
+  // Decode the exact packed half floats once to retain the original tangent basis.
+  static float uvDifferences[cpNormalFaceCount][5];static bool uvReady=false;
+  if(!uvReady){for(unsigned k=0;k<cpNormalFaceCount*3;k+=3){
+    float uv[3][2];for(unsigned j=0;j<3;j++)D3DXFloat16To32Array(uv[j],reinterpret_cast<const D3DXFLOAT16*>(rsPacked+cpNormalFaces[k+j]*32+28),2);
+    float* d=uvDifferences[k/3];d[0]=uv[1][0]-uv[0][0];d[1]=uv[1][1]-uv[0][1];d[2]=uv[2][0]-uv[0][0];d[3]=uv[2][1]-uv[0][1];d[4]=d[0]*d[3]-d[1]*d[2];
+  }uvReady=true;}
   memset(rsNormals,0,sizeof(rsNormals));memset(rsTangents,0,sizeof(rsTangents));
   for(unsigned k=0;k<cpNormalFaceCount*3;k+=3){unsigned a=cpNormalFaces[k],b=cpNormalFaces[k+1],c=cpNormalFaces[k+2];V3 e=rsPositions[b]-rsPositions[a],g=rsPositions[c]-rsPositions[a],normal=Cross(g,e);
     rsNormals[a]=rsNormals[a]+normal;rsNormals[b]=rsNormals[b]+normal;rsNormals[c]=rsNormals[c]+normal;
-    float uv[3][2];unsigned ids[3]={a,b,c};for(int j=0;j<3;j++)D3DXFloat16To32Array(uv[j],reinterpret_cast<const D3DXFLOAT16*>(rsPacked+ids[j]*32+28),2);
-    float u1=uv[1][0]-uv[0][0],v1=uv[1][1]-uv[0][1],u2=uv[2][0]-uv[0][0],v2=uv[2][1]-uv[0][1],det=u1*v2-v1*u2;
+    const float* uv=uvDifferences[k/3];float u1=uv[0],v1=uv[1],u2=uv[2],v2=uv[3],det=uv[4];
     if(fabsf(det)>1e-10f){V3 t=(e*v2-g*v1)/det;rsTangents[a]=rsTangents[a]+t;rsTangents[b]=rsTangents[b]+t;rsTangents[c]=rsTangents[c]+t;}}
   memset(paBodyNormals,0,sizeof(paBodyNormals));memset(paBodyGroupNormals,0,sizeof(paBodyGroupNormals));
   for(unsigned k=0;k<paBodyFaceCount;k++){unsigned a=paBodyNormalFaces[k*3],b=paBodyNormalFaces[k*3+1],c=paBodyNormalFaces[k*3+2];V3 normal=Cross(paBodyBefore[c]-paBodyBefore[a],paBodyBefore[b]-paBodyBefore[a]);paBodyNormals[a]=paBodyNormals[a]+normal;paBodyNormals[b]=paBodyNormals[b]+normal;paBodyNormals[c]=paBodyNormals[c]+normal;}
