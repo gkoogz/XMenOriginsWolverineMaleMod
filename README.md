@@ -1,29 +1,25 @@
-# Wolverine Anatomy Tool 1.3
+# Wolverine Anatomy Tool 1.4
 
-Packages the currently installed runtime with prepared shape caching, baked geometry bindings, faster live surface evaluation, slightly relaxed lateral suspension, and a wider pelvic attachment at large dimensions.
+Release 1.4 packages the current installed build: the 20-second teaching tracer demonstration, enlarged blue fluid tracers, demonstration pulses, and relaxed lateral suspension. Runtime behavior is unchanged from the last installed update.
 
 ## Install or upgrade
 
-Close Wolverine, extract the entire archive, and run **Install.cmd** or **Upgrade-1.3.cmd**. Default game location: `C:/Games/X-Men Origins Wolverine`. For another location:
+Close Wolverine, extract the entire archive, and run **Install.cmd** or **Upgrade-1.4.cmd**. Default location: `C:/Games/X-Men Origins Wolverine`. For another location:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Install.ps1 -GamePath "D:\Games\Wolverine"
 ```
 
-The installer verifies supported original or Revision 161 Natural packages and original/patched WGame packages by SHA-256. Cooked assets are distributed as WBX1 deltas requiring local game files. Saved controls are preserved. All 22 audio clips and both skin textures are included. F6 opens the controls; F8 resets them.
+The installer verifies supported original or Revision 161 Natural packages and original/patched WGame packages by SHA-256. Cooked assets are WBX1 deltas requiring local game files. Saved controls are preserved. All 22 existing audio clips and both skin textures are included. F6 opens controls; F8 resets them. Period starts or cancels the teaching demonstration; see [teaching documentation](docs/TEACHING-FLUID-POC.md) for cancellation and configuration details.
 
-**Uninstall.cmd** or **Rollback-1.3.cmd** restores the previous files and preserves saved controls. Backups are retained separately in `WGame/ModBackups/WolverineAnatomyTool-v1.3.0` and never overwritten.
+**Uninstall.cmd** or **Rollback-1.4.cmd** restores previous files and preserves saved controls. Backups are retained in `WGame/ModBackups/WolverineAnatomyTool-v1.4.0` and never overwritten.
 
-## Changes since 1.2
+## Validation and limits
 
-Prepared rest geometry and shared refinement frames reduce repeated live work. Recorded performance comparisons measured approximately 30–36% lower whole-update CPU costs at 60 FPS input, with identical mesh/body/physics output in 1,920 matched frames for the optimization stage. Physics remains 240 Hz and surfaces update every presented frame. Details: docs/GEOMETRY-PASSES.md and tools/physics/README.md.
+Frame-rate, fluid lifetime/detachment, saved-control, cancellation, integrated mesh/physics, shader reflection, D3D state restoration and device-reset checks passed for this build. Installer/rollback fixture validation is provided in tools/Test-Release14.ps1.
 
-Lateral suspension compliance increases slightly. The pelvic attachment recruits more width and a little forward prominence at large diameters; baked proximal skin weights smooth its transition into shaft motion. Neutral and minimum captured meshes remain identical to the preceding installed build. Sampled local crossings were removed in large static/moving cases; the broad firm sample improved. Local-ramp timings were within observed variability and add no mesh density or live pass.
-
-## Known limits
-
-Neighboring skin folds and intersections remain in some poses. Replay timings are CPU measurements, not in-game FPS. Live gameplay quality/performance of the final build has not been independently verified. This release does not claim an all-pose collision-free surface.
+The teaching sequence is a visual prototype without medical calibration. Detached tracers remain in character component coordinates; demonstrate stationary. Reference-plane/lifetime cleanup is not terrain collision. No new ground splats or vocalizations are included. Existing folds/intersections remain in some poses. Offline replay/render checks do not establish live game FPS or all-chapter coverage. Final appearance remains pending user verification.
 
 ## Source and payload
 
-Source and build scripts are included. The exact installed runtime SHA-256 is `2B9341CF48EEC9F2AEDBC23F3F5E29249E46A83A614E1AEA812859A5E20C81FF`. Installation and upgrade/rollback fixtures: tools/Test-Release13.ps1. Generated bindings can be checked with tools/physics/bake_geometry_bindings.py --check and bake_pelvic_root.py --check.
+Source and build scripts are included. Runtime SHA-256: `09AA98C9293573398E0A44CCD2FAEB0A00FBD79520C40CF572361F4D6871D05F`.

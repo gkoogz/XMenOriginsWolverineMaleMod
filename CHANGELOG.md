@@ -1,3 +1,9 @@
+# Release 1.4.0 — 2026-09-26
+
+- Packages the existing installed teaching tracer demonstration and visibility update.
+- Includes the existing relaxed suspension adjustment.
+- Freezes the installed runtime; no further model or animation changes for this release.
+- Retains prototype limitations documented in README.md and docs/TEACHING-FLUID-POC.md.
 ## 1.3
 
 Packages the installed prepared-shape/geometry performance improvements, baked refinement and attachment bindings, slight lateral suspension relaxation, and large-diameter pelvic ramp correction. Retains 240 Hz physics and full-rate surfaces. Adds version-specific 1.3 installer/upgrade/rollback. Existing neighboring folds remain; recorded replay results do not establish live game FPS.

@@ -134,9 +134,10 @@ static void PDBend(int i,float compliance,V3& lambda,float dt){
 // transmits the equal reaction to that span; treating it as a moving wall
 // silently supplied energy whenever a large support pulled on the shaft.
 static V3 pdPreviousAnchor[2],pdPreviousMaterial[2];
+static V3 PDLateralSlack(int s){return {0,(s?1.f:-1.f)*.04f*CPRadii(s).y,0};}
 static V3 PDMaterialTarget(int s){
  V3 rc{},rt{},lc{},lt{};SampleRestShaftFrame(.12f,rc,rt);SampleShaftChain(.12f,lc,lt);
- return lc+RotateFromTo(constraintBallRest[s]-rc,rt,lt);
+ return lc+RotateFromTo(constraintBallRest[s]+PDLateralSlack(s)-rc,rt,lt);
 }
 static float PDSuspensionMassFiniteDifference(int s,V3 arm,V3 n,V3 gradient[shaftNodeCount],bool material=false){
  for(int i=0;i<shaftNodeCount;i++){shaftNodes[i]=pdPosition[i];gradient[i]={};}
@@ -166,7 +167,7 @@ static float PDSuspensionMass(int s,V3 arm,V3 n,V3 gradient[shaftNodeCount],bool
  float derivatives[4]={-.5f*d10,d00-.5f*d11,d01+.5f*d10,.5f*d11};
  V3 raw{};for(int i=0;i<4;i++)raw=raw+pdPosition[span-1+i]*derivatives[i];
  float length=Length(raw);V3 tangent=Unit(raw),rc{},rt{};SampleRestShaftFrame(.12f,rc,rt);rt=Unit(rt);
- V3 offset=(material?constraintBallRest[s]:RestBallAnchor(s))-rc,axis=Cross(rt,tangent);
+ V3 offset=(material?constraintBallRest[s]+PDLateralSlack(s):RestBallAnchor(s))-rc,axis=Cross(rt,tangent);
  float denominator=1.f+Dot(rt,tangent);
  if(length<1e-5f||denominator<.01f)return PDSuspensionMassFiniteDifference(s,arm,n,gradient,material);
  V3 rotationGradient{};float projection=Dot(axis,offset);
@@ -189,12 +190,13 @@ static void PDApplySuspension(int s,V3 arm,V3 n,const V3 gradient[shaftNodeCount
 static void PDSuspensionShear(int s,float lambda[2],float dt){
  int id=pdBody0+s;V3 target=PDMaterialTarget(s),axis=Unit(target-BallAnchor(s));
  V3 directions[2]={Unit(Cross({0,1,0},axis)),{}};directions[1]=Cross(axis,directions[0]);
- // Slightly softer transverse tissue lets the contacting lobes settle apart.
- float compliance=.000022f*expf((.5f-physUI[4]/100.f)*3.f);
+ // Let contacting lobes settle laterally without fighting a tight rest frame.
+ // Slightly stronger shear damping settles the added lateral freedom.
+ float compliance=.000026f*expf((.5f-physUI[4]/100.f)*3.f);
  for(int k=0;k<2;k++){
   V3 arm=cpBasis[s][2]*(CPRadii(s).z*.23f),n=directions[k],gradient[shaftNodeCount];target=PDMaterialTarget(s);
   float value=Dot(pdPosition[id]+arm-target,n),w=PDSuspensionMass(s,arm,n,gradient,true),alpha=compliance/(dt*dt);
-  float gamma=1.4f*sqrtf(compliance/max(w,1e-8f))/dt;
+  float gamma=2.0f*sqrtf(compliance/max(w,1e-8f))/dt;
   float rate=Dot(pdPosition[id]+arm-PDPreviousPoint(id,arm)-(target-pdPreviousMaterial[s]),n);
   float dl=(-value-alpha*lambda[k]-gamma*rate)/((1+gamma)*w+alpha);lambda[k]+=dl;
   PDApplySuspension(s,arm,n,gradient,dl);

@@ -93,6 +93,11 @@ static float Dot(V3 a,V3 b){return a.x*b.x+a.y*b.y+a.z*b.z;}
 static V3 Cross(V3 a,V3 b){return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
 static float Length(V3 a){return sqrtf(Dot(a,a));}
 static V3 Unit(V3 a){float n=Length(a);return n>1e-6f?a/n:V3{1,0,0};}
+#include "teaching_sequence.h"
+static teaching::Timeline teachingTimeline;
+static teaching::Fluid teachingFluid;
+static DWORD teachingLastTick;
+static int teachingKey=VK_OEM_PERIOD;
 #include "surface_limit.h"
 #include "geometry_pass.h"
 static float Smooth01(float value);
@@ -128,7 +133,7 @@ static bool eggRestReady=false;
 static DWORD physicsLastTick;
 static float physicsPhase;
 static const float* overallWidthTargets[3][3]={{morph_ow_lo_lo,morph_ow_lo_def,morph_ow_lo_hi},{morph_ow_def_lo,morph_ow_def_def,morph_ow_def_hi},{morph_ow_hi_lo,morph_ow_hi_def,morph_ow_hi_hi}};
-struct ShaderLayout {IDirect3DVertexShader9* shader;UINT boneRegister,boneCount,localRegister,localCount;D3DXPARAMETER_CLASS localClass;bool valid;};
+struct ShaderLayout {IDirect3DVertexShader9* shader;UINT boneRegister,boneCount,localRegister,localCount,viewRegister;bool viewValid;D3DXPARAMETER_CLASS localClass;bool valid;};
 static ShaderLayout shaderLayouts[16]{};static UINT shaderLayoutCount;
 static bool motionTracked,motionBasisReady;static float motionPitchForce,motionYawForce,motionSpinSpeed,motionPrevPosition[3],motionPrevVelocity[3],motionFilteredAccel[3],motionPrevBasis[9],motionPrevAngularVelocity[3];static DWORD motionLastTick,motionLastCaptureTick;static LONG motionSamples;static int motionWarmupSamples,motionQuietFrames;
 static LONG renderFrameSerial=-1,motionCaptureSerial=-2;
@@ -158,6 +163,8 @@ static ShaderLayout* GetShaderLayout(IDirect3DDevice9* d){
   UINT bytes=0;if(FAILED(shader->GetFunction(nullptr,&bytes))||!bytes)return &layout;std::vector<DWORD> code((bytes+3)/4);if(FAILED(shader->GetFunction(code.data(),&bytes)))return &layout;
   ID3DXConstantTable* table=nullptr;if(FAILED(D3DXGetShaderConstantTable(code.data(),&table))||!table)return &layout;D3DXHANDLE bh=table->GetConstantByName(nullptr,"BoneMatrices"),lh=table->GetConstantByName(nullptr,"LocalToWorld");D3DXCONSTANT_DESC bd{},ld{};UINT one=1;
   if(bh&&SUCCEEDED(table->GetConstantDesc(bh,&bd,&one))){one=1;if(lh&&SUCCEEDED(table->GetConstantDesc(lh,&ld,&one))){layout.boneRegister=bd.RegisterIndex;layout.boneCount=bd.RegisterCount;layout.localRegister=ld.RegisterIndex;layout.localCount=ld.RegisterCount;layout.localClass=ld.Class;layout.valid=bd.RegisterCount>=3&&ld.RegisterCount>=4;}}
+  D3DXHANDLE vh=table->GetConstantByName(nullptr,"ViewProjectionMatrix");D3DXCONSTANT_DESC vd{};one=1;
+  if(vh&&SUCCEEDED(table->GetConstantDesc(vh,&vd,&one))&&vd.RegisterCount==4){layout.viewRegister=vd.RegisterIndex;layout.viewValid=true;}
   table->Release();Log("Wolverine shader layout bone=c%u count=%u local=c%u count=%u class=%u valid=%d",layout.boneRegister,layout.boneCount,layout.localRegister,layout.localCount,layout.localClass,layout.valid?1:0);return &layout;
 }
 static void Normalize3(float* v){float n=sqrtf(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);if(n>1e-6f){v[0]/=n;v[1]/=n;v[2]/=n;}}
@@ -237,7 +244,8 @@ static void StepRootSuspension(float dt,float gait,float side){
   float error=rootDriveAngle-sliderValues[4],term=(rootDriveVelocity+rootDriveOmega*error)*dt,decay=expf(-rootDriveOmega*dt);
   rootDriveAngle=sliderValues[4]+(error+term)*decay;
   rootDriveVelocity=(rootDriveVelocity-rootDriveOmega*term)*decay;
-  shaftMode+=(physicsState-shaftMode)*(1.f-expf(-2.f*dt));
+  float modeTarget=physicsState*(1.f-teachingTimeline.Get().firm);
+  shaftMode+=(modeTarget-shaftMode)*(1.f-expf(-2.f*dt));
   float mass=(1.f+physValues[1]*.016f)*max(.65f,sqrtf(constraintRestLength/24.f));
   float k=ModeValue(38.f,22.f,10.f),damping=2.f*sqrtf(k*mass)*ModeValue(.60f,.72f,.86f);
   float droop=ModeValue(.015f,.11f,.28f),drive=ModeValue(7.f,9.f,12.f);
@@ -533,17 +541,21 @@ static void ApplyControlMapping(){
   float upperFade=1.f-Smoother01((sliderUI[4]-65.f)/20.f);
   float angleReach=min(twitch[mode],max(0.f,sliderUI[4]-1.f));
   float angleOffset=-angleReach*throbTwitchPulse*upperFade;
+  float combinedSizePulse=throbSizePulse+throbAngleSizePulse;
+  const auto demo=teachingTimeline.Get();
+  angleOffset=angleOffset*(1.f-demo.blend)-min(8.f,max(0.f,sliderUI[4]-1.f))*demo.pulse*demo.blend*upperFade;
+  // Evaluate the fold guard against the actual demonstration angle as well.
   float sizePoseFactor=Smoother01((sliderUI[4]-5.f)/14.f)*upperFade
     *Smoother01((sliderUI[4]+angleOffset-1.f)/9.f);
-  float combinedSizePulse=throbSizePulse+throbAngleSizePulse;
   for(int i=0;i<7;i++){
     float offset=(i>=1&&i<=3)?size[mode]*combinedSizePulse*sizePoseFactor:i==4?angleOffset:0.f;
+    if(i>=1&&i<=3)offset=offset*(1.f-demo.blend)+(i==3?0.f:(i==2?8.f:4.f)*demo.pulse*demo.blend*sizePoseFactor);
     // Size pulses may briefly exceed the user slider's 100-point endpoint.
     // The stored sliderUI remains in its ordinary range.
     effectiveShapeUI[i]=max(i==1?0.f:1.f,sliderUI[i]+offset);
     sliderValues[i]=i==1?MapLength100(effectiveShapeUI[i]):MapControl100(effectiveShapeUI[i],coherentShapeLow[i],neutralShape[i],sliderSpecs[i].hi);
   }
-  effectiveGlansUI=max(0.f,min(100.f,glansUI+size[mode]*combinedSizePulse*sizePoseFactor));
+  effectiveGlansUI=max(0.f,min(100.f,glansUI+(size[mode]*combinedSizePulse*(1.f-demo.blend)+4.f*demo.pulse*demo.blend)*sizePoseFactor));
   for(int i=0;i<8;i++)physValues[i]=MapControl100(physUI[i],physSpecs[i].lo,neutralPhysics[i],physSpecs[i].hi);
 }
 static void LoadSettings(){
@@ -566,6 +578,8 @@ static void LoadSettings(){
     else glansUI=75.f+.25f*storedGlans;
     if(version<5){glansUI=GlansControlV5(glansUI);settingsPending=true;settingsChangedTick=GetTickCount();}
   }
+  teachingKey=GetPrivateProfileIntA("Teaching Sequence","TriggerKey",VK_OEM_PERIOD,path);
+  if(teachingKey<8||teachingKey>254||teachingKey==VK_F6||teachingKey==VK_F8||teachingKey==VK_F9||teachingKey==VK_SHIFT)teachingKey=VK_OEM_PERIOD;
   int savedThrob=GetPrivateProfileIntA("Animation","Throb",0,path);throbMode=max(0,min(3,savedThrob));ResetThrobClock();
   idleChatterEnabled=GetPrivateProfileIntA("Animation","Idle Chatter",0,path)!=0;
   ApplyControlMapping();float state=(float)physicsState;if(ReadIniFloat(path,"Physics","State",0,2,state))physicsState=(int)(state+.5f);
@@ -1528,6 +1542,7 @@ static float SampleOverallWidthVertex(UINT q,float overall,float width){
 #include "lighting_direction_fix.h"
 #include "continuous_raphe.h"
 #include "r14_runtime.h"
+#include "teaching_fluid_render.h"
 #include "hourglass_neck.h"
 #include "pelvic_tube_node.h"
 #include "pelvic_attachment.h"
@@ -1652,8 +1667,9 @@ static void Text(IDirect3DDevice9* d,const char* text,RECT r,D3DCOLOR c,DWORD fl
   }}
   if(v.empty())return;d->SetTexture(0,nullptr);d->SetVertexShader(nullptr);d->SetPixelShader(nullptr);d->SetFVF(D3DFVF_XYZRHW|D3DFVF_DIFFUSE);d->SetTextureStageState(0,D3DTSS_COLOROP,D3DTOP_SELECTARG1);d->SetTextureStageState(0,D3DTSS_COLORARG1,D3DTA_DIFFUSE);d->SetTextureStageState(0,D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);d->SetTextureStageState(0,D3DTSS_ALPHAARG1,D3DTA_DIFFUSE);d->SetRenderState(D3DRS_ZENABLE,FALSE);d->SetRenderState(D3DRS_ZWRITEENABLE,FALSE);d->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);d->SetRenderState(D3DRS_ALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_COLORWRITEENABLE,0xF);HRESULT hr=d->DrawPrimitiveUP(D3DPT_TRIANGLELIST,(UINT)v.size()/3,v.data(),sizeof(OV));if(InterlockedCompareExchange(&overlayLogged,1,0)==0)Log("HUD bitmap text DrawPrimitiveUP=%08X vertices=%u",hr,(unsigned)v.size());
 }
-static void ResetStudyControls(){hangUI=glansUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;throbMode=0;idleChatterEnabled=false;ResetThrobClock();ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
+static void ResetStudyControls(){CancelTeaching();hangUI=glansUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;throbMode=0;idleChatterEnabled=false;ResetThrobClock();ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
 static void AdjustStudyControl(int index,int dir,float mult){
+  CancelTeaching();
   if(index==0){physicsState=(physicsState+dir+3)%3;shapeDirty=true;return;}
   if(index==1){throbMode=(throbMode+dir+4)%4;ResetThrobClock();ApplyControlMapping();shapeDirty=true;return;}
   if(index==2){idleChatterEnabled=!idleChatterEnabled;shapeDirty=true;return;}
@@ -1667,6 +1683,7 @@ static void AdjustStudyControl(int index,int dir,float mult){
 static void OverlayFrame(IDirect3DDevice9* d){
   if(inOverlay)return;inOverlay=true;
   InterlockedIncrement(&renderFrameSerial);
+  TeachingInput(d);
   if(KeyEdge(VK_F6))menuOpen=!menuOpen;
   CaptureFinish(d);CapturePoll();
   if(KeyEdge(VK_F9)){captureComplete=false;lightingDirectionsEnabled=!lightingDirectionsEnabled;Log("R28 layered physics lighting F9: %s",lightingDirectionsEnabled?"ON":"ORIGINAL");}
@@ -1682,7 +1699,7 @@ static void OverlayFrame(IDirect3DDevice9* d){
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdateThrob();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
   IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=20;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,"R36 HOURGLASS BLEND  F6 SHOW/HIDE",title,D3DCOLOR_ARGB(255,255,255,255));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,"ANATOMY 1.3 + TEACHING FLUID POC",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       int control=i-3;
@@ -1696,7 +1713,11 @@ static void OverlayFrame(IDirect3DDevice9* d){
       RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(i<3){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=max(0.f,min(1.f,(value-lo)/(hi-lo)));Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
     }
     DWORD transformAge=motionLastCaptureTick?GetTickCount()-motionLastCaptureTick:0xFFFFFFFFu;bool transformLive=motionCollisionBonesReady&&transformAge<=1200u;
-    D3DCOLOR statusColor=transformLive?D3DCOLOR_ARGB(255,92,230,130):graftBuffer?D3DCOLOR_ARGB(255,80,190,235):D3DCOLOR_ARGB(255,255,190,70);const char* statusText=transformLive?"STATUS: CHARACTER TRANSFORM LIVE":graftBuffer?"STATUS: TRANSFORM UNAVAILABLE":"STATUS: WAITING FOR WOLVERINE";RECT status{(LONG)x+10,(LONG)statusY,(LONG)(x+w-10),(LONG)statusY+20};Text(d,statusText,status,statusColor);RECT help1{(LONG)x+10,(LONG)statusY+22,(LONG)(x+w-10),(LONG)statusY+41};Text(d,"UP/DOWN SELECT  LEFT/RIGHT ADJUST",help1,D3DCOLOR_ARGB(255,185,185,190));RECT help2{(LONG)x+10,(LONG)statusY+42,(LONG)(x+w-10),(LONG)statusY+63};Text(d,"SHIFT COARSE  F8 RESET  F6 SHOW/HIDE",help2,D3DCOLOR_ARGB(255,185,185,190));
+    D3DCOLOR statusColor=transformLive?D3DCOLOR_ARGB(255,92,230,130):graftBuffer?D3DCOLOR_ARGB(255,80,190,235):D3DCOLOR_ARGB(255,255,190,70);const char* statusText=transformLive?"STATUS: CHARACTER TRANSFORM LIVE":graftBuffer?"STATUS: TRANSFORM UNAVAILABLE":"STATUS: WAITING FOR WOLVERINE";RECT status{(LONG)x+10,(LONG)statusY,(LONG)(x+w-10),(LONG)statusY+20};Text(d,statusText,status,statusColor);RECT help1{(LONG)x+10,(LONG)statusY+22,(LONG)(x+w-10),(LONG)statusY+41};Text(d,"UP/DOWN SELECT  LEFT/RIGHT ADJUST",help1,D3DCOLOR_ARGB(255,185,185,190));RECT help2{(LONG)x+10,(LONG)statusY+42,(LONG)(x+w-10),(LONG)statusY+63};char sequenceHelp[96];
+    if(teachingTimeline.active)sprintf_s(sequenceHelp,"DEMO %.1F/20S  PRESS KEY TO CANCEL",(float)teachingTimeline.time);
+    else if(teachingKey==VK_OEM_PERIOD)sprintf_s(sequenceHelp,". DEMO  F8 RESET  F6 SHOW/HIDE");
+    else sprintf_s(sequenceHelp,"KEY %d DEMO  F8 RESET  F6 HIDE",teachingKey);
+    Text(d,sequenceHelp,help2,D3DCOLOR_ARGB(255,185,185,190));
   }
   if(state){state->Apply();state->Release();}inOverlay=false;
 }
@@ -1711,7 +1732,7 @@ static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const R
   if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}frameRendered=false;d->Release();}
   return origSwapPresent(sc,src,dst,wnd,dirty,flags);
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){ReleaseTeaching();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
 
 static void Log(const char* fmt, ...) {
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);
@@ -1936,7 +1957,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
     if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST)CaptureNecklaceBodyPose(dev,start,count);
     if(vb==graftBuffer && type==D3DPT_TRIANGLELIST && start==graftTriangleIndexStart && count==graftTriangleIndexCount/3u && EnsureR14(dev)){
       HRESULT replacement=DrawR14(dev,vb,offset,stride);
-      if(SUCCEEDED(replacement)){vb->Release();return replacement;}
+      if(SUCCEEDED(replacement)){if(IsFullResolutionScenePass(dev))DrawTeachingFluid(dev);vb->Release();return replacement;}
     }
     if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST&&start==81126u&&count==1440u){
       float original[48]{};UINT boneRegister=0;
