@@ -24,3 +24,12 @@ candidate, compares every frame's mesh/body/physics hashes in eight scenarios,
 and records CPU timings. `--case N --skip-build` reruns one scenario after a
 completed build. See `docs/PREPARED-SHAPE-PERFORMANCE.md` for cache ownership and
 the distinction between replay CPU timing and gameplay FPS.
+
+
+The compressed geometry update adds `build-geometry-regression.cmd` and
+`geometry-regression.exe` for randomized scalar equivalence of prepared triangle
+limits, rotations and four-vertex contact projection. Run
+`python bake_geometry_bindings.py --check` to verify the generated refinement
+frames and affected-face lists; regenerate after changing source mesh bindings.
+See `docs/GEOMETRY-PASSES.md`. Use `--reference 97a1a37` for comparisons against
+the preceding full-rate prepared-shape runtime.

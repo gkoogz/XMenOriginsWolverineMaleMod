@@ -1,0 +1,50 @@
+{
+  "0": {
+    "median_cpu_ms": {
+      "before": 24.6484,
+      "after": 25.329900000000002
+    },
+    "change_percent": 2.7648853475276347,
+    "identical_mesh_frames": 150
+  },
+  "1": {
+    "median_cpu_ms": {
+      "before": 25.7429,
+      "after": 25.3348
+    },
+    "change_percent": -1.5852914784270533,
+    "identical_mesh_frames": 0
+  },
+  "2": {
+    "median_cpu_ms": {
+      "before": 25.60615,
+      "after": 26.175600000000003
+    },
+    "change_percent": 2.2238798101237522,
+    "identical_mesh_frames": 150
+  },
+  "3": {
+    "median_cpu_ms": {
+      "before": 26.20025,
+      "after": 26.23725
+    },
+    "change_percent": 0.14122002652645627,
+    "identical_mesh_frames": 150
+  },
+  "4": {
+    "median_cpu_ms": {
+      "before": 32.19605,
+      "after": 32.56185000000001
+    },
+    "change_percent": 1.1361642189026577,
+    "identical_mesh_frames": 0
+  },
+  "7": {
+    "median_cpu_ms": {
+      "before": 48.80435,
+      "after": 47.9009
+    },
+    "change_percent": -1.8511669554045929,
+    "identical_mesh_frames": 7
+  }
+}

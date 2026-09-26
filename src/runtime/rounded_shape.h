@@ -1,4 +1,5 @@
 #pragma once
+#include "geometry_binding_data.h"
 // The existing cage and solver remain authoritative. This layer transports
 // the authored surface in local triangle frames after the existing solve.
 static V3 rsBefore[r14Count],rsStep[r14Count],rsPositions[rsCount],rsNormals[rsCount],rsTangents[rsCount];
@@ -14,6 +15,17 @@ static V3 RSFrameOffset(const V3* points,const unsigned* tri,const float* coeff)
   float length=Length(normal);if(length<1e-10f)return {};
   return a*coeff[0]+b*coeff[1]+normal*(coeff[2]/sqrtf(length));
 }
+struct RSPreparedFrame {
+  V3 a,b,normal;float length,rootLength;
+  void Prepare(const V3* points,const unsigned short* tri){
+    a=points[tri[1]]-points[tri[0]];b=points[tri[2]]-points[tri[0]];normal=Cross(a,b);
+    length=Length(normal);rootLength=sqrtf(length);
+  }
+  V3 Offset(const float* coeff) const {
+    if(length<1e-10f)return {};
+    return a*coeff[0]+b*coeff[1]+normal*(coeff[2]/rootLength);
+  }
+};
 #include "pouch_surface.h"
 static void ApplyRoundedShape(unsigned char* body){
   memcpy(rsBefore,r14Positions,sizeof(rsBefore));memset(rsStep,0,sizeof(rsStep));memset(rsBodyStep,0,sizeof(rsBodyStep));
@@ -25,7 +37,7 @@ static void ApplyRoundedShape(unsigned char* body){
   if(physicsState!=2){
     static V3 contour[r14Count];memset(contour,0,sizeof(contour));
     for(unsigned k=0;k<rapheSupportCoreCount;k++){
-      unsigned i=rapheSupportCore[k];float t=ClosestRestShaftFlex(AxialMaterialRest(i)),blend=1.f-Smoother01((t-.42f)/.12f);if(blend<=0)continue;
+      unsigned i=rapheSupportCore[k];float t=AxialMaterialFlex(i),blend=1.f-Smoother01((t-.42f)/.12f);if(blend<=0)continue;
       V3 center{},tangent{};SampleShaftChain(t,center,tangent);V3 ventral=Unit(Cross(Unit(V3{0,1,0}-tangent*tangent.y),tangent));
       float depth=Dot(rsBefore[i]+rsStep[i]-center,ventral);contour[i]=ventral*(max(0.f,axialCoreRadius-depth)*blend);
     }
@@ -34,19 +46,21 @@ static void ApplyRoundedShape(unsigned char* body){
   }
   for(unsigned k=0;k<paBodyNormalCount;k++)memcpy(&paBodyBefore[k],body+paBodyNormalIDs[k]*32,12);
   float scale=max(.10f,min(2.f,logicalShaftBodyRadius/5.161067f));
+  static unsigned bodyBinding[rsBodyCount];static bool bindingsReady=false;
+  if(!bindingsReady){for(unsigned k=0;k<rsBodyCount;k++)bodyBinding[k]=unsigned(std::lower_bound(paBodyNormalIDs,paBodyNormalIDs+paBodyNormalCount,rsBodyIDs[k])-paBodyNormalIDs);bindingsReady=true;}
   for(unsigned k=0;k<rsBodyCount;k++){
-    unsigned j=unsigned(std::lower_bound(paBodyNormalIDs,paBodyNormalIDs+paBodyNormalCount,rsBodyIDs[k])-paBodyNormalIDs);
+    unsigned j=bodyBinding[k];
     rsBodyStep[j]=PARead(rsBodyDelta,k)*(scale*attachment);
   }
   for(unsigned k=0;k<paSeamCount;k++)rsStep[paSeamR14[k]]=rsBodyStep[paSeamBody[k]];
   // Restrict only locally strained triangles; a short crease edge must not
   // cancel the complete rounded-lobe field.
-  for(int pass=0;pass<8;pass++){bool changed=false;for(unsigned k=0;k<r14IndexCount;k+=3){unsigned a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
+  for(int pass=0;pass<8;pass++){bool changed=false;for(unsigned k:geometryRoundedFaces){unsigned a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
     float local=RSSafeFraction(rsBefore[a],rsBefore[b],rsBefore[c],rsStep[a],rsStep[b],rsStep[c],.025f);
     if(local<.9999f){rsStep[a]=rsStep[a]*local;rsStep[b]=rsStep[b]*local;rsStep[c]=rsStep[c]*local;changed=true;}}if(!changed)break;}
   for(unsigned k=0;k<paSeamCount;k++)rsStep[paSeamR14[k]]=rsBodyStep[paSeamBody[k]];
   float fraction=1.f;
-  for(unsigned k=0;k<r14IndexCount;k+=3){unsigned a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
+  for(unsigned k:geometryRoundedFaces){unsigned a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
     fraction=min(fraction,RSSafeFraction(rsBefore[a],rsBefore[b],rsBefore[c],rsStep[a],rsStep[b],rsStep[c],.01f));}
   for(unsigned k=0;k<paBodyFaceCount;k++){unsigned a=paBodyNormalFaces[3*k],b=paBodyNormalFaces[3*k+1],c=paBodyNormalFaces[3*k+2];
     fraction=min(fraction,RSSafeFraction(paBodyBefore[a],paBodyBefore[b],paBodyBefore[c],rsBodyStep[a],rsBodyStep[b],rsBodyStep[c],.01f));}
@@ -55,19 +69,21 @@ static void ApplyRoundedShape(unsigned char* body){
   for(unsigned k=0;k<paBodyNormalCount;k++){paBodyBefore[k]=paBodyBefore[k]+rsBodyStep[k]*fraction;memcpy(body+paBodyNormalIDs[k]*32,&paBodyBefore[k],12);}
   // Adaptive refinement is confined to the edited patch, retaining INDEX16.
   static V3 fineBase[rsFineCount],fineStep[rsFineCount];
+  static RSPreparedFrame fineFrames[geometryFineFrameCount];
+  for(unsigned k=0;k<geometryFineFrameCount;k++)fineFrames[k].Prepare(r14Positions,geometryFineFrames+3*k);
   for(unsigned k=0;k<rsFineCount;k++){
     const unsigned* tri=rsFineSource+3*k;const float* w=rsFineBary+3*k;
     V3 base=r14Positions[tri[0]]*w[0]+r14Positions[tri[1]]*w[1]+r14Positions[tri[2]]*w[2];
     float fade=rsFineLobeFade[k]+(1.f-rsFineLobeFade[k])*attachment;
-    fineBase[k]=base;fineStep[k]=RSFrameOffset(r14Positions,tri,rsFineCoeff+3*k)*(fade*fraction);
+    fineBase[k]=base;fineStep[k]=fineFrames[geometryFineFrameIDs[k]].Offset(rsFineCoeff+3*k)*(fade*fraction);
     rsPositions[r14Count+k]=base;
   }
-  for(int pass=0;pass<6;pass++){bool changed=false;for(unsigned k=0;k<rsIndexCount;k+=3){unsigned a=rsIndices[k],b=rsIndices[k+1],c=rsIndices[k+2];
+  for(int pass=0;pass<6;pass++){bool changed=false;for(unsigned k:geometryFineFaces){unsigned a=rsIndices[k],b=rsIndices[k+1],c=rsIndices[k+2];
     V3 da=a<r14Count?V3{}:fineStep[a-r14Count],db=b<r14Count?V3{}:fineStep[b-r14Count],dc=c<r14Count?V3{}:fineStep[c-r14Count];
     float local=RSSafeFraction(rsPositions[a],rsPositions[b],rsPositions[c],da,db,dc,.02f);
     if(local<.9999f){if(a>=r14Count)fineStep[a-r14Count]=da*local;if(b>=r14Count)fineStep[b-r14Count]=db*local;if(c>=r14Count)fineStep[c-r14Count]=dc*local;changed=true;}}if(!changed)break;}
   float fineFraction=1.f;
-  for(unsigned k=0;k<rsIndexCount;k+=3){unsigned a=rsIndices[k],b=rsIndices[k+1],c=rsIndices[k+2];
+  for(unsigned k:geometryFineFaces){unsigned a=rsIndices[k],b=rsIndices[k+1],c=rsIndices[k+2];
     V3 da=a<r14Count?V3{}:fineStep[a-r14Count],db=b<r14Count?V3{}:fineStep[b-r14Count],dc=c<r14Count?V3{}:fineStep[c-r14Count];
     fineFraction=min(fineFraction,RSSafeFraction(rsPositions[a],rsPositions[b],rsPositions[c],da,db,dc,.01f));}
   rsFineFraction=fineFraction;

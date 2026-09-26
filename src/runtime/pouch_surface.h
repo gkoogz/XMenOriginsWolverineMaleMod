@@ -1,7 +1,7 @@
 #pragma once
 #include <xmmintrin.h>
 #include "pouch_surface_data.h"
-static V3 cpSurfaceBefore[rsCount],cpSurfaceNext[rsCount],cpSurfaceDelta[rsCount],cpTemplate[rsCount];
+static V3 cpSurfaceDelta[rsCount],cpTemplate[rsCount];
 static V3 cpCenters[2],cpInverseBasis[2][3],cpWorldBasis[2][3],cpRenderRadii[2],cpSkinRadii[2];
 static float cpSurfaceK=.55f;
 static V3 CPLocalPoint(V3 p,int s){V3 d=p-cpCenters[s];return cpInverseBasis[s][0]*d.x+cpInverseBasis[s][1]*d.y+cpInverseBasis[s][2]*d.z;}
@@ -16,19 +16,49 @@ static __m128 CPRayLevel4(const __m128* origin,const __m128* direction,__m128 di
  return _mm_sub_ps(_mm_sqrt_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(x,x),_mm_mul_ps(y,y)),_mm_mul_ps(z,z))),one);
 }
 static float CPPouchField(V3 p){float a=CPPouchLevel(CPLocalPoint(p,0),cpSkinRadii[0]),b=CPPouchLevel(CPLocalPoint(p,1),cpSkinRadii[1]);float h=max(0.f,min(1.f,.5f+.5f*(b-a)/cpSurfaceK));return b*(1.f-h)+a*h-cpSurfaceK*h*(1.f-h);}
+// Four independent skin vertices share each support's transform. Full
+// precision division/square root and all five projections are retained.
+struct CPPoints4 {__m128 x,y,z;};
+static __m128 CPSplat(float f){return _mm_set1_ps(f);}
+static __m128 CPSelect(__m128 mask,__m128 yes,__m128 no){return _mm_or_ps(_mm_and_ps(mask,yes),_mm_andnot_ps(mask,no));}
+static CPPoints4 CPBasis4(CPPoints4 p,const V3* basis){
+  return {
+    _mm_add_ps(_mm_add_ps(_mm_mul_ps(CPSplat(basis[0].x),p.x),_mm_mul_ps(CPSplat(basis[1].x),p.y)),_mm_mul_ps(CPSplat(basis[2].x),p.z)),
+    _mm_add_ps(_mm_add_ps(_mm_mul_ps(CPSplat(basis[0].y),p.x),_mm_mul_ps(CPSplat(basis[1].y),p.y)),_mm_mul_ps(CPSplat(basis[2].y),p.z)),
+    _mm_add_ps(_mm_add_ps(_mm_mul_ps(CPSplat(basis[0].z),p.x),_mm_mul_ps(CPSplat(basis[1].z),p.y)),_mm_mul_ps(CPSplat(basis[2].z),p.z))};
+}
+static __m128 CPLevel4(CPPoints4 p,V3 radii){
+  __m128 z=_mm_div_ps(p.z,CPSplat(radii.z));
+  __m128 taper=_mm_sub_ps(CPSplat(1.f),_mm_mul_ps(CPSplat(.13f),_mm_max_ps(CPSplat(-1.f),_mm_min_ps(CPSplat(1.f),z))));
+  __m128 x=_mm_div_ps(_mm_div_ps(p.x,CPSplat(radii.x)),taper),y=_mm_div_ps(_mm_div_ps(p.y,CPSplat(radii.y)),taper);
+  return _mm_sub_ps(_mm_sqrt_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(x,x),_mm_mul_ps(y,y)),_mm_mul_ps(z,z))),CPSplat(1.f));
+}
 static void CPKeepSkinOutside(){
- for(unsigned k=0;k<cpActiveCount;k++){
-  unsigned id=cpActive[k];V3 p=rsPositions[id];
-  for(int s=0;s<2;s++){
-   V3 local=CPLocalPoint(p,s);if(CPPouchLevel(local,cpRenderRadii[s])>=.018f)continue;
-   for(int j=0;j<5;j++)local=local*(1.020f/max(1e-7f,1.f+CPPouchLevel(local,cpRenderRadii[s])));
-   p=CPWorldPoint(local,s);
+ for(unsigned k=0;k<cpActiveCount;k+=4){
+  V3 p[4];for(unsigned lane=0;lane<4;lane++)p[lane]=rsPositions[cpActive[min(k+lane,cpActiveCount-1)]];
+  CPPoints4 points{_mm_set_ps(p[3].x,p[2].x,p[1].x,p[0].x),_mm_set_ps(p[3].y,p[2].y,p[1].y,p[0].y),_mm_set_ps(p[3].z,p[2].z,p[1].z,p[0].z)};
+  for(int side=0;side<2;side++){
+   V3 c=cpCenters[side];
+   CPPoints4 local=CPBasis4({_mm_sub_ps(points.x,CPSplat(c.x)),_mm_sub_ps(points.y,CPSplat(c.y)),_mm_sub_ps(points.z,CPSplat(c.z))},cpInverseBasis[side]);
+   __m128 inside=_mm_cmplt_ps(CPLevel4(local,cpRenderRadii[side]),CPSplat(.018f));
+   if(!_mm_movemask_ps(inside))continue;
+   for(int j=0;j<5;j++){
+    __m128 factor=_mm_div_ps(CPSplat(1.020f),_mm_max_ps(CPSplat(1e-7f),_mm_add_ps(CPSplat(1.f),CPLevel4(local,cpRenderRadii[side]))));
+    local={_mm_mul_ps(local.x,factor),_mm_mul_ps(local.y,factor),_mm_mul_ps(local.z,factor)};
+   }
+   // CPWorldPoint adds the center before the second/third basis vectors.
+   const V3* basis=cpWorldBasis[side];
+   __m128 x=_mm_add_ps(_mm_add_ps(_mm_add_ps(CPSplat(c.x),_mm_mul_ps(CPSplat(basis[0].x),local.x)),_mm_mul_ps(CPSplat(basis[1].x),local.y)),_mm_mul_ps(CPSplat(basis[2].x),local.z));
+   __m128 y=_mm_add_ps(_mm_add_ps(_mm_add_ps(CPSplat(c.y),_mm_mul_ps(CPSplat(basis[0].y),local.x)),_mm_mul_ps(CPSplat(basis[1].y),local.y)),_mm_mul_ps(CPSplat(basis[2].y),local.z));
+   __m128 z=_mm_add_ps(_mm_add_ps(_mm_add_ps(CPSplat(c.z),_mm_mul_ps(CPSplat(basis[0].z),local.x)),_mm_mul_ps(CPSplat(basis[1].z),local.y)),_mm_mul_ps(CPSplat(basis[2].z),local.z));
+   points={CPSelect(inside,x,points.x),CPSelect(inside,y,points.y),CPSelect(inside,z,points.z)};
   }
-  rsPositions[id]=p;
+  float x[4],y[4],z[4];_mm_storeu_ps(x,points.x);_mm_storeu_ps(y,points.y);_mm_storeu_ps(z,points.z);
+  for(unsigned lane=0;lane<4&&k+lane<cpActiveCount;lane++)rsPositions[cpActive[k+lane]]={x[lane],y[lane],z[lane]};
  }
 }
 static void ApplyPouchSurface(){
- if(!eggRestReady||!constraintSolverReady)return;CPEnsure();memcpy(cpSurfaceBefore,rsPositions,sizeof(cpSurfaceBefore));
+ if(!eggRestReady||!constraintSolverReady)return;CPEnsure();
  for(int s=0;s<2;s++){
   cpCenters[s]=CPCenter(s);cpRenderRadii[s]=CPRadii(s);V3 scale=CPDiv(cpRenderRadii[s],s?V3{5.724f,4.86f,7.81f}:V3{5.724f,4.86f,7.93f});
   cpSkinRadii[s]=cpRenderRadii[s]+CPMul({.80f,.95f,.65f},scale);
@@ -74,14 +104,25 @@ static void ApplyPouchSurface(){
  V3 anchor=(BallAnchor(0)+BallAnchor(1))*.5f;
  V3 lateral=Unit(span),up=Unit(anchor-center-lateral*Dot(anchor-center,lateral)),forward=Unit(Cross(lateral,up));
  float neckLength=max(.2f,Length(anchor-center)/19.11f);
- for(unsigned i=0;i<rsCount;i++){
-  V3 local{cpReference[3*i]-18.85f,cpReference[3*i+1],cpReference[3*i+2]-64.275f};
+ static std::vector<unsigned> templateIDs;static V3 templateLocal[rsCount];
+ if(templateIDs.empty()){
+  bool needed[rsCount]{};
+  for(unsigned k=0;k<cpNeckCount;k++)needed[cpNeckIDs[k]]=true;
+  for(unsigned j=0;j<cpNeckRows[cpNeckCount];j++)needed[cpNeckSources[j]]=true;
+  for(unsigned i=0;i<rsCount;i++)if(needed[i]){
+   templateIDs.push_back(i);templateLocal[i]={cpReference[3*i]-18.85f,cpReference[3*i+1],cpReference[3*i+2]-64.275f};
+  }
+ }
+ for(unsigned i:templateIDs){
+  V3 local=templateLocal[i];
   cpTemplate[i]=center+forward*(local.x*scale.x)+lateral*(local.y*scale.y)+up*(local.z*neckLength);
   cpSurfaceDelta[i]=rsPositions[i]-cpTemplate[i];
  }
  for(unsigned k=0;k<cpNeckCount;k++){
-  unsigned id=cpNeckIDs[k];V3 target=cpTemplate[id];for(unsigned j=cpNeckRows[k];j<cpNeckRows[k+1];j++){const V3& v=cpSurfaceDelta[cpNeckSources[j]];float w=cpNeckWeights[j];target.x+=v.x*w;target.y+=v.y*w;target.z+=v.z*w;}
-  rsPositions[id]=rsPositions[id]+(target-rsPositions[id])*cpNeckBlend[k];
+  unsigned id=cpNeckIDs[k];V3 t=cpTemplate[id];__m128 target=_mm_set_ps(0.f,t.z,t.y,t.x);
+  for(unsigned j=cpNeckRows[k];j<cpNeckRows[k+1];j++){const V3& v=cpSurfaceDelta[cpNeckSources[j]];target=_mm_add_ps(target,_mm_mul_ps(_mm_set_ps(0.f,v.z,v.y,v.x),_mm_set1_ps(cpNeckWeights[j])));}
+  float q[4];_mm_storeu_ps(q,target);V3 result{q[0],q[1],q[2]};
+  rsPositions[id]=rsPositions[id]+(result-rsPositions[id])*cpNeckBlend[k];
  }
  // Fixed topology is prepared once; SIMD evaluates XYZ together without
  // changing neighbor order, pass count or the interleaved contact projection.

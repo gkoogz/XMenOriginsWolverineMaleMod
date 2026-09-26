@@ -15,6 +15,9 @@
 #include <cmath>
 #include "morph_targets.h"
 #include "physics_weights.h"
+#include "pelvic_root_binding.h"
+static float preparedPelvicRootFollow[2388],preparedPelvicRampBlend=0.f;
+static float preparedPelvicSeamLift=.46f,preparedPelvicLateralGrowth=0.f;
 #include "graft_normals.h"
 #include "pelvis_control.h"
 #include "collar_fairing.h"
@@ -91,6 +94,7 @@ static V3 Cross(V3 a,V3 b){return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b
 static float Length(V3 a){return sqrtf(Dot(a,a));}
 static V3 Unit(V3 a){float n=Length(a);return n>1e-6f?a/n:V3{1,0,0};}
 #include "surface_limit.h"
+#include "geometry_pass.h"
 static float Smooth01(float value);
 static float Smoother01(float value);
 static float Smoother01(float value);
@@ -108,10 +112,12 @@ static V3 shaftRestCenters[shaftRestSampleCount];
 static float graftRestFlex[graftCount];
 static V3 logicalShaftRestRadial[graftCount];
 static float logicalShaftOwnership[graftCount];
+static V3 logicalShaftRestTangent[graftCount];
 static float logicalShaftBodyRadius;
 static bool shaftRestFrameReady;
 static bool restFrameUsesPreviousLength=false;
 static V3 firmLobeRestSkin[graftCount];
+static unsigned geometryRestRevision=0;
 static V3 graftDeformedPositions[graftCount],graftDynamicNormalSums[graftNormalGroupCount],graftDynamicTangentSums[graftCount];
 static V3 collarFairA[collarFairGroupCount],collarFairB[collarFairGroupCount];
 static V3 collarNormalSums[collarFairGroupCount],collarTangentSums[collarFairGroupCount];
@@ -586,10 +592,10 @@ static void ApplyPelvisCollar(float value[3],float distance,float growth,bool gr
   if(influence<=.0001f)return;
   // Raise the surrounding skin into an annular ramp. Both sides receive the
   // same seam lift; the welded fairing below solves their common tangent.
-  float seamLift=.46f+1.08f*growth;
+  float seamLift=preparedPelvicSeamLift;
   float radialScale=1.f+.14f*growth*influence;
   value[0]+=seamLift*influence;
-  value[1]*=radialScale;
+  value[1]*=1.f+preparedPelvicLateralGrowth*influence;
   value[2]=84.3f+(value[2]-84.3f)*radialScale;
 
   // Maximum-size playtesting exposed a shallow dorsal waist: the accepted
@@ -627,9 +633,8 @@ static void ApplyShaftPoseAngle(float value[3],UINT i){
   float bw=min(1.f,phys_scrotum_weight[i]);
   float membership=max(phys_shaft_weight[i],phys_attachment_weight[i]);
   float active=membership*(1.f-bw);
-  // Treat the complete low-scrotum shaft and root collar as one rigid unit.
-  // The ten duplicated body-edge vertices have zero membership and stay welded.
-  if(bw<.05f&&membership>.02f)active=1.f;
+  // Use the baked collar ramp before the fully rigid shaft.
+  if(bw<.05f&&membership>.02f)active=1.f+(pelvicAngleFollow[i]-1.f)*preparedPelvicRampBlend;
   if(active<=.001f)return;
   float delta=sliderValues[4]*3.1415926535f/180.f*active;
   float c=cosf(delta),s=sinf(delta),x=value[0]-12.65f,z=value[2]-84.3f;
@@ -732,7 +737,11 @@ static void BuildShaftRestFrame(){
     if(Length(axisSpan)<8.f){restFrameUsesPreviousLength=true;axisSpan=RestShaftDirection()*constraintRestLength;}
     for(int i=0;i<shaftRestSampleCount;i++)shaftRestCenters[i]=ShaftRoot()+axisSpan*((float)i/(shaftRestSampleCount-1));
   }
-  for(UINT i=0;i<graftCount;i++)graftRestFlex[i]=ClosestRestShaftFlex(graftDeformedPositions[i]);
+  for(UINT i=0;i<graftCount;i++){
+    graftRestFlex[i]=ClosestRestShaftFlex(graftDeformedPositions[i]);
+    float original=Smoother01(graftRestFlex[i]/.18f);
+    preparedPelvicRootFollow[i]=original+(pelvicRootFollow[i]-original)*(preparedPelvicRampBlend*pelvicRootMask[i]);
+  }
   // Derive one body radius only from pure shaft skin.  Width and Overall may
   // change this value, while the independently scaled pouch is excluded.
   float radiusSum=0.f,weightSum=0.f;
@@ -900,7 +909,7 @@ static float LogicalShaftOwner(UINT i,float t){
   // Spread radial ownership over the proximal shaft; the old .018 takeover
   // inflated one narrow row into a shelf at large widths. Quintic easing
   // matches value, slope and curvature at both ends of the shared root.
-  float rootFollow=Smoother01(t/.18f);
+  float rootFollow=preparedPelvicRootFollow[i];
   return rootFollow*(1.f-Smoother01((t-.80f)/.06f))*(1.f-suspensionWeight[i]);
 }
 static float LogicalShaftRadius(float t){
@@ -919,14 +928,16 @@ static float LogicalShaftOvalRadius(V3 radial,V3 tangent,float bodyRadius){
 }
 static void ConstructLogicalShaftSurface(bool finalPose){
   for(UINT i=0;i<graftCount;i++){
-    float t=graftRestFlex[i],owner=LogicalShaftOwner(i,t);logicalShaftOwnership[i]=owner;if(owner<=.0001f)continue;
-    V3 restCenter{},restTangent{};SampleRestShaftFrame(t,restCenter,restTangent);
+    float t=graftRestFlex[i],owner=finalPose?logicalShaftOwnership[i]:LogicalShaftOwner(i,t);
+    if(owner<=.0001f)continue;
     if(finalPose){
       if(suspensionWeight[i]>0.f)continue;
       V3 liveCenter{},liveTangent{};SampleShaftChain(t,liveCenter,liveTangent);
-      V3 target=liveCenter+RotateFromTo(logicalShaftRestRadial[i],restTangent,liveTangent);
+      V3 target=liveCenter+RotateFromTo(logicalShaftRestRadial[i],logicalShaftRestTangent[i],liveTangent);
       graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-owner)+target*owner;continue;
     }
+    logicalShaftOwnership[i]=owner;
+    V3 restCenter{},restTangent{};SampleRestShaftFrame(t,restCenter,restTangent);
     V3 point=graftDeformedPositions[i],offset=point-restCenter,radial=offset-restTangent*Dot(offset,restTangent);float radius=Length(radial);
     if(radius<1e-4f)continue;
     float desired=LogicalShaftOvalRadius(radial,restTangent,LogicalShaftRadius(t));
@@ -939,6 +950,7 @@ static void CaptureLogicalShaftSurface(){
     float t=graftRestFlex[i],owner=LogicalShaftOwner(i,t);logicalShaftOwnership[i]=owner;logicalShaftRestRadial[i]={0,0,0};if(owner<=.0001f)continue;
     V3 center{},tangent{};SampleRestShaftFrame(t,center,tangent);V3 offset=graftDeformedPositions[i]-center;
     logicalShaftRestRadial[i]=offset-tangent*Dot(offset,tangent);
+    logicalShaftRestTangent[i]=tangent;
   }
 }
 static V3 ReadCollarMember(UINT globalIndex,unsigned char* controlled,UINT graftFirstVertex){
@@ -1057,18 +1069,6 @@ static void FinishPelvicRamp(unsigned char* controlled,UINT graftFirstVertex){
     for(UINT m=collarFairMemberOffsets[group];m<collarFairMemberOffsets[group+1];m++)WriteCollarMember(collarFairMembers[m],p,controlled,graftFirstVertex);
   }
 }
-static void CollarFairPass(const V3* source,V3* target,float strength){
-  for(UINT group=0;group<collarFairGroupCount;group++){
-    UINT begin=collarFairNeighborOffsets[group],end=collarFairNeighborOffsets[group+1];
-    if(begin==end||collarFairWeights[group]<=.0001f){target[group]=source[group];continue;}
-    // The broad support solve intentionally remains an umbrella average. The
-    // regular-band correction below removes diagonal-valence corrugation
-    // without letting highly irregular body triangles dominate this solve.
-    V3 average{};for(UINT edge=begin;edge<end;edge++)average=average+source[collarFairNeighbors[edge]];
-    average=average/(float)(end-begin);
-    target[group]=source[group]+(average-source[group])*(strength*collarFairWeights[group]);
-  }
-}
 static void FairRetopologyBands(){
   // The four new open horseshoes occupy the reserved contiguous tail of the
   // graft.  A regular 1-D Taubin filter suppresses the alternating-diagonal
@@ -1101,10 +1101,10 @@ static void FairUnifiedCollar(unsigned char* controlled,UINT graftFirstVertex,fl
   // not average the collar back into the pelvis after its support field has
   // been applied.
   int iterations=160+(int)(20.f*growth+.5f);
-  for(int iteration=0;iteration<iterations;iteration++){
-    CollarFairPass(collarFairA,collarFairB,lambda);
-    memcpy(collarFairA,collarFairB,sizeof(collarFairA));
-  }
+  static GeometryFairPass<collarFairGroupCount> plan;static bool ready=false;
+  if(!ready){for(UINT g=0;g<collarFairGroupCount;g++)if(collarFairWeights[g]>.0001f)
+    plan.Add(g,collarFairNeighbors+collarFairNeighborOffsets[g],collarFairNeighbors+collarFairNeighborOffsets[g+1],collarFairWeights[g]);ready=true;}
+  plan.Apply(collarFairA,iterations,lambda);
   for(UINT group=0;group<collarFairGroupCount;group++)
     for(UINT member=collarFairMemberOffsets[group];member<collarFairMemberOffsets[group+1];member++)
       WriteCollarMember(collarFairMembers[member],collarFairA[group],controlled,graftFirstVertex);
@@ -1393,19 +1393,22 @@ static float EggLevel(V3 p,V3 r){
 }
 static void PreserveEggSupports(){
   if(!eggRestReady||!constraintSolverReady)return;
+  V3 restAxis[2],liveAxis[2];
+  for(int b=0;b<2;b++){restAxis[b]=Unit(constraintBallRest[b]-RestBallAnchor(b));liveAxis[b]=Unit(ballNodes[b]-BallAnchor(b));}
+  GeometryRotation toRest[2]={{liveAxis[0],restAxis[0]},{liveAxis[1],restAxis[1]}};
+  GeometryRotation toLive[2]={{restAxis[0],liveAxis[0]},{restAxis[1],liveAxis[1]}};
   for(UINT i=0;i<graftCount;i++){
     float w=suspensionWeight[i];if(w<.68f)continue;
     // The neck remains elastic. Lower skin cannot be pushed inside its core
     // by the later thigh-contact or junction-fairing passes.
     V3 p=graftDeformedPositions[i];
     for(int pass=0;pass<2;pass++)for(int b=0;b<2;b++){
-      V3 restAxis=Unit(constraintBallRest[b]-RestBallAnchor(b)),liveAxis=Unit(ballNodes[b]-BallAnchor(b));
-      V3 local=RotateFromTo(LobePressureOffset(p-ballNodes[b],b,true),liveAxis,restAxis),r=eggRadii[b]*.94f;
+      V3 local=toRest[b].Apply(LobePressureOffset(p-ballNodes[b],b,true)),r=eggRadii[b]*.94f;
       if(EggLevel(local,r)>=1.f)continue;
       float low=1.f,high=2.f;while(EggLevel(local*high,r)<1.f&&high<64.f)high*=2.f;
       if(Length(local)<1e-5f)local={0.f,0.f,-r.z};
       for(int j=0;j<16;j++){float mid=(low+high)*.5f;if(EggLevel(local*mid,r)<1.f)low=mid;else high=mid;}
-      p=ballNodes[b]+LobePressureOffset(RotateFromTo(local*high,restAxis,liveAxis),b);
+      p=ballNodes[b]+LobePressureOffset(toLive[b].Apply(local*high),b);
     }
     graftDeformedPositions[i]=p;
   }
@@ -1453,8 +1456,14 @@ static void FinishScrotalJunction(){
   static V3 input[graftNormalGroupCount],result[graftNormalGroupCount],next[graftNormalGroupCount];
   static V3 normals[graftNormalGroupCount],faceNormals[graftTriangleIndexCount/3];
   static unsigned counts[graftNormalGroupCount];static float risk[graftNormalGroupCount];
-  memset(input,0,sizeof(input));memset(counts,0,sizeof(counts));
-  for(UINT i=0;i<graftCount;i++){UINT g=graftNormalGroup[i];input[g]=input[g]+graftDeformedPositions[i];counts[g]++;}
+  static unsigned faces[graftTriangleIndexCount];static bool topologyReady=false;
+  if(!topologyReady){
+    for(UINT i=0;i<graftCount;i++)counts[graftNormalGroup[i]]++;
+    for(UINT k=0;k<graftTriangleIndexCount;k++)faces[k]=graftNormalGroup[graftTriangleIndices[k]];
+    topologyReady=true;
+  }
+  memset(input,0,sizeof(input));
+  for(UINT i=0;i<graftCount;i++){UINT g=graftNormalGroup[i];input[g]=input[g]+graftDeformedPositions[i];}
   for(UINT g=0;g<graftNormalGroupCount;g++)input[g]=input[g]/(float)max(1u,counts[g]);
   memcpy(result,input,sizeof(result));
   // Center the affine solve to avoid accumulated translation roundoff.
@@ -1464,12 +1473,13 @@ static void FinishScrotalJunction(){
     result[neckActive[row]]=p+origin;
   }
   for(int pass=0;pass<56;pass++){
-    memset(normals,0,sizeof(normals));memset(risk,0,sizeof(risk));
+    if(pass<24)memset(normals,0,sizeof(normals));else memset(risk,0,sizeof(risk));
     for(UINT localFace=0;localFace<neckFaceCount;localFace++){
       UINT t=neckFaces[localFace];
-      UINT a=graftNormalGroup[graftTriangleIndices[t*3]],b=graftNormalGroup[graftTriangleIndices[t*3+1]],c=graftNormalGroup[graftTriangleIndices[t*3+2]];
-      V3 n=Cross(result[b]-result[a],result[c]-result[a]);faceNormals[t]=Unit(n);
-      normals[a]=normals[a]+n;normals[b]=normals[b]+n;normals[c]=normals[c]+n;
+      UINT a=faces[t*3],b=faces[t*3+1],c=faces[t*3+2];
+      V3 n=Cross(result[b]-result[a],result[c]-result[a]);
+      if(pass<24){normals[a]=normals[a]+n;normals[b]=normals[b]+n;normals[c]=normals[c]+n;}
+      else faceNormals[t]=Unit(n);
     }
     if(pass>=24){
       // Only high-curvature fans receive additional normal-direction fairing.
@@ -1478,19 +1488,18 @@ static void FinishScrotalJunction(){
       for(UINT p=0;p<neckPairCount;p++){
         UINT a=neckFacePairs[p*2],b=neckFacePairs[p*2+1];float amount=Smoother01((.5f-Dot(faceNormals[a],faceNormals[b]))/.5f);
         if(amount<=0.f)continue;
-        for(UINT c=0;c<3;c++){UINT ga=graftNormalGroup[graftTriangleIndices[a*3+c]],gb=graftNormalGroup[graftTriangleIndices[b*3+c]];risk[ga]=max(risk[ga],amount);risk[gb]=max(risk[gb],amount);}
+        for(UINT c=0;c<3;c++){UINT ga=faces[a*3+c],gb=faces[b*3+c];risk[ga]=max(risk[ga],amount);risk[gb]=max(risk[gb],amount);}
       }
     }
-    memcpy(next,result,sizeof(result));
     for(UINT k=0;k<neckActiveCount;k++){
-      UINT g=neckActive[k],begin=neckNeighborOffsets[g],end=neckNeighborOffsets[g+1];if(begin==end)continue;
+      UINT g=neckActive[k],begin=neckNeighborOffsets[g],end=neckNeighborOffsets[g+1];if(begin==end){next[g]=result[g];continue;}
       V3 mean{};for(UINT j=begin;j<end;j++)mean=mean+result[neckNeighbors[j]];
       V3 delta=mean/(float)(end-begin)-result[g];float amount;
       if(pass<24){V3 n=Unit(normals[g]);delta=delta-n*Dot(delta,n);amount=.30f*neckSupport[g];}
       else amount=.45f*risk[g]*neckSupport[g];
       next[g]=result[g]+delta*amount;
     }
-    memcpy(result,next,sizeof(result));
+    for(UINT k=0;k<neckActiveCount;k++){UINT g=neckActive[k];result[g]=next[g];}
   }
   // Keep unusual slider combinations within a uniform displacement envelope.
   // One fraction for the whole patch avoids per-vertex clamping ridges.

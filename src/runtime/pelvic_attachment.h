@@ -33,14 +33,17 @@ static void ApplyPelvicAttachment(unsigned char* buffer){
   if(fade<=0.f)return;
   memset(paR14Step,0,sizeof(paR14Step));memset(paBodyStep,0,sizeof(paBodyStep));
   for(unsigned k=0;k<paBodyNormalCount;k++)memcpy(&paBodyBefore[k],buffer+paBodyNormalIDs[k]*graftStride,12);
+  static unsigned bodyBinding[paBodyCount];static bool bindingsReady=false;
+  if(!bindingsReady){for(unsigned k=0;k<paBodyCount;k++)bodyBinding[k]=unsigned(std::lower_bound(paBodyNormalIDs,paBodyNormalIDs+paBodyNormalCount,paBodyIDs[k])-paBodyNormalIDs);bindingsReady=true;}
+  GeometryRotation rotation(ref,live);
   for(unsigned k=0;k<paBodyCount;k++){
     V3 delta=(PARead(paBodyDelta,a*paBodyCount+k)*(1.f-blend)+PARead(paBodyDelta,b*paBodyCount+k)*blend)*(extra*fade);
-    unsigned n=unsigned(std::lower_bound(paBodyNormalIDs,paBodyNormalIDs+paBodyNormalCount,paBodyIDs[k])-paBodyNormalIDs);
+    unsigned n=bodyBinding[k];
     paBodyStep[n]=delta;
   }
   for(unsigned k=0;k<paR14Count;k++){
     V3 delta=(PARead(paR14Delta,a*paR14Count+k)*(1.f-blend)+PARead(paR14Delta,b*paR14Count+k)*blend)*extra;
-    V3 turned=RotateFromTo(delta,ref,live);
+    V3 turned=rotation.Apply(delta);
     paR14Step[paR14IDs[k]]=(delta*(1.f-paRotateWeight[k])+turned*paRotateWeight[k])*fade;
   }
   // Preserve exact body/skin welds, including at animated root angles.

@@ -1,3 +1,7 @@
+## 1.3
+
+Packages the installed prepared-shape/geometry performance improvements, baked refinement and attachment bindings, slight lateral suspension relaxation, and large-diameter pelvic ramp correction. Retains 240 Hz physics and full-rate surfaces. Adds version-specific 1.3 installer/upgrade/rollback. Existing neighboring folds remain; recorded replay results do not establish live game FPS.
+
 ## 1.2
 
 Packages the verified September 25 coupled-contact solver update from f8d354f: static/sliding friction, damped suspension and step-interpolated dimensions. Restores the exact DLL requested by the user; later geometry candidates are excluded. Retains the documented tight-pose fold limitations. Adds a version-specific verified installer and rollback.

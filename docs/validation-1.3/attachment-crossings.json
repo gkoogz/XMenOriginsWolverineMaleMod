@@ -1,0 +1,74 @@
+{
+  "before-saved": {
+    "total_local_crossings": 1,
+    "body_body": 0,
+    "body_surface": 1,
+    "surface_surface": 0
+  },
+  "after-saved": {
+    "total_local_crossings": 0,
+    "body_body": 0,
+    "body_surface": 0,
+    "surface_surface": 0
+  },
+  "before-maximum": {
+    "total_local_crossings": 90,
+    "body_body": 0,
+    "body_surface": 28,
+    "surface_surface": 62
+  },
+  "after-maximum": {
+    "total_local_crossings": 0,
+    "body_body": 0,
+    "body_surface": 0,
+    "surface_surface": 0
+  },
+  "before-neutral": {
+    "total_local_crossings": 21,
+    "body_body": 0,
+    "body_surface": 0,
+    "surface_surface": 21
+  },
+  "after-neutral": {
+    "total_local_crossings": 21,
+    "body_body": 0,
+    "body_surface": 0,
+    "surface_surface": 21
+  },
+  "before-small": {
+    "total_local_crossings": 278,
+    "body_body": 0,
+    "body_surface": 0,
+    "surface_surface": 278
+  },
+  "after-small": {
+    "total_local_crossings": 278,
+    "body_body": 0,
+    "body_surface": 0,
+    "surface_surface": 278
+  },
+  "before-erect": {
+    "total_local_crossings": 216,
+    "body_body": 0,
+    "body_surface": 0,
+    "surface_surface": 216
+  },
+  "after-erect": {
+    "total_local_crossings": 179,
+    "body_body": 0,
+    "body_surface": 0,
+    "surface_surface": 179
+  },
+  "before-moving": {
+    "total_local_crossings": 89,
+    "body_body": 0,
+    "body_surface": 50,
+    "surface_surface": 39
+  },
+  "after-moving": {
+    "total_local_crossings": 0,
+    "body_body": 0,
+    "body_surface": 0,
+    "surface_surface": 0
+  }
+}

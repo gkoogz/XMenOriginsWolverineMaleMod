@@ -36,50 +36,64 @@ static float obliqueLobeMask[r14NewStart];
 static void ShapeObliqueLobes(){
   if(!constraintSolverReady||!eggRestReady)return;
   static V3 original[r14NewStart];memcpy(original,r14Positions,sizeof(original));
+  static float rightWeight[r14NewStart];static bool prepared=false;
+  static std::vector<UINT> active,faces;
+  if(!prepared){
+    for(UINT i=0;i<r14NewStart;i++){
+      float membership=0.f;for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++)membership+=r14Weight[k]*phys_scrotum_weight[r14Sources[k]];
+      obliqueLobeMask[i]=Smoother01((membership-.55f)/.35f)*Smoother01((79.f-r14Base[i*3+2])/3.f);
+      rightWeight[i]=Smooth01(.5f+r14Base[i*3+1]/1.4f);if(obliqueLobeMask[i]>0.f)active.push_back(i);
+    }
+    for(UINT k=0;k<r14IndexCount;k+=3){UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
+      if(a<r14NewStart&&b<r14NewStart&&c<r14NewStart&&(obliqueLobeMask[a]>0.f||obliqueLobeMask[b]>0.f||obliqueLobeMask[c]>0.f))faces.push_back(k);
+    }prepared=true;
+  }
   float scale=sqrtf(max(.35f,BallShapeScale()));
-  for(UINT i=0;i<r14NewStart;i++){
-    float membership=0.f;
-    for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++)membership+=r14Weight[k]*phys_scrotum_weight[r14Sources[k]];
-    float mask=Smoother01((membership-.55f)/.35f)*Smoother01((79.f-r14Base[i*3+2])/3.f);
-    obliqueLobeMask[i]=mask;if(mask<=0.f)continue;
-    float right=Smooth01(.5f+r14Base[i*3+1]/1.4f);V3 shift{};
+  V3 restAxis[2],liveAxis[2],up[2];
+  for(int side=0;side<2;side++){
+    restAxis[side]=Unit(constraintBallRest[side]-RestBallAnchor(side));liveAxis[side]=Unit(ballNodes[side]-BallAnchor(side));
+    float forward=(side?16.f:18.f)*.01745329252f,lateral=(side?10.f:-9.f)*.01745329252f;
+    up[side]=Unit(V3{sinf(forward),sinf(lateral),cosf(forward)*cosf(lateral)});
+  }
+  GeometryRotation toRest[2]={{liveAxis[0],restAxis[0]},{liveAxis[1],restAxis[1]}};
+  GeometryRotation toLive[2]={{restAxis[0],liveAxis[0]},{restAxis[1],liveAxis[1]}};
+  GeometryRotation tilt[2]={{{0,0,1},up[0]},{{0,0,1},up[1]}};
+  for(UINT i:active){
+    float mask=obliqueLobeMask[i],right=rightWeight[i];V3 shift{};
     for(int side=0;side<2;side++){
-      V3 restAxis=Unit(constraintBallRest[side]-RestBallAnchor(side));
-      V3 liveAxis=Unit(ballNodes[side]-BallAnchor(side));
-      V3 offset=RotateFromTo(original[i]-ballNodes[side],liveAxis,restAxis);
-      // Modest modeled resting obliquity, not a claimed universal anatomical
-      // angle. Upper pole anterior/lateral; lower pole posterior/medial.
-      float forward=(side?16.f:18.f)*.01745329252f,lateral=(side?10.f:-9.f)*.01745329252f;
-      V3 up=Unit(V3{sinf(forward),sinf(lateral),cosf(forward)*cosf(lateral)});
-      V3 tilted=RotateFromTo(offset,{0,0,1},up);
-      tilted.z+=(side?.05f:-.15f)*scale;
-      V3 change=RotateFromTo(tilted-offset,restAxis,liveAxis);
-      shift=shift+change*(side?right:1.f-right);
+      V3 offset=toRest[side].Apply(original[i]-ballNodes[side]);
+      V3 tilted=tilt[side].Apply(offset);tilted.z+=(side?.05f:-.15f)*scale;
+      V3 change=toLive[side].Apply(tilted-offset);shift=shift+change*(side?right:1.f-right);
     }
     r14Positions[i]=original[i]+shift*mask;
   }
   // Restrict a strained attachment triangle locally, rather than letting one
   // short seam edge cancel the resting tilt of both complete lobes.
-  for(int pass=0;pass<10;pass++)for(UINT k=0;k<r14IndexCount;k+=3){
+  static std::vector<PreparedSurfaceLimit> limits;
+  limits.resize(faces.size());
+  for(unsigned j=0;j<faces.size();j++){UINT k=faces[j];limits[j].Prepare(original[r14Indices[k]],original[r14Indices[k+1]],original[r14Indices[k+2]]);}
+  for(int pass=0;pass<10;pass++){bool changed=false;for(unsigned j=0;j<faces.size();j++){UINT k=faces[j];
     UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
     if(a>=r14NewStart||b>=r14NewStart||c>=r14NewStart)continue;
-    float local=SurfaceCorrectionLimit(original[a],original[b],original[c],r14Positions[a]-original[a],r14Positions[b]-original[b],r14Positions[c]-original[c],.35f);
-    if(local<.9999f){
+    float local=limits[j].Evaluate(r14Positions[a]-original[a],r14Positions[b]-original[b],r14Positions[c]-original[c],.35f);
+    if(local<.9999f){changed=true;
       r14Positions[a]=original[a]+(r14Positions[a]-original[a])*local;
       r14Positions[b]=original[b]+(r14Positions[b]-original[b])*local;
       r14Positions[c]=original[c]+(r14Positions[c]-original[c])*local;
     }
   }
+  if(!changed)break;}
   float fraction=1.f;
-  for(UINT k=0;k<r14IndexCount;k+=3){
+  for(unsigned j=0;j<faces.size();j++){UINT k=faces[j];
     UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
     if(a>=r14NewStart||b>=r14NewStart||c>=r14NewStart)continue;
-    fraction=min(fraction,SurfaceCorrectionLimit(original[a],original[b],original[c],r14Positions[a]-original[a],r14Positions[b]-original[b],r14Positions[c]-original[c],.35f));
+    fraction=min(fraction,limits[j].Evaluate(r14Positions[a]-original[a],r14Positions[b]-original[b],r14Positions[c]-original[c],.35f));
   }
   if(fraction<1.f)for(UINT i=0;i<r14NewStart;i++)r14Positions[i]=original[i]+(r14Positions[i]-original[i])*fraction;
 }
 static void TightenInterLobeWeb(){
   static bool initialized=false;
+  static std::vector<UINT> active,normalFaces,safetyFaces;
   static std::vector<UINT> adjacent[r14NewStart];
   static V3 original[r14NewStart],next[r14NewStart],normals[r14NewStart];
   if(!initialized){
@@ -93,31 +107,38 @@ static void TightenInterLobeWeb(){
       UINT i=r14Indices[k+a];if(i>=r14NewStart)continue;
       for(int b=0;b<3;b++)if(a!=b){UINT j=r14Indices[k+b];auto& list=adjacent[i];if(std::find(list.begin(),list.end(),j)==list.end())list.push_back(j);}
     }
+    for(UINT i=0;i<r14NewStart;i++)if(interLobeWebMask[i]>0.f&&!adjacent[i].empty())active.push_back(i);
+    for(UINT k=0;k<r14IndexCount;k+=3){UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
+      if((a<r14NewStart&&interLobeWebMask[a]>0.f)||(b<r14NewStart&&interLobeWebMask[b]>0.f)||(c<r14NewStart&&interLobeWebMask[c]>0.f)){
+        normalFaces.push_back(k);if(a<r14NewStart&&b<r14NewStart&&c<r14NewStart)safetyFaces.push_back(k);
+      }
+    }
     initialized=true;
   }
   memcpy(original,r14Positions,sizeof(original));
   // Fill only concave portions of the central skin. Convex lobe surfaces and
   // the midline ridge are not shrunk; no simulation state is written here.
+  float cap=.48f*sqrtf(max(.35f,BallShapeScale()));
   for(int pass=0;pass<18;pass++){
     memset(normals,0,sizeof(normals));
-    for(UINT k=0;k<r14IndexCount;k+=3){
+    for(UINT k:normalFaces){
       UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
       if(a>=r14NewStart&&b>=r14NewStart&&c>=r14NewStart)continue;
       V3 n=Cross(r14Positions[c]-r14Positions[a],r14Positions[b]-r14Positions[a]);
       if(a<r14NewStart)normals[a]=normals[a]+n;if(b<r14NewStart)normals[b]=normals[b]+n;if(c<r14NewStart)normals[c]=normals[c]+n;
     }
-    for(UINT i=0;i<r14NewStart;i++){
+    for(UINT i:active){
       next[i]=r14Positions[i];if(interLobeWebMask[i]<=0.f||adjacent[i].empty())continue;
       V3 mean{};for(UINT j:adjacent[i])mean=mean+r14Positions[j];mean=mean/float(adjacent[i].size());
       V3 n=Unit(normals[i]);float outward=max(0.f,Dot(mean-r14Positions[i],n));
       next[i]=next[i]+n*(outward*.28f*interLobeWebMask[i]);
-      V3 delta=next[i]-original[i];float cap=.48f*sqrtf(max(.35f,BallShapeScale()));
+      V3 delta=next[i]-original[i];
       if(Length(delta)>cap)next[i]=original[i]+Unit(delta)*cap;
     }
-    memcpy(r14Positions,next,sizeof(next));
+    for(UINT i:active)r14Positions[i]=next[i];
   }
   float fraction=1.f;
-  for(UINT k=0;k<r14IndexCount;k+=3){
+  for(UINT k:safetyFaces){
     UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
     if(a>=r14NewStart||b>=r14NewStart||c>=r14NewStart)continue;
     fraction=min(fraction,SurfaceCorrectionLimit(original[a],original[b],original[c],r14Positions[a]-original[a],r14Positions[b]-original[b],r14Positions[c]-original[c],.35f));
@@ -148,9 +169,21 @@ static void UpdateR14(const unsigned char* source){
   for(UINT i=0;i<graftCount;i++)delta[i]=graftDeformedPositions[i]-V3{r14Reference[i*3],r14Reference[i*3+1],r14Reference[i*3+2]};
   V3 columns[3]={{1,0,0},{0,1,0},{0,0,1}};
   for(UINT j=0;j<r14FrameCount;j++)for(int a=0;a<3;a++)columns[a]=columns[a]+delta[r14FrameSources[j]]*r14FrameLinear[a*r14FrameCount+j];
+  // Glans-dependent coefficients are material bindings. The live cage delta
+  // is the only input accumulated per vertex when controls are unchanged.
+  static float preparedAmount=0.f;static bool mapReady=false;
+  static V3 base[r14Count];static float weights[sizeof(r14Weight)/sizeof(r14Weight[0])];
+  static __m128 deltas[graftCount];
+  if(!mapReady||preparedAmount!=amount){
+    for(UINT i=0;i<r14Count;i++)base[i]={r14Base[3*i]+amount*r14Growth[3*i],r14Base[3*i+1]+amount*r14Growth[3*i+1],r14Base[3*i+2]+amount*r14Growth[3*i+2]};
+    for(UINT k=0;k<sizeof(weights)/sizeof(weights[0]);k++)weights[k]=r14Weight[k]+amount*r14GrowthWeight[k];
+    preparedAmount=amount;mapReady=true;
+  }
+  for(UINT i=0;i<graftCount;i++)deltas[i]=_mm_set_ps(0.f,delta[i].z,delta[i].y,delta[i].x);
   for(UINT i=0;i<r14Count;i++){
-    V3 p{r14Base[3*i]+amount*r14Growth[3*i],r14Base[3*i+1]+amount*r14Growth[3*i+1],r14Base[3*i+2]+amount*r14Growth[3*i+2]};
-    for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++)p=p+delta[r14Sources[k]]*(r14Weight[k]+amount*r14GrowthWeight[k]);
+    __m128 position=_mm_set_ps(0.f,base[i].z,base[i].y,base[i].x);
+    for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++)position=_mm_add_ps(position,_mm_mul_ps(deltas[r14Sources[k]],_mm_set1_ps(weights[k])));
+    float xyz[4];_mm_storeu_ps(xyz,position);V3 p{xyz[0],xyz[1],xyz[2]};
     if(lowerFactor>0.f){
       V3 local{r14LowerDelta[3*i],r14LowerDelta[3*i+1],r14LowerDelta[3*i+2]};
       p=p+(columns[0]*local.x+columns[1]*local.y+columns[2]*local.z)*lowerFactor;
@@ -185,16 +218,10 @@ static void UpdateR14(const unsigned char* source){
   }
   // Fair only the proximal ventral transition. Fixed boundary and crown
   // vertices retain their exact positions; every pass reads a shared snapshot.
-  static V3 rapheNext[rapheSmoothCount];
   static V3 rapheInput[r14Count];memcpy(rapheInput,r14Positions,sizeof(rapheInput));
-  for(int pass=0;pass<18;pass++){
-    for(UINT k=0;k<rapheSmoothCount;k++){
-      UINT i=rapheSmoothIDs[k],begin=rapheSmoothOffsets[k],end=rapheSmoothOffsets[k+1];
-      V3 mean{};for(UINT j=begin;j<end;j++)mean=mean+r14Positions[rapheSmoothNeighbors[j]];
-      rapheNext[k]=r14Positions[i]+(mean/float(end-begin)-r14Positions[i])*(.32f*rapheSmoothMask[k]);
-    }
-    for(UINT k=0;k<rapheSmoothCount;k++)r14Positions[rapheSmoothIDs[k]]=rapheNext[k];
-  }
+  static GeometryFairPass<r14Count> rapheFair;static bool rapheReady=false;
+  if(!rapheReady){for(UINT k=0;k<rapheSmoothCount;k++)rapheFair.Add(rapheSmoothIDs[k],rapheSmoothNeighbors+rapheSmoothOffsets[k],rapheSmoothNeighbors+rapheSmoothOffsets[k+1],.32f*rapheSmoothMask[k]);rapheReady=true;}
+  rapheFair.Apply(r14Positions,18);
   float rapheFraction=1.f;
   for(UINT k=0;k<r14IndexCount;k+=3){
     UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
@@ -211,13 +238,16 @@ static void UpdateR14(const unsigned char* source){
   PreserveRigidLobeSurfaces();
   PreserveShaftRaphe();
   PreserveAxialRaphe();
+  static float uv[r14IndexCount/3][5];static bool uvReady=false;
+  if(!uvReady){for(UINT k=0;k<r14IndexCount;k+=3){UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];float* d=uv[k/3];
+    d[0]=r14UV[b*2]-r14UV[a*2];d[1]=r14UV[b*2+1]-r14UV[a*2+1];d[2]=r14UV[c*2]-r14UV[a*2];d[3]=r14UV[c*2+1]-r14UV[a*2+1];d[4]=d[0]*d[3]-d[1]*d[2];
+  }uvReady=true;}
   memset(r14Normals,0,sizeof(r14Normals));memset(r14Tangents,0,sizeof(r14Tangents));
   for(UINT k=0;k<r14IndexCount;k+=3){
     UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];
     V3 e1=r14Positions[b]-r14Positions[a],e2=r14Positions[c]-r14Positions[a];
     V3 n=Cross(e2,e1);r14Normals[a]=r14Normals[a]+n;r14Normals[b]=r14Normals[b]+n;r14Normals[c]=r14Normals[c]+n;
-    float du1=r14UV[b*2]-r14UV[a*2],dv1=r14UV[b*2+1]-r14UV[a*2+1];
-    float du2=r14UV[c*2]-r14UV[a*2],dv2=r14UV[c*2+1]-r14UV[a*2+1],det=du1*dv2-dv1*du2;
+    const float* d=uv[k/3];float dv1=d[1],dv2=d[3],det=d[4];
     if(fabsf(det)>1e-10f){V3 t=(e1*dv2-e2*dv1)/det;r14Tangents[a]=r14Tangents[a]+t;r14Tangents[b]=r14Tangents[b]+t;r14Tangents[c]=r14Tangents[c]+t;}
   }
   for(UINT i=0;i<r14Count;i++){

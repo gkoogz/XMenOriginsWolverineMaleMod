@@ -189,7 +189,8 @@ static void PDApplySuspension(int s,V3 arm,V3 n,const V3 gradient[shaftNodeCount
 static void PDSuspensionShear(int s,float lambda[2],float dt){
  int id=pdBody0+s;V3 target=PDMaterialTarget(s),axis=Unit(target-BallAnchor(s));
  V3 directions[2]={Unit(Cross({0,1,0},axis)),{}};directions[1]=Cross(axis,directions[0]);
- float compliance=.00002f*expf((.5f-physUI[4]/100.f)*3.f);
+ // Slightly softer transverse tissue lets the contacting lobes settle apart.
+ float compliance=.000022f*expf((.5f-physUI[4]/100.f)*3.f);
  for(int k=0;k<2;k++){
   V3 arm=cpBasis[s][2]*(CPRadii(s).z*.23f),n=directions[k],gradient[shaftNodeCount];target=PDMaterialTarget(s);
   float value=Dot(pdPosition[id]+arm-target,n),w=PDSuspensionMass(s,arm,n,gradient,true),alpha=compliance/(dt*dt);

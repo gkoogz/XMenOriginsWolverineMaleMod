@@ -1,0 +1,14 @@
+{
+  "neutral": {
+    "": true,
+    ".body": true,
+    ".render-packed": true,
+    ".render-indices": true
+  },
+  "small": {
+    "": true,
+    ".body": true,
+    ".render-packed": true,
+    ".render-indices": true
+  }
+}

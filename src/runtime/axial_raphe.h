@@ -65,13 +65,23 @@ static void PreserveBuriedAxialSupport(){
 
 
 
-static V3 AxialMaterialRest(UINT i){
+static V3 ComputeAxialMaterialRest(UINT i){
   V3 rest{r14Base[i*3],r14Base[i*3+1],r14Base[i*3+2]};
   for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++){
     UINT j=r14Sources[k];
     rest=rest+(firmLobeRestSkin[j]-V3{r14Reference[j*3],r14Reference[j*3+1],r14Reference[j*3+2]})*r14Weight[k];
   }
   return rest;
+}
+static V3 AxialMaterialRest(UINT i){
+  static unsigned revision[r14Count]{};static V3 points[r14Count];
+  if(revision[i]!=geometryRestRevision+1){points[i]=ComputeAxialMaterialRest(i);revision[i]=geometryRestRevision+1;}
+  return points[i];
+}
+static float AxialMaterialFlex(UINT i){
+  static unsigned revision[r14Count]{};static float flex[r14Count];
+  if(revision[i]!=geometryRestRevision+1){flex[i]=ClosestRestShaftFlex(AxialMaterialRest(i));revision[i]=geometryRestRevision+1;}
+  return flex[i];
 }
 static void PreserveAxialRaphe(){
   PreserveBuriedAxialSupport();
@@ -86,12 +96,12 @@ static void PreserveAxialRaphe(){
   SampleRestShaftFrame(axialReferenceT,rc,rt);
   V3 rv=Unit(Cross(Unit(V3{0,1,0}-rt*rt.y),rt));
   axialCoreRadius=Dot(reference-rc,rv);
-  float proximalT=ClosestRestShaftFlex(AxialMaterialRest(356));
-  float nextT=ClosestRestShaftFlex(AxialMaterialRest(67));
+  float proximalT=AxialMaterialFlex(356);
+  float nextT=AxialMaterialFlex(67);
   static V3 displacement[r14Count];memset(displacement,0,sizeof(displacement));
   for(UINT k=0;k<rapheSupportCoreCount;k++){
     UINT i=rapheSupportCore[k];V3 rest=AxialMaterialRest(i);
-    float t=ClosestRestShaftFlex(rest),blend=1.f-Smoother01((t-.42f)/.12f);
+    float t=AxialMaterialFlex(i),blend=1.f-Smoother01((t-.42f)/.12f);
     if(blend<=0.f)continue;
     V3 center{},tangent{};SampleShaftChain(t,center,tangent);
     V3 ventral=Unit(Cross(Unit(V3{0,1,0}-tangent*tangent.y),tangent));
