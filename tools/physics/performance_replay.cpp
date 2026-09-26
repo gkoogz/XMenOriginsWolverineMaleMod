@@ -26,7 +26,7 @@ int main(int argc,char** argv){
   if(scenario==5){physicsState=1;hangUI=1;}
   ApplyControlMapping();ApplyShape();
   FILE* out=nullptr;fopen_s(&out,argv[1],"w");if(!out)return 3;
-  fprintf(out,"frame,mesh,body,physics,ms\n");LARGE_INTEGER frequency;QueryPerformanceFrequency(&frequency);
+  fprintf(out,"frame,mesh,body,body_positions,physics,ms\n");LARGE_INTEGER frequency;QueryPerformanceFrequency(&frequency);
   float minArea=1e30f;unsigned invalid=0;float maxSeam=0;
   for(int frame=0;frame<frames;frame++){
     float fps=scenario==7?15.f:60.f,time=frame/fps;
@@ -49,6 +49,10 @@ int main(int argc,char** argv){
           constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;
           InitializeBuffer();
         }
+#ifdef SURFACE_CADENCE_TEST
+        else if(phase==16){fullSurfaceEveryFrame=true;shapeDirty=true;}
+        else if(phase==17){fullSurfaceEveryFrame=false;shapeDirty=true;}
+#endif
       }
     }
     throbMode=scenario==4?3:scenario==5?1:scenario==7?2:0;
@@ -60,14 +64,20 @@ int main(int argc,char** argv){
     overrideLeftA={2.f,-7.8f+shift,79.f};overrideRightA={2.f,7.8f+shift,79.f};
     overrideLeftB={1.f,-8.2f-shift*.35f,43.f};overrideRightB={1.f,8.2f-shift*.35f,43.f};
     LARGE_INTEGER begin,end;QueryPerformanceCounter(&begin);
-    ApplyControlMapping();UpdateConstraintSolver(1.f/fps,.7f*sinf(time*5),.7f*sinf(time*7));ApplyShape();
+    ApplyControlMapping();UpdateConstraintSolver(1.f/fps,.7f*sinf(time*5),.7f*sinf(time*7));
+#ifdef SURFACE_CADENCE_TEST
+    UpdateVisibleSurface();
+#else
+    ApplyShape();
+#endif
     QueryPerformanceCounter(&end);
     V3 dynamics[shaftNodeCount*2+12];size_t offset=0;
     auto append=[&](const V3* p,size_t count){memcpy(dynamics+offset,p,count*sizeof(V3));offset+=count;};
     append(shaftNodes,shaftNodeCount);append(shaftPrevious,shaftNodeCount);
     append(ballNodes,2);append(ballPrevious,2);append(neckNodes,2);append(neckPrevious,2);append(nutNodes,2);append(nutPrevious,2);
     void* raw=nullptr;graftBuffer->Lock(0,0,&raw,0);
-    fprintf(out,"%d,%016llx,%016llx,%016llx,%.9f\n",frame,Hash(rsPacked,sizeof(rsPacked)),Hash(raw,50915*32),Hash(dynamics,sizeof(dynamics)),double(end.QuadPart-begin.QuadPart)*1000/double(frequency.QuadPart));
+    static V3 bodyPositions[50915];for(unsigned i=0;i<50915;i++)memcpy(&bodyPositions[i],(unsigned char*)raw+i*32,12);
+    fprintf(out,"%d,%016llx,%016llx,%016llx,%016llx,%.9f\n",frame,Hash(rsPacked,sizeof(rsPacked)),Hash(raw,50915*32),Hash(bodyPositions,sizeof(bodyPositions)),Hash(dynamics,sizeof(dynamics)),double(end.QuadPart-begin.QuadPart)*1000/double(frequency.QuadPart));
     graftBuffer->Unlock();
     for(unsigned i=0;i<rsCount;i++)if(!std::isfinite(rsPositions[i].x)||!std::isfinite(rsPositions[i].y)||!std::isfinite(rsPositions[i].z))invalid++;
     if(frame%12==0){
@@ -79,6 +89,10 @@ int main(int argc,char** argv){
 #ifdef PREPARED_SHAPE_TEST
   printf("prepared_builds=%u prepared_hits=%u\n",preparedShapeBuilds,preparedShapeHits);
   if(preparedShapeBuilds==0||preparedShapeHits==0)return 5;
+#endif
+#ifdef SURFACE_CADENCE_TEST
+  printf("surface_refreshes=%u surface_holds=%u\n",surfaceRefreshes,surfaceHolds);
+  if(surfaceHolds==0||surfaceRefreshes==0)return 6;
 #endif
   return invalid||minArea<1e-10f||maxSeam>1e-4f?4:0;
 }

@@ -128,6 +128,7 @@ static bool motionTracked,motionBasisReady;static float motionPitchForce,motionY
 static LONG renderFrameSerial=-1,motionCaptureSerial=-2;
 static bool settingsLoaded,settingsPending;static DWORD settingsChangedTick;
 static bool frameRendered;
+static bool presentInProgress=false;
 static volatile LONG presentLogged;
 static volatile LONG endSceneLogged;
 static volatile LONG endSceneCount;
@@ -1524,6 +1525,7 @@ static float SampleOverallWidthVertex(UINT q,float overall,float width){
 #include "pelvic_attachment.h"
 #include "rounded_shape.h"
 #include "prepared_shape.h"
+#include "surface_cadence.h"
 static void ApplyShape(){
   if(!graftBuffer)return;bool report=shapeDirty;void* raw=nullptr;
   const UINT graftFirstVertex=graftOffset/graftStride;
@@ -1531,6 +1533,7 @@ static void ApplyShape(){
   HRESULT hr=graftBuffer->Lock(0,(graftFirstVertex+graftCount)*graftStride,&raw,0);
   if(FAILED(hr)){Log("live shape lock failed %08X",hr);return;}
   auto* fullBuffer=(unsigned char*)raw;
+  CaptureSurfaceRestBody(fullBuffer,graftFirstVertex);
   ResetPelvicAttachmentBody(fullBuffer);
   auto* controlled=fullBuffer+pelvisControlFirstVertex*graftStride;
   auto* p=controlled+(graftFirstVertex-pelvisControlFirstVertex)*graftStride;
@@ -1603,7 +1606,7 @@ static void ApplyShape(){
   UpdateR14(p);
   ApplyPelvicAttachment(fullBuffer);
   ApplyRoundedShape(fullBuffer);
-  if(tipCount){V3 tip=tipSum/(float)tipCount;float newLength=max(8.f,min(60.f,Length(tip-ShaftRoot())));constraintRestLength=(constraintRestLength*.1656f+newLength*.08f)/.2456f;}
+  FinishShapeRestLength(tipSum,tipCount);
   float written[3];memcpy(written,p,12);graftBuffer->Unlock();shapeDirty=false;if(report)Log("live controls, recruited pelvis collar, and dynamic tangent basis applied state=%d collar=%.3f shape=%.2f %.2f %.2f %.2f %.1f %.2f %.2f shaft=%.0f %.0f %.0f %.0f balls=%.0f %.0f %.0f %.0f first=(%.4f %.4f %.4f)",physicsState,PelvisCollarGrowth(),sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6],physValues[0],physValues[1],physValues[2],physValues[3],physValues[4],physValues[5],physValues[6],physValues[7],written[0],written[1],written[2]);
 }
 static bool KeyEdge(int vk){static bool old[256]{};bool now=(GetAsyncKeyState(vk)&0x8000)!=0;bool edge=now&&!old[vk];old[vk]=now;return edge;}
@@ -1657,8 +1660,10 @@ static void AdjustStudyControl(int index,int dir,float mult){
 }
 static void OverlayFrame(IDirect3DDevice9* d){
   if(inOverlay)return;inOverlay=true;
-  InterlockedIncrement(&renderFrameSerial);
+  if(!frameRendered){
+  frameRendered=true;InterlockedIncrement(&renderFrameSerial);
   if(KeyEdge(VK_F6))menuOpen=!menuOpen;
+  if(KeyEdge(VK_F10)){fullSurfaceEveryFrame=!fullSurfaceEveryFrame;shapeDirty=true;Log("surface cadence: %s",fullSurfaceEveryFrame?"EVERY FRAME":"ALTERNATE FRAMES");}
   CaptureFinish(d);CapturePoll();
   if(KeyEdge(VK_F9)){captureComplete=false;lightingDirectionsEnabled=!lightingDirectionsEnabled;Log("R28 layered physics lighting F9: %s",lightingDirectionsEnabled?"ON":"ORIGINAL");}
   if(menuOpen){
@@ -1671,9 +1676,10 @@ static void OverlayFrame(IDirect3DDevice9* d){
       AdjustStudyControl(selectedSlider,dir,mult);
     }
   }
-  if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdateThrob();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
+  if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdateThrob();UpdatePhysics();UpdateVisibleSurface();FlushSettingsIfDue();
+  } // Multiple EndScenes may redraw the HUD, but advance the model only once.
   IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=20;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,"R36 HOURGLASS BLEND  F6 SHOW/HIDE",title,D3DCOLOR_ARGB(255,255,255,255));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,fullSurfaceEveryFrame?"SMOOTH MODE  F10 FASTER FRAMES":"FAST MODE  F10 SMOOTHER MOTION",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       int control=i-3;
@@ -1691,18 +1697,22 @@ static void OverlayFrame(IDirect3DDevice9* d){
   }
   if(state){state->Apply();state->Release();}inOverlay=false;
 }
-static HRESULT STDMETHODCALLTYPE HookEndScene(IDirect3DDevice9* d){if(InterlockedCompareExchange(&endSceneLogged,1,0)==0)Log("EndScene hook active");IDirect3DSurface9* rt=nullptr;IDirect3DSurface9* bb=nullptr;d->GetRenderTarget(0,&rt);d->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&bb);LONG n=InterlockedIncrement(&endSceneCount);if(n<=12){D3DSURFACE_DESC rd{},bd{};if(rt)rt->GetDesc(&rd);if(bb)bb->GetDesc(&bd);Log("EndScene %ld rt=%p %ux%u fmt=%u bb=%p %ux%u fmt=%u",n,rt,rd.Width,rd.Height,rd.Format,bb,bd.Width,bd.Height,bd.Format);}bool final=rt&&bb&&rt==bb;if(final){OverlayFrame(d);frameRendered=true;}if(rt)rt->Release();if(bb)bb->Release();return origEndScene(d);}
+static HRESULT STDMETHODCALLTYPE HookEndScene(IDirect3DDevice9* d){if(InterlockedCompareExchange(&endSceneLogged,1,0)==0)Log("EndScene hook active");IDirect3DSurface9* rt=nullptr;IDirect3DSurface9* bb=nullptr;d->GetRenderTarget(0,&rt);d->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&bb);LONG n=InterlockedIncrement(&endSceneCount);if(n<=12){D3DSURFACE_DESC rd{},bd{};if(rt)rt->GetDesc(&rd);if(bb)bb->GetDesc(&bd);Log("EndScene %ld rt=%p %ux%u fmt=%u bb=%p %ux%u fmt=%u",n,rt,rd.Width,rd.Height,rd.Format,bb,bd.Width,bd.Height,bd.Format);}bool final=rt&&bb&&rt==bb;if(final){OverlayFrame(d);}if(rt)rt->Release();if(bb)bb->Release();return origEndScene(d);}
 static HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d,const RECT* src,const RECT* dst,HWND wnd,const RGNDATA* dirty){
+  if(presentInProgress)return origPresent(d,src,dst,wnd,dirty);
+  presentInProgress=true;
   if(InterlockedCompareExchange(&presentLogged,1,0)==0)Log("Present hook active");
-  if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}frameRendered=false;
-  return origPresent(d,src,dst,wnd,dirty);
+  if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}
+  HRESULT hr=origPresent(d,src,dst,wnd,dirty);frameRendered=false;presentInProgress=false;return hr;
 }
 static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const RECT* src,const RECT* dst,HWND wnd,const RGNDATA* dirty,DWORD flags){
+  if(presentInProgress)return origSwapPresent(sc,src,dst,wnd,dirty,flags);
+  presentInProgress=true;
   if(InterlockedCompareExchange(&presentLogged,1,0)==0)Log("SwapChain Present hook active");IDirect3DDevice9* d=nullptr;
-  if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}frameRendered=false;d->Release();}
-  return origSwapPresent(sc,src,dst,wnd,dirty,flags);
+  if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}d->Release();}
+  HRESULT hr=origSwapPresent(sc,src,dst,wnd,dirty,flags);frameRendered=false;presentInProgress=false;return hr;
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){captureRemaining=0;frameRendered=false;presentInProgress=false;surfaceHoldNext=false;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
 
 static void Log(const char* fmt, ...) {
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);

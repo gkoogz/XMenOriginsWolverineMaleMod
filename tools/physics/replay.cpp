@@ -4,6 +4,13 @@
 #include RUNTIME_SOURCE
 #include "../r14/render_test.h"
 #include "../r14/cpu_buffer.h"
+static void ApplyReplayShape(){
+#ifdef SURFACE_CADENCE_TEST
+  UpdateVisibleSurface();
+#else
+  ApplyShape();
+#endif
+}
 static LRESULT CALLBACK HarnessProc(HWND h,UINT m,WPARAM w,LPARAM l){return DefWindowProc(h,m,w,l);}
 int main(int argc,char** argv){
   if(argc==2&&strcmp(argv[1],"--throb-test")==0){
@@ -128,7 +135,7 @@ int main(int argc,char** argv){
       float phase=max(0.f,time-4.f),shift=1.2f*sinf(phase*1.1f),forward=.5f*sinf(phase*.8f);
       collisionCapsuleOverride=true;overrideLeftA={2.f+forward,-7.8f+shift,79.f};overrideRightA={2.f+forward,7.8f+shift,79.f};overrideLeftB={1.f,-8.2f-shift*.35f,43.f};overrideRightB={1.f,8.2f-shift*.35f,43.f};
     }
-    ApplyControlMapping();UpdateConstraintSolver(1.f/analysisFPS,driveScale*(argc>10?(float)atof(argv[10]):0.f)*sinf(time*5.f),driveScale*(argc>10?(float)atof(argv[10]):0.f)*sinf(time*7.f));ApplyShape();
+    ApplyControlMapping();UpdateConstraintSolver(1.f/analysisFPS,driveScale*(argc>10?(float)atof(argv[10]):0.f)*sinf(time*5.f),driveScale*(argc>10?(float)atof(argv[10]):0.f)*sinf(time*7.f));ApplyReplayShape();
     for(unsigned vi=0;vi<rsCount;vi++)minimumSurfaceZ=min(minimumSurfaceZ,rsPositions[vi].z);for(int si=0;si<2;si++)maximumTether=max(maximumTether,Length(ballNodes[si]-BallAnchor(si)));
     if(meshTrace&&time>=0.f&&time<16.f&&frame%4==0)fwrite(r14Positions,sizeof(V3),r14Count,meshTrace);
     if(frame%4==0){
