@@ -26,8 +26,9 @@ static bool Topology(const teaching::LiquidMesh& m){
  CHECK(volume>=0);printf("Topology watertight components=%d vertices=%u triangles=%u volume=%.4f\n",m.components,(unsigned)m.vertices.size(),(unsigned)m.indices.size()/3,volume);return true;
 }
 static bool Sequence(int fps,int preset,bool moving){
- volumeFluid::config={};auto& c=volumeFluid::config;if(preset==1){c.volume=600;c.feed=3;c.nozzle=1.5f;c.viscosity=24;c.flowVariation=.2f;c.breakup=.5f;}if(preset==2){c.volume=.15f;c.feed=.25f;c.nozzle=.4f;c.viscosity=.3f;c.dropVolume=.03f;c.flowVariation=.1f;c.breakup=1.5f;}if(preset==3){c.volume=2000;c.feed=10;c.nozzle=2;c.viscosity=100;c.catchPlane=true;}
- teaching::Fluid f;CHECK(f.Begin({0,0,50}));std::vector<double> timings;int peak=0;size_t peakVertices=0;double maxVolumeError=0;
+ volumeFluid::config={};auto& c=volumeFluid::config;if(preset==1){c.volume=600;c.feed=3;c.nozzle=1.5f;c.viscosity=24;c.flowVariation=.2f;c.breakup=.5f;}if(preset==2){c.volume=.15f;c.feed=.25f;c.nozzle=.4f;c.viscosity=.3f;c.dropVolume=.03f;c.flowVariation=.1f;c.breakup=1.5f;}if(preset==3){c.volume=2000;c.feed=10;c.nozzle=2;c.viscosity=100;c.catchPlane=true;}if(preset==4){c.volume=120;c.feed=1.1f;c.pulseVolumeVariation=.4f;c.pulseDurationVariation=.7f;c.angleVariation=.65f;}
+ teaching::Fluid f;f.SetVariationSeed(0x13579bdfu);CHECK(f.Begin({0,0,50}));std::vector<double> timings;int peak=0;size_t peakVertices=0;double maxVolumeError=0,expected=2*c.dropVolume;for(float v:f.pulseVolume)expected+=v;
+ if(preset==4){CHECK(f.pulseChannelCount<4);bool volumeVar=false,durationVar=false,angleVar=false,overlap=false;for(int i=0;i<4;i++){volumeVar|=fabsf(f.pulseVolume[i]-c.volume)>.01f;durationVar|=fabsf(f.pulseDuration[i]-c.feed)>.01f;angleVar|=fabsf(f.angleGain[i]-1.f)>.01f;if(i<3&&f.pulseChannel[i]==f.pulseChannel[i+1]&&teaching::peaks[i+4]+f.pulseDuration[i]>teaching::peaks[i+5])overlap=true;CHECK(fabsf(teaching::WeightedMainPulse(teaching::peaks[i+4],f.angleGain)-f.angleGain[i])<.001f);}CHECK(volumeVar&&durationVar&&angleVar&&overlap);}
  for(int frame=0;frame<int((teaching::sequenceEnd+1)*fps);frame++){
   float t=(frame+1.f)/fps;V3 tip=moving?V3{t*1.5f,sinf(t)*.3f,50}:V3{0,0,50};
   auto start=std::chrono::steady_clock::now();f.Advance(1.f/fps,tip,Unit({1,0,.4f}),{});double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();CHECK(f.ready);
@@ -36,10 +37,30 @@ static bool Sequence(int fps,int preset,bool moving){
   for(const auto& v:f.mesh.vertices)CHECK(Finite(v.p)&&Finite(v.n));
   if(preset==0&&frame==int(7.95f*fps))CHECK(Topology(f.mesh));
  }
- if(c.feed>=1.5f){CHECK(f.streams[1].nodes.empty()&&f.streams[2].nodes.empty()&&f.streams[3].nodes.empty());}
- CHECK(f.Live()==0);CHECK(fabs(f.emittedVolume-(4*c.volume+2*c.dropVolume))<.005);CHECK(maxVolumeError<.02);
+ for(int i=f.pulseChannelCount;i<4;i++)CHECK(f.streams[i].nodes.empty());
+ CHECK(f.Live()==0);CHECK(fabs(f.emittedVolume-expected)<.005);CHECK(maxVolumeError<.02);
  std::sort(timings.begin(),timings.end());printf("PASS sequence fps=%d preset=%d moving=%d volume=%.6f error=%.6f peakNodes=%d peakVertices=%u median=%.3fms p95=%.3fms\n",fps,preset,moving,f.emittedVolume,maxVolumeError,peak,(unsigned)peakVertices,timings[timings.size()/2],timings[timings.size()*95/100]);
  f.Begin({});f.Advance(.3f,{},V3{1,0,0},{});CHECK(!f.ready&&f.Live()==0&&f.mesh.indices.empty());f.Begin({});f.Advance(.01f,{101,0,0},{1,0,0},{});CHECK(!f.ready);return true;
+}
+static bool Variations(){
+ volumeFluid::config={};auto& c=volumeFluid::config;c.pulseVolumeVariation=.4f;c.pulseDurationVariation=.7f;c.angleVariation=.65f;
+ teaching::Fluid a,b;a.SetVariationSeed(0x2468ace1u);b.SetVariationSeed(0x2468ace1u);CHECK(a.Begin({})&&b.Begin({}));CHECK(a.pulseChannelCount<4);
+ bool volume=false,duration=false,angle=false,overlap=false;
+ for(int i=0;i<4;i++){
+  CHECK(a.pulseVolume[i]>=c.volume*(1-c.pulseVolumeVariation)&&a.pulseVolume[i]<=c.volume*(1+c.pulseVolumeVariation));
+  CHECK(a.pulseDuration[i]>=.15f&&a.pulseDuration[i]<=10.f);CHECK(a.angleGain[i]>=.05f&&a.angleGain[i]<=1.f+c.angleVariation);
+  CHECK(fabsf(a.pulseVolume[i]-b.pulseVolume[i])<1e-5f&&fabsf(a.pulseDuration[i]-b.pulseDuration[i])<1e-5f&&fabsf(a.angleGain[i]-b.angleGain[i])<1e-5f);
+  volume|=fabsf(a.pulseVolume[i]-c.volume)>.01f;duration|=fabsf(a.pulseDuration[i]-c.feed)>.01f;angle|=fabsf(a.angleGain[i]-1.f)>.01f;
+  if(i<3&&a.pulseChannel[i]==a.pulseChannel[i+1]&&teaching::peaks[i+4]+a.pulseDuration[i]>teaching::peaks[i+5])overlap=true;
+  CHECK(fabsf(teaching::WeightedMainPulse(teaching::peaks[i+4],a.angleGain)-a.angleGain[i])<.001f);
+ }
+ CHECK(volume&&duration&&angle&&overlap);CHECK(a.pulseChannel[0]==a.pulseChannel[1]);
+ int longPulse=-1;for(int i=0;i<3;i++)if(a.pulseDuration[i]>1.5f&&a.pulseChannel[i]==a.pulseChannel[i+1]){longPulse=i;break;}CHECK(longPulse>=0);
+ double connectedEnd=teaching::peaks[longPulse+5]+a.pulseDuration[longPulse+1];
+ for(double t=teaching::peaks[longPulse+4]+.01;t<connectedEnd-.01;t+=.01){double rate=0;for(int i=0;i<4;i++)if(a.pulseChannel[i]==a.pulseChannel[longPulse]){double x=(t-teaching::peaks[i+4])/a.pulseDuration[i];if(x>0&&x<1)rate+=a.pulseVolume[i]/a.pulseDuration[i]*a.Rate((float)x);}CHECK(rate>0);}
+ c.pulseVolumeVariation=c.pulseDurationVariation=c.angleVariation=0;teaching::Fluid fixed;fixed.SetVariationSeed(123);CHECK(fixed.Begin({}));
+ for(int i=0;i<4;i++){CHECK(fabsf(fixed.pulseVolume[i]-c.volume)<1e-5f&&fabsf(fixed.pulseDuration[i]-c.feed)<1e-5f&&fabsf(fixed.angleGain[i]-1)<1e-5f);}CHECK(fixed.pulseChannelCount==4);
+ printf("PASS per-pump volume/duration/angle variance is seeded and repeatable; overlapping pumps share a continuous feed channel\n");return true;
 }
 static teaching::ViscousThread Make(){teaching::ViscousThread s;s.live=true;for(int i=0;i<30;i++){s.nodes.push_back({{float(i),0,50},{float(i)-14.5f,2,0},0});if(i){s.links.push_back({1,1,1,false,(unsigned)(i-1)});s.volume+=1;}}return s;}
 static V3 Momentum(const teaching::ViscousThread& s){V3 p{};for(size_t i=0;i<s.links.size();i++)p=p+(s.nodes[i].v+s.nodes[i+1].v)*(s.links[i].volume*.5f);return p;}
@@ -51,4 +72,4 @@ static bool Material(){
  volumeFluid::config={};teaching::Fluid a,bf;CHECK(a.Begin({0,0,50})&&bf.Begin({0,0,50}));for(int i=0;i<270;i++)a.Advance(1.f/30,{0,0,50},{1,0,0},{});for(int i=0;i<1080;i++)bf.Advance(1.f/120,{0,0,50},{1,0,0},{});CHECK(a.streams[0].nodes.size()==bf.streams[0].nodes.size());float error=0;for(size_t i=0;i<a.streams[0].nodes.size();i++)error=max(error,Length(a.streams[0].nodes[i].p-bf.streams[0].nodes[i].p));CHECK(error<.001f);printf("PASS 30/120 Hz fixed-step agreement maxError=%.8f\n",error);
  return true;
 }
-int main(int argc,char**argv){setvbuf(stdout,nullptr,_IONBF,0);if(argc>1&&strcmp(argv[1],"material")==0)return Material()?0:1;return Sequence(argc>1?atoi(argv[1]):60,argc>2?atoi(argv[2]):0,argc>3)?0:1;}
+int main(int argc,char**argv){setvbuf(stdout,nullptr,_IONBF,0);if(argc>1&&strcmp(argv[1],"material")==0)return Material()?0:1;if(argc>1&&strcmp(argv[1],"variance")==0)return Variations()?0:1;return Sequence(argc>1?atoi(argv[1]):60,argc>2?atoi(argv[2]):0,argc>3)?0:1;}

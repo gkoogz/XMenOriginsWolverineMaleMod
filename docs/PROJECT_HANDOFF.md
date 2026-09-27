@@ -1,3 +1,8 @@
+﻿## Release 1.6.0 — 2026-09-26
+
+Added per-run randomized volume, duration, and angle intensity for the four main emission pulses. The values are seeded once at sequence start so the pose and fluid samples stay repeatable within that run. Overlapping pulse windows share a stream group and use smooth flow envelopes; the default variation range deliberately extends one pulse past the next onset. Seeded tests cover bounds, zero-variation settings, overlap continuity, sampled-volume conservation, and angle peaks. Clean-install and v1.5-upgrade rollback fixtures, camera movement, audio pool, and physics state checks pass. Live gameplay/FPS confirmation remains outstanding. See `docs/TEACHING-FLUID-1.6-VALIDATION.md` for measurements.
+
+---
 ## Release 1.5.0 — 2026-09-26
 
 Published from the v1.4.0 baseline with the CPU viscous-thread/D3D9 indexed surface renderer, camera-independent fluid state, optional random local audio cues, and a default configuration installed only when absent. No pec/chest sculpt experiments were carried forward. User-provided study recordings remain local and are excluded from the redistributable package. Build, installer, camera-motion, fluid-topology, and audio-pool checks are recorded in `docs/TEACHING-FLUID-1.5-VALIDATION.md`; live gameplay/FPS validation remains outstanding.
@@ -1322,4 +1327,3 @@ Installed after user closed Wolverine: runtime09AA98C9293573398E0A44CCD2FAEB0A00
 User explicitly requested committing and releasing the existing implementation as 1.4 with no further changes. Runtime/model sources and installed binary are frozen at SHA256 09AA98C9293573398E0A44CCD2FAEB0A00FBD79520C40CF572361F4D6871D05F. Only release metadata, documentation, payload copy and versioned installer launchers changed for packaging. The later sustained-angle/hang synchronization request was not implemented. Release tag: v1.4.0; intended release URL: https://github.com/gkoogz/XMenOriginsWolverineMaleMod/releases/tag/v1.4.0. Previous test evidence and live-verification limits above remain applicable.
 
 Release 1.4 upgrade fixture passed: full payload checksums, existing texture/audio backups, settings retention and exact rollback restoration. Fixture used supported installed Natural/WGame packages; existing WBX patch bytes are unchanged from 1.3. No live game files changed during release validation.
-

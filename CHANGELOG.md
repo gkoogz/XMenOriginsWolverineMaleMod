@@ -1,3 +1,10 @@
+﻿# Release 1.6.0 — 2026-09-26
+
+Each main pulse now samples an independent volume and feed duration for every teaching sequence. A deterministic seed within the run keeps the pose and emission variation aligned; each new run gets a fresh seed. Feed windows that overlap are grouped into a shared continuous thread, with smooth ramped flow through the handoff. Per-throb angle intensity is varied independently. The default duration variation guarantees one extended pump when the configured range can cross the 1.5-second pulse spacing. All controls are editable in `Binaries/TeachingFluid.ini`; setting a variation to zero disables it.
+
+Validation adds seeded-repeatability, bounds, zero-variance, overlap-continuity, and angle-peak regression coverage. Clean-install/upgrade/rollback checks and camera/render tests remain in the release suite. See `docs/TEACHING-FLUID-1.6-VALIDATION.md`. No user study audio or rejected pec sculpt work is included.
+
+---
 # Release 1.5.0 — 2026-09-26
 
 - Keep the released v1.4 body, character package, textures, and supported installer path; exclude rejected pec modeling experiments.
@@ -71,4 +78,3 @@ cases passed isolated checks. Live-game visual playtest remains pending.
 - Renamed the overlay to a concise anatomy-tool label with explicit F6 show/hide text.
 - Moved Reset All from Home to F8.
 - Added transactional one-click installation and verified one-click uninstallation.
-

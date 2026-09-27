@@ -56,12 +56,10 @@ static bool LoadVolumeConfig(){
  char path[MAX_PATH];SiblingPath(path,"TeachingFluid.ini");volumeFluid::Settings cfg;
  auto read=[&](const char* name,float& value,float lo,float hi){char b[80];GetPrivateProfileStringA("Fluid",name,"",b,sizeof(b),path);if(!*b)return true;char* end=nullptr;float v=strtof(b,&end);while(end&&*end==' ')++end;if(!end||*end||!std::isfinite(v)||v<lo||v>hi){Log("Fluid configuration rejected: %s=%s range %.4g..%.4g",name,b,lo,hi);return false;}value=v;return true;};
  float capacity=(float)cfg.capacity,pressure=(float)cfg.iterations,visc=(float)cfg.viscIterations,plane=0;
- if(!read("Volume",cfg.volume,.01f,4000)||!read("Duration",cfg.feed,.15f,10)||!read("Viscosity",cfg.viscosity,0,100)||!read("SurfaceTension",cfg.tension,0,100)||!read("NozzleRadius",cfg.nozzle,.15f,4)||!read("Spacing",cfg.spacing,.15f,.8f)||!read("FlowVariation",cfg.flowVariation,0,.7f)||!read("Lifetime",cfg.lifetime,1,15)||!read("DropVolume",cfg.dropVolume,.005f,20)||!read("DropDuration",cfg.dropDuration,.3f,5)||!read("DropHold",cfg.dropHold,.1f,5)||!read("DropLength",cfg.dropLength,.5f,15)||!read("Capacity",capacity,1024,65536)||!read("PressureIterations",pressure,2,12)||!read("ViscosityIterations",visc,2,32)||!read("CatchPlane",plane,0,1)||!read("CatchDepth",cfg.catchDepth,5,150))return false;
+ if(!read("Volume",cfg.volume,.01f,4000)||!read("Duration",cfg.feed,.15f,10)||!read("PulseVolumeVariation",cfg.pulseVolumeVariation,0,.75f)||!read("PulseDurationVariation",cfg.pulseDurationVariation,0,.9f)||!read("AngleVariation",cfg.angleVariation,0,1)||!read("Viscosity",cfg.viscosity,0,100)||!read("SurfaceTension",cfg.tension,0,100)||!read("NozzleRadius",cfg.nozzle,.15f,4)||!read("Spacing",cfg.spacing,.15f,.8f)||!read("FlowVariation",cfg.flowVariation,0,.7f)||!read("Lifetime",cfg.lifetime,1,15)||!read("DropVolume",cfg.dropVolume,.005f,20)||!read("DropDuration",cfg.dropDuration,.3f,5)||!read("DropHold",cfg.dropHold,.1f,5)||!read("DropLength",cfg.dropLength,.5f,15)||!read("Capacity",capacity,1024,65536)||!read("PressureIterations",pressure,2,12)||!read("ViscosityIterations",visc,2,32)||!read("CatchPlane",plane,0,1)||!read("CatchDepth",cfg.catchDepth,5,150))return false;
  float sides=(float)cfg.meshSides;
  if(!read("ThreadSpacing",cfg.threadSpacing,.25f,2)||!read("Breakup",cfg.breakup,0,4)||!read("MeshSides",sides,8,20))return false;cfg.meshSides=(int)sides;
  cfg.capacity=(int)capacity;cfg.iterations=(int)pressure;cfg.viscIterations=(int)visc;cfg.catchPlane=plane>.5f;
- float speed=cfg.volume/cfg.feed/(3.14159265f*cfg.nozzle*cfg.nozzle*.88f)*(1+cfg.flowVariation);
- if(speed*min(4,(int)ceilf(cfg.feed/1.5f))>250){Log("Fluid config rejected: flow speed exceeds supported range");return false;}
  volumeFluid::config=cfg;Log("Fluid config: Volume=%.3f Duration=%.3f Viscosity=%.3f Spacing=%.3f Capacity=%d",cfg.volume,cfg.feed,cfg.viscosity,cfg.spacing,cfg.capacity);return true;
 }
 static void DrawTeachingFluid(IDirect3DDevice9* d){
@@ -89,8 +87,8 @@ static void DrawTeachingFluid(IDirect3DDevice9* d){
 static void TeachingInput(IDirect3DDevice9* d){
  DWORD now=GetTickCount(),pid=0;GetWindowThreadProcessId(GetForegroundWindow(),&pid);bool focused=pid==GetCurrentProcessId();bool down=(GetAsyncKeyState(teachingKey)&0x8000)!=0;static bool oldDown=false;bool edge=down&&!oldDown;oldDown=down;
  if(!focused){if(teachingTimeline.active)CancelTeaching();teachingLastTick=now;return;}
- if(edge){if(teachingTimeline.active)CancelTeaching();else if(teachingSceneTick&&now-teachingSceneTick<250&&r14Ready){
-  if(LoadVolumeConfig()&&teachingFluid.Prepare()&&fluidSurface.Initialize(d)){teachingTimeline.Start();teachingAudio.Begin();teachingFluid.Clear();teachingFluidTime=0;}else Log("Cannot start fluid: %s / %s",teachingFluid.error.c_str(),fluidSurface.error.c_str());
+  if(edge){if(teachingTimeline.active)CancelTeaching();else if(teachingSceneTick&&now-teachingSceneTick<250&&r14Ready){
+  teachingFluid.SetVariationSeed(now);if(LoadVolumeConfig()&&teachingFluid.Prepare()&&fluidSurface.Initialize(d)){teachingTimeline.Start();teachingAudio.Begin();teachingFluid.Clear();teachingFluidTime=0;}else Log("Cannot start fluid: %s / %s",teachingFluid.error.c_str(),fluidSurface.error.c_str());
   now=GetTickCount();teachingLastTick=now;teachingSceneTick=now;
  }}
  float dt=teachingLastTick?(now-teachingLastTick)*.001f:0.f;teachingLastTick=now;

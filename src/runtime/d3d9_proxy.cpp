@@ -553,7 +553,8 @@ static void ApplyControlMapping(){
   angleOffset=angleOffset*(1.f-demo.blend)-min(8.f,max(0.f,sliderUI[4]-1.f))*demo.pulse*demo.blend*upperFade;
   // Negative model pitch points upward. These are illustrative pose targets,
   // not medically calibrated motion or a world-space emitter guarantee.
-  float finalAngleUI=UnmapControl100(-25.f-12.f*demo.finalPulse,coherentShapeLow[4],neutralShape[4],sliderSpecs[4].hi);
+  float variedAnglePulse=teaching::WeightedMainPulse(teachingTimeline.time,teachingFluid.angleGain);
+  float finalAngleUI=UnmapControl100(-25.f-12.f*variedAnglePulse,coherentShapeLow[4],neutralShape[4],sliderSpecs[4].hi);
   angleOffset=angleOffset*(1.f-demo.finalBlend)+(finalAngleUI-sliderUI[4])*demo.finalBlend;
   float relaxedHang=min(100.f,hangUI+15.f),contractedHang=max(1.f,hangUI-35.f);
   float demoHang=relaxedHang+(contractedHang-relaxedHang)*demo.hangPulse;
