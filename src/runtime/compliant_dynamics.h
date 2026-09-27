@@ -134,7 +134,7 @@ static void PDBend(int i,float compliance,V3& lambda,float dt){
 // transmits the equal reaction to that span; treating it as a moving wall
 // silently supplied energy whenever a large support pulled on the shaft.
 static V3 pdPreviousAnchor[2],pdPreviousMaterial[2];
-static V3 PDLateralSlack(int s){return {0,(s?1.f:-1.f)*.04f*CPRadii(s).y,0};}
+static V3 PDLateralSlack(int s){return CPRestSlack(s);}
 static V3 PDMaterialTarget(int s){
  V3 rc{},rt{},lc{},lt{};SampleRestShaftFrame(.12f,rc,rt);SampleShaftChain(.12f,lc,lt);
  return lc+RotateFromTo(constraintBallRest[s]+PDLateralSlack(s)-rc,rt,lt);
@@ -206,7 +206,7 @@ static void PDSuspension(int s,float& lambda,float& stop,float dt){
  int id=pdBody0+s;V3 arm=cpBasis[s][2]*(CPRadii(s).z*.23f),anchor=BallAnchor(s),delta=pdPosition[id]+arm-anchor;
  float distance=Length(delta);if(distance<1e-7f)return;
  V3 n=delta/distance,gradient[shaftNodeCount];float w=PDSuspensionMass(s,arm,n,gradient);
- float rest=max(2.45f,Length(constraintBallRest[s]-RestBallAnchor(s))),stiff=max(0.f,min(1.f,physUI[4]/100.f));
+ float rest=max(2.45f,Length(constraintBallRest[s]+CPRestSlack(s)-RestBallAnchor(s))),stiff=max(0.f,min(1.f,physUI[4]/100.f));
  float compliance=.00006f*expf(-3.f*stiff),alpha=compliance/(dt*dt);
  float ratio=.10f+.60f*(1.f-max(0.f,min(1.f,physUI[6]/100.f)));
  float gamma=2.f*ratio*sqrtf(compliance/max(w,1e-8f))/dt;
@@ -312,7 +312,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
   V3 up=cpBasis[s][2],forward=Unit(Cross({0,1,0},up));
   float twist=atan2f(Dot(up,Cross(cpBasis[s][0],forward)),Dot(cpBasis[s][0],forward));
   float torsion=20.f*expf((physUI[4]/100.f-.5f)*2.f);
-  V3 torque=Cross(up,CPDesiredUp(s))*10.f+up*(twist*torsion);cpOmega[s]=(cpOmega[s]+torque*dt)*expf(-6.f*dt);PDRotateBody(s,cpOmega[s]*dt);
+  V3 torque=Cross(up,CPDesiredUp(s))*10.f+up*(twist*torsion);cpOmega[s]=(cpOmega[s]+torque*dt)*expf(-10.f*dt);PDRotateBody(s,cpOmega[s]*dt);
  }
  V3 root=ShaftRoot(),direction=LiveRootDirection();float segment=constraintRestLength/(shaftNodeCount-1);
  pdPosition[0]=root;pdPosition[1]=root+direction*segment;

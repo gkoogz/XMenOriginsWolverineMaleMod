@@ -70,6 +70,7 @@ static float glansUI=50.f;
 static float sliderUI[7]={50.f,50.f,50.f,50.f,50.f,50.f,50.f};
 static float effectiveShapeUI[7]={50.f,50.f,50.f,50.f,50.f,50.f,50.f};
 static float effectiveGlansUI=50.f;
+static float effectiveHangUI=50.f;
 static float sliderValues[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
 static int throbMode;
 static bool idleChatterEnabled;
@@ -94,10 +95,16 @@ static V3 Cross(V3 a,V3 b){return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b
 static float Length(V3 a){return sqrtf(Dot(a,a));}
 static V3 Unit(V3 a){float n=Length(a);return n>1e-6f?a/n:V3{1,0,0};}
 #include "teaching_sequence.h"
+#include "teaching_audio.h"
+#include "teaching_volume.h"
 static teaching::Timeline teachingTimeline;
-static teaching::Fluid teachingFluid;
+static teaching::PatientAudio teachingAudio;
+// Device resources release on Reset. Process teardown must not enter the GPU
+// driver from a static destructor while Windows holds the DLL loader lock.
+static teaching::Fluid teachingFluid(false);
 static DWORD teachingLastTick;
 static int teachingKey=VK_OEM_PERIOD;
+static float teachingViscosity=2.f,teachingCohesion=1.8f,teachingSpread=1.f;
 #include "surface_limit.h"
 #include "geometry_pass.h"
 static float Smooth01(float value);
@@ -296,7 +303,7 @@ static void InitializeConstraintSolver(){
   V3 root=ShaftRoot(),dir=RestShaftDirection();float segment=constraintRestLength/(shaftNodeCount-1);
   for(int i=0;i<shaftNodeCount;i++)shaftNodes[i]=shaftPrevious[i]=root+dir*(segment*i);
   for(int side=0;side<2;side++){
-    V3 anchor=RestBallAnchor(side),rest=constraintBallRest[side];
+    V3 anchor=RestBallAnchor(side),rest=constraintBallRest[side]+CPRestSlack(side);
     lobeAnchorPrevious[side]=anchor;lobeCompression[side]=0.f;lobePressureNormal[side]=V3{0.f,side?1.f:-1.f,0.f};
     ballNodes[side]=ballPrevious[side]=rest;
     neckNodes[side]=neckPrevious[side]=anchor+(rest-anchor)*.43f;
@@ -544,12 +551,19 @@ static void ApplyControlMapping(){
   float combinedSizePulse=throbSizePulse+throbAngleSizePulse;
   const auto demo=teachingTimeline.Get();
   angleOffset=angleOffset*(1.f-demo.blend)-min(8.f,max(0.f,sliderUI[4]-1.f))*demo.pulse*demo.blend*upperFade;
+  // Negative model pitch points upward. These are illustrative pose targets,
+  // not medically calibrated motion or a world-space emitter guarantee.
+  float finalAngleUI=UnmapControl100(-25.f-12.f*demo.finalPulse,coherentShapeLow[4],neutralShape[4],sliderSpecs[4].hi);
+  angleOffset=angleOffset*(1.f-demo.finalBlend)+(finalAngleUI-sliderUI[4])*demo.finalBlend;
+  float relaxedHang=min(100.f,hangUI+15.f),contractedHang=max(1.f,hangUI-35.f);
+  float demoHang=relaxedHang+(contractedHang-relaxedHang)*demo.hangPulse;
+  effectiveHangUI=hangUI+(demoHang-hangUI)*demo.finalBlend;
   // Evaluate the fold guard against the actual demonstration angle as well.
   float sizePoseFactor=Smoother01((sliderUI[4]-5.f)/14.f)*upperFade
     *Smoother01((sliderUI[4]+angleOffset-1.f)/9.f);
   for(int i=0;i<7;i++){
     float offset=(i>=1&&i<=3)?size[mode]*combinedSizePulse*sizePoseFactor:i==4?angleOffset:0.f;
-    if(i>=1&&i<=3)offset=offset*(1.f-demo.blend)+(i==3?0.f:(i==2?8.f:4.f)*demo.pulse*demo.blend*sizePoseFactor);
+    if(i>=1&&i<=3)offset=offset*(1.f-demo.blend)+(i==3?0.f:(i==2?8.f:4.f)*(demo.pulse+.5f*demo.finalPulse)*demo.blend*sizePoseFactor);
     // Size pulses may briefly exceed the user slider's 100-point endpoint.
     // The stored sliderUI remains in its ordinary range.
     effectiveShapeUI[i]=max(i==1?0.f:1.f,sliderUI[i]+offset);
@@ -579,6 +593,9 @@ static void LoadSettings(){
     if(version<5){glansUI=GlansControlV5(glansUI);settingsPending=true;settingsChangedTick=GetTickCount();}
   }
   teachingKey=GetPrivateProfileIntA("Teaching Sequence","TriggerKey",VK_OEM_PERIOD,path);
+  ReadIniFloat(path,"Teaching Sequence","Viscosity",.25f,3.f,teachingViscosity);
+  ReadIniFloat(path,"Teaching Sequence","Cohesion",.25f,3.f,teachingCohesion);
+  ReadIniFloat(path,"Teaching Sequence","Spread",0.f,2.f,teachingSpread);
   if(teachingKey<8||teachingKey>254||teachingKey==VK_F6||teachingKey==VK_F8||teachingKey==VK_F9||teachingKey==VK_SHIFT)teachingKey=VK_OEM_PERIOD;
   int savedThrob=GetPrivateProfileIntA("Animation","Throb",0,path);throbMode=max(0,min(3,savedThrob));ResetThrobClock();
   idleChatterEnabled=GetPrivateProfileIntA("Animation","Idle Chatter",0,path)!=0;
@@ -1343,7 +1360,7 @@ static V3 BallAnchor(int side){
 }
 static float HangOffset(){
   // Low values draw the lobes closer; high values lengthen the suspension.
-  float u=hangUI<50.f?(hangUI-50.f)/49.f:(hangUI-50.f)/50.f;
+  float u=effectiveHangUI<50.f?(effectiveHangUI-50.f)/49.f:(effectiveHangUI-50.f)/50.f;
   return -u*(u<0.f?1.f:4.5f)*sqrtf(max(.35f,BallShapeScale()));
 }
 // Each contents support is a complete, fixed-volume ovoid. The upper pole
@@ -1707,14 +1724,14 @@ static void OverlayFrame(IDirect3DDevice9* d){
       else if(i==1){name="THROB";value=(float)throbMode;lo=0;hi=3;sprintf_s(val,"%s",throbMode==0?"OFF":throbMode==1?"GENTLE":throbMode==2?"MEDIUM":"INTENSE");}
       else if(i==2){name="IDLE CHATTER";value=idleChatterEnabled?1.f:0.f;lo=0;hi=1;sprintf_s(val,"%s",idleChatterEnabled?"ON":"OFF");}
       else if(control==3){name="GLANS SIZE";value=effectiveGlansUI;lo=0;hi=100;sprintf_s(val,"%.0f",value);}
-      else if(control==5){name="HANG";value=hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
+      else if(control==5){name="HANG";value=teachingTimeline.active?effectiveHangUI:hangUI;lo=1;hi=100;sprintf_s(val,"%.0f",value);}
       else if(control<9){int shape=control<3?control:control-1;if(control>5)shape--;const auto& s=sliderSpecs[shape];name=s.name;value=effectiveShapeUI[shape];lo=shape==1?0.f:1.f;hi=100;sprintf_s(val,"%.0f",value);}
       else{const auto& s=physSpecs[control-9];name=s.name;value=physUI[control-9];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
       RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(i<3){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=max(0.f,min(1.f,(value-lo)/(hi-lo)));Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
     }
     DWORD transformAge=motionLastCaptureTick?GetTickCount()-motionLastCaptureTick:0xFFFFFFFFu;bool transformLive=motionCollisionBonesReady&&transformAge<=1200u;
     D3DCOLOR statusColor=transformLive?D3DCOLOR_ARGB(255,92,230,130):graftBuffer?D3DCOLOR_ARGB(255,80,190,235):D3DCOLOR_ARGB(255,255,190,70);const char* statusText=transformLive?"STATUS: CHARACTER TRANSFORM LIVE":graftBuffer?"STATUS: TRANSFORM UNAVAILABLE":"STATUS: WAITING FOR WOLVERINE";RECT status{(LONG)x+10,(LONG)statusY,(LONG)(x+w-10),(LONG)statusY+20};Text(d,statusText,status,statusColor);RECT help1{(LONG)x+10,(LONG)statusY+22,(LONG)(x+w-10),(LONG)statusY+41};Text(d,"UP/DOWN SELECT  LEFT/RIGHT ADJUST",help1,D3DCOLOR_ARGB(255,185,185,190));RECT help2{(LONG)x+10,(LONG)statusY+42,(LONG)(x+w-10),(LONG)statusY+63};char sequenceHelp[96];
-    if(teachingTimeline.active)sprintf_s(sequenceHelp,"DEMO %.1F/20S  PRESS KEY TO CANCEL",(float)teachingTimeline.time);
+    if(teachingTimeline.active)sprintf_s(sequenceHelp,"TEACHING FLUID %.1FS",(float)teachingTimeline.time);
     else if(teachingKey==VK_OEM_PERIOD)sprintf_s(sequenceHelp,". DEMO  F8 RESET  F6 SHOW/HIDE");
     else sprintf_s(sequenceHelp,"KEY %d DEMO  F8 RESET  F6 HIDE",teachingKey);
     Text(d,sequenceHelp,help2,D3DCOLOR_ARGB(255,185,185,190));
@@ -1976,7 +1993,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
 }
 static HRESULT STDMETHODCALLTYPE HookCreateDevice(IDirect3D9* self,UINT adapter,D3DDEVTYPE type,HWND wnd,DWORD flags,D3DPRESENT_PARAMETERS* pp,IDirect3DDevice9** out) {
   HRESULT hr=origCreateDevice(self,adapter,type,wnd,flags,pp,out);
-  if(SUCCEEDED(hr)&&out&&*out){LoadSettings();LoadIdlePool();void** vt=*(void***)*out;Patch(&vt[16],(void*)HookReset,(void**)&origReset);Patch(&vt[17],(void*)HookPresent,(void**)&origPresent);Patch(&vt[42],(void*)HookEndScene,(void**)&origEndScene);Patch(&vt[82],(void*)HookDIP,(void**)&origDIP);IDirect3DSwapChain9* sc=nullptr;if(SUCCEEDED((*out)->GetSwapChain(0,&sc))&&sc){void** svt=*(void***)sc;Patch(&svt[3],(void*)HookSwapPresent,(void**)&origSwapPresent);sc->Release();}Log("CreateDevice hooked %ux%u windowed=%d",pp->BackBufferWidth,pp->BackBufferHeight,pp->Windowed);}
+  if(SUCCEEDED(hr)&&out&&*out){LoadSettings();LoadIdlePool();teachingAudio.Load();void** vt=*(void***)*out;Patch(&vt[16],(void*)HookReset,(void**)&origReset);Patch(&vt[17],(void*)HookPresent,(void**)&origPresent);Patch(&vt[42],(void*)HookEndScene,(void**)&origEndScene);Patch(&vt[82],(void*)HookDIP,(void**)&origDIP);IDirect3DSwapChain9* sc=nullptr;if(SUCCEEDED((*out)->GetSwapChain(0,&sc))&&sc){void** svt=*(void***)sc;Patch(&svt[3],(void*)HookSwapPresent,(void**)&origSwapPresent);sc->Release();}Log("CreateDevice hooked %ux%u windowed=%d",pp->BackBufferWidth,pp->BackBufferHeight,pp->Windowed);}
   return hr;
 }
 static void LoadReal(){
@@ -1987,3 +2004,4 @@ IDirect3D9* WINAPI Direct3DCreate9(UINT sdk){LoadReal();IDirect3D9* d=realCreate
 int WINAPI D3DPERF_BeginEvent(D3DCOLOR c,LPCWSTR n){LoadReal();return realBegin?realBegin(c,n):-1;}
 int WINAPI D3DPERF_EndEvent(){LoadReal();return realEnd?realEnd():-1;}
 BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");HookAudioFactory();}return TRUE;}
+

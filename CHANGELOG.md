@@ -1,3 +1,11 @@
+# Release 1.5.0 — 2026-09-26
+
+- Keep the released v1.4 body, character package, textures, and supported installer path; exclude rejected pec modeling experiments.
+- Replace the particle-like tracer effect with continuous white viscous streams and an attached clear preliminary strand.
+- Fix camera-motion smearing by keeping simulation state in component space and applying camera transforms only for drawing.
+- Add optional random local WAV cues at 2.5 and 7 seconds; user study audio remains outside redistributable files.
+- Preserve saved game settings and existing user `TeachingFluid.ini`; install the sample only when absent.
+- Document limitations: visual fluid approximation, no full terrain/body collision or splash solver, and no live FPS claim.
 # Release 1.4.0 — 2026-09-26
 
 - Packages the existing installed teaching tracer demonstration and visibility update.
@@ -63,3 +71,4 @@ cases passed isolated checks. Live-game visual playtest remains pending.
 - Renamed the overlay to a concise anatomy-tool label with explicit F6 show/hide text.
 - Moved Reset All from Home to F8.
 - Added transactional one-click installation and verified one-click uninstallation.
+

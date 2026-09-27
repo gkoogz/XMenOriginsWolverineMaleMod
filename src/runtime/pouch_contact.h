@@ -6,9 +6,24 @@ static float cpCompression[2]{},cpMinimumGap=1e9f,cpLastGap=0.f;
 static V3 CPMul(V3 a,V3 b){return {a.x*b.x,a.y*b.y,a.z*b.z};}
 static V3 CPDiv(V3 a,V3 b){return {a.x/b.x,a.y/b.y,a.z/b.z};}
 static V3 CPRadii(int s){return CPMul(eggRadii[s],s?V3{5.724f/5.6240826f,4.86f/3.8670442f,7.81f/6.129288f}:V3{5.724f/5.6093187f,4.86f/3.871375f,7.93f/6.1588774f});}
+// The fitted skin centres predate the larger contents/collision envelopes.
+// Give both suspension targets room for their complete envelopes and skin;
+// use the same target for shear, tether length, and initialization.
+static V3 CPRestSlack(int s){
+ float width=CPRadii(0).y+CPRadii(1).y;
+ float desired=width*1.10f;
+ float half=max(0.f,(desired-fabsf(constraintBallRest[1].y-constraintBallRest[0].y))*.5f);
+ float forward=max(0.f,9.7f+1.35f*CPRadii(s).x-constraintBallRest[s].x);
+ return {forward,(s?1.f:-1.f)*half,0};
+}
 static V3 CPRotate(V3 v,V3 axis,float angle){float c=cosf(angle),s=sinf(angle);return v*c+Cross(axis,v)*s+axis*(Dot(axis,v)*(1.f-c));}
 // Positive rotation about lateral Y brings the upper poles forward (+X).
-static V3 CPDesiredUp(int s){return CPRotate(Unit(BallAnchor(s)-ballNodes[s]),{0,1,0},.436332313f);}
+static V3 CPDesiredUp(int s){
+ V3 suspension=BallAnchor(s)-ballNodes[s];
+ // The cord can angle inward without forcing the entire ovoid to fan outward.
+ suspension.y*=.10f;
+ return CPRotate(Unit(suspension),{0,1,0},.436332313f);
+}
 static void CPEnsure(){if(cpReady)return;for(int s=0;s<2;s++){cpBasis[s][2]=CPDesiredUp(s);cpBasis[s][0]=Unit(Cross({0,1,0},cpBasis[s][2]));cpBasis[s][1]=Unit(Cross(cpBasis[s][2],cpBasis[s][0]));cpOmega[s]={};cpCompression[s]=0;}cpNormal={0,1,0};cpReady=true;}
 static V3 CPOrient(V3 v,int s){return cpBasis[s][0]*v.x+cpBasis[s][1]*v.y+cpBasis[s][2]*v.z;}
 static V3 CPUnorient(V3 v,int s){return {Dot(v,cpBasis[s][0]),Dot(v,cpBasis[s][1]),Dot(v,cpBasis[s][2])};}
@@ -40,5 +55,5 @@ static void CPShift(int s,V3 shift){ballNodes[s]=ballNodes[s]+shift;ballPrevious
 static float CPTetherLimit(int s){
  // Derive reach from the authored suspension, including size and Hang.
  // Contact is allowed modest slack but cannot indefinitely lengthen it.
- return max(2.45f,Length(constraintBallRest[s]-RestBallAnchor(s)))*1.12f+CPRadii(s).y*.15f;
+ return max(2.45f,Length(constraintBallRest[s]+CPRestSlack(s)-RestBallAnchor(s)))*1.12f+CPRadii(s).y*.15f;
 }

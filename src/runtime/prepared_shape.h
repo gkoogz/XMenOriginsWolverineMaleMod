@@ -95,7 +95,7 @@ static void PrepareShape(unsigned char* controlled,UINT graftFirstVertex,V3& tip
   static UINT bodyIDs[pelvisControlCount+memberCount],bodyCount=0;
   static V3 bodyPositions[pelvisControlCount+memberCount];
   PreparedShapeKey next{};memcpy(next.values,sliderValues,sizeof(next.values));
-  next.hang=hangUI;next.state=physicsState;next.first=graftFirstVertex;
+  next.hang=effectiveHangUI;next.state=physicsState;next.first=graftFirstVertex;
   // Extreme folded/short rest frames can use the prior length as a fallback.
   // Preserve that dependency instead of treating those shapes as pure morphs.
   if(!preparedShapeReady||!(next==key)||!shaftRestFrameReady||!eggRestReady||(restFrameUsesPreviousLength&&inputLength!=constraintRestLength)){

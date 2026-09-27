@@ -20,3 +20,11 @@ __pycache__/
 /tools/beta11/*.exe
 /tools/beta11/*.bin*
 /tools/beta11/validation.json
+/tools/fluid/*.exe
+/tools/fluid/*.obj
+/tools/fluid/*.exp
+/tools/fluid/*.lib
+/tools/teaching/*.exe
+/tools/teaching/*.obj
+/tools/teaching/*.exp
+/tools/teaching/*.lib

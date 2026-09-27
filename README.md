@@ -1,25 +1,28 @@
-# Wolverine Anatomy Tool 1.4
+# Wolverine Anatomy Tool 1.5
 
-Release 1.4 packages the current installed build: the 20-second teaching tracer demonstration, enlarged blue fluid tracers, demonstration pulses, and relaxed lateral suspension. Runtime behavior is unchanged from the last installed update.
+Release 1.5 keeps the v1.4 character package, clothing, textures, saved controls, and 22 existing idle clips. It replaces the teaching tracer effect with a continuous viscous-stream approximation and fixes camera-motion smearing. No pec morph or sculpt is included.
 
-## Install or upgrade
+## Install and rollback
 
-Close Wolverine, extract the entire archive, and run **Install.cmd** or **Upgrade-1.4.cmd**. Default location: `C:/Games/X-Men Origins Wolverine`. For another location:
+Close Wolverine, extract the full archive, then run `Install.cmd` for a clean install or `Upgrade-1.5.cmd` for the existing supported v1.4 setup. The installer checks supported game packages and payload hashes, preserves saved settings and any existing `TeachingFluid.ini`, and writes a rollback backup under `WGame/ModBackups/WolverineAnatomyTool-v1.5.0`. Run `Rollback-1.5.cmd` to restore the pre-install files. Run `Uninstall.cmd` for the same restoration action.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\Install.ps1 -GamePath "D:\Games\Wolverine"
-```
+F6 opens the existing anatomy controls; F8 resets them. The period key starts or cancels the 20-second teaching sequence. The simulation settings live in `Binaries/TeachingFluid.ini`, which the installer adds only if one is not already present. The file can be edited between demonstrations.
 
-The installer verifies supported original or Revision 161 Natural packages and original/patched WGame packages by SHA-256. Cooked assets are WBX1 deltas requiring local game files. Saved controls are preserved. All 22 existing audio clips and both skin textures are included. F6 opens controls; F8 resets them. Period starts or cancels the teaching demonstration; see [teaching documentation](docs/TEACHING-FLUID-POC.md) for cancellation and configuration details.
+## Teaching sequence
 
-**Uninstall.cmd** or **Rollback-1.4.cmd** restores previous files and preserves saved controls. Backups are retained in `WGame/ModBackups/WolverineAnatomyTool-v1.4.0` and never overwritten.
+The first phase shows a short clear, attached strand that sags before release. The four main pulses use a continuous indexed surface with white material. Cross-section changes, thinning, bending, and occasional breakup produce a stream instead of separate bead particles. Camera transforms are applied at render time so camera motion does not deform stored simulation positions.
 
-## Validation and limits
+The two vocalization cues select one random local WAV per phase: Phase 1 at 2.5 seconds and Phase 2 at 7 seconds. To use recordings, place mono PCM 16-bit 44.1 kHz WAV files in `Binaries/TeachingAudio/Phase1` and `Binaries/TeachingAudio/Phase2`. The folders are optional and may be empty. Audio supplied for this user's study is not included in the release; neither are any private source recordings. The installer leaves these folders alone.
 
-Frame-rate, fluid lifetime/detachment, saved-control, cancellation, integrated mesh/physics, shader reflection, D3D state restoration and device-reset checks passed for this build. Installer/rollback fixture validation is provided in tools/Test-Release14.ps1.
+## Fluid settings
 
-The teaching sequence is a visual prototype without medical calibration. Detached tracers remain in character component coordinates; demonstrate stationary. Reference-plane/lifetime cleanup is not terrain collision. No new ground splats or vocalizations are included. Existing folds/intersections remain in some poses. Offline replay/render checks do not establish live game FPS or all-chapter coverage. Final appearance remains pending user verification.
+All volumes and distances are illustrative game units; they are not millilitres or calibrated physiology. `Volume` is per main pulse. `Duration` sets feed time, `Viscosity` controls resistance to relative movement, `SurfaceTension` controls illustrative necking, `Breakup` scales stream separation, and `ThreadSpacing` changes material injection density. `MeshSides` selects cross-section detail. `DropVolume`, `DropDuration`, `DropHold`, and `DropLength` configure the initial clear strand. `Lifetime`, `CatchPlane`, and `CatchDepth` control retirement and the optional demonstration plane. Valid ranges are enforced by the parser in `src/runtime/teaching_fluid_render.h`; unsupported or out-of-range values are rejected.
 
-## Source and payload
+See [fluid implementation and limits](docs/TEACHING-FLUID-1.5.md) for the authoring details. The CPU thread/mesh solver is a reduced-dimensional visual approximation. It is not a complete Navier-Stokes or Discrete Viscous Threads solver and is not medically calibrated. Self-contact, merging, splashing sheets, refraction, whole-body/terrain collision, and ground accumulation are not implemented. Large settings can increase CPU and mesh cost. The camera fix has offline movement regression coverage; live gameplay appearance and FPS still require confirmation.
 
-Source and build scripts are included. Runtime SHA-256: `09AA98C9293573398E0A44CCD2FAEB0A00FBD79520C40CF572361F4D6871D05F`.
+## Build and validation
+
+Build `src/runtime/build.cmd` with x86 MSVC and the June 2010 DirectX SDK. `manifest.json` records the release payload hashes and the source/runtime provenance. Run `tools/Test-Release15.ps1` against the supported game package inputs for clean-install and rollback fixture checks. The stream, audio, camera-motion, and render-state test sources are in `tools/fluid` and `tools/teaching`; their build commands are included. The release does not contain local patient audio.
+
+
+

@@ -1,3 +1,5 @@
+#include "fluid_surface.h"
+static volumeFluid::Surface fluidSurface;
 #pragma once
 // Included after the final R14 surface. Fluid is simulated after pelvis skinning
 // in character component space. Root travel/terrain collision are not yet solved.
@@ -8,9 +10,11 @@ static DWORD teachingSceneTick=0;
 static double teachingFluidTime=0;
 static unsigned teachingDraws=0;
 static HRESULT teachingLastDraw=S_FALSE;
-static void CancelTeaching(){teachingTimeline.Cancel();teachingFluid.Clear();teachingFluidTime=0;}
+static LARGE_INTEGER fluidProfileFrequency{};static double fluidProfileSum=0,fluidProfilePeak=0;static unsigned fluidProfileFrames=0;
+static void LogFluidProfile(){if(fluidProfileFrames)Log("Fluid2 CPU update+mesh+draw submission: mean=%.3fms max=%.3fms frames=%u (not GPU/game frame time)",fluidProfileSum/fluidProfileFrames,fluidProfilePeak,fluidProfileFrames);fluidProfileSum=fluidProfilePeak=0;fluidProfileFrames=0;}
+static void CancelTeaching(){teachingAudio.End(true);LogFluidProfile();teachingTimeline.Cancel();teachingFluid.Clear();teachingFluidTime=0;}
 static void ReleaseTeaching(){
- CancelTeaching();teachingSceneTick=0;teachingDrawSerial=-2;
+ CancelTeaching();fluidSurface.Release();teachingSceneTick=0;teachingDrawSerial=-2;
  if(teachingVS){teachingVS->Release();teachingVS=nullptr;}
  if(teachingPS){teachingPS->Release();teachingPS=nullptr;}
 }
@@ -47,75 +51,52 @@ static bool EnsureTeachingShaders(IDirect3DDevice9* d){
  if(errors)errors->Release();if(FAILED(hr))return false;
  if(!teachingPS)hr=d->CreatePixelShader((DWORD*)code->GetBufferPointer(),&teachingPS);code->Release();return SUCCEEDED(hr);
 }
-struct TeachingVertex {V3 p;D3DCOLOR color;};
-static void TeachingMesh(std::vector<TeachingVertex>& vertices){
- vertices.clear();
- for(const auto& f:teachingFluid.strands){
-  if(f.count<2)continue;
-  float fade=1.f-teaching::Ease((f.age-2.5f)/.5f);int alpha=(int)((f.droplet?180:240)*fade);
-  for(int i=1;i<f.count;i++){
-   V3 a=f.nodes[i-1].p,b=f.nodes[i].p,axis=Unit(b-a);
-   float length=Length(b-a);if(length<.001f||length>8.f*teaching::tracerScale)continue;
-   float radius=teaching::tracerScale*(f.droplet?.10f:.13f)*sqrtf(teaching::Clamp(f.rest[i]/length,.2f,2.f));
-   V3 u=Unit(Cross(axis,fabsf(axis.z)<.9f?V3{0,0,1}:V3{0,1,0})),v=Cross(axis,u);
-   for(int side=0;side<6;side++){
-    float p=side*6.2831853f/6,q=(side+1)*6.2831853f/6;
-    V3 r=(u*cosf(p)+v*sinf(p))*radius,s=(u*cosf(q)+v*sinf(q))*radius;
-    int light=180+(side%3)*25;D3DCOLOR c=D3DCOLOR_ARGB(alpha,light*2/3,light,255);
-    TeachingVertex tri[6]={{a+r,c},{b+r,c},{a+s,c},{a+s,c},{b+r,c},{b+s,c}};
-    vertices.insert(vertices.end(),tri,tri+6);
-    if(i==1){TeachingVertex cap[3]={{a,c},{a+s,c},{a+r,c}};vertices.insert(vertices.end(),cap,cap+3);}
-    if(i==f.count-1){TeachingVertex cap[3]={{b,c},{b+r,c},{b+s,c}};vertices.insert(vertices.end(),cap,cap+3);}
-   }
-  }
- }
+
+static bool LoadVolumeConfig(){
+ char path[MAX_PATH];SiblingPath(path,"TeachingFluid.ini");volumeFluid::Settings cfg;
+ auto read=[&](const char* name,float& value,float lo,float hi){char b[80];GetPrivateProfileStringA("Fluid",name,"",b,sizeof(b),path);if(!*b)return true;char* end=nullptr;float v=strtof(b,&end);while(end&&*end==' ')++end;if(!end||*end||!std::isfinite(v)||v<lo||v>hi){Log("Fluid configuration rejected: %s=%s range %.4g..%.4g",name,b,lo,hi);return false;}value=v;return true;};
+ float capacity=(float)cfg.capacity,pressure=(float)cfg.iterations,visc=(float)cfg.viscIterations,plane=0;
+ if(!read("Volume",cfg.volume,.01f,4000)||!read("Duration",cfg.feed,.15f,10)||!read("Viscosity",cfg.viscosity,0,100)||!read("SurfaceTension",cfg.tension,0,100)||!read("NozzleRadius",cfg.nozzle,.15f,4)||!read("Spacing",cfg.spacing,.15f,.8f)||!read("FlowVariation",cfg.flowVariation,0,.7f)||!read("Lifetime",cfg.lifetime,1,15)||!read("DropVolume",cfg.dropVolume,.005f,20)||!read("DropDuration",cfg.dropDuration,.3f,5)||!read("DropHold",cfg.dropHold,.1f,5)||!read("DropLength",cfg.dropLength,.5f,15)||!read("Capacity",capacity,1024,65536)||!read("PressureIterations",pressure,2,12)||!read("ViscosityIterations",visc,2,32)||!read("CatchPlane",plane,0,1)||!read("CatchDepth",cfg.catchDepth,5,150))return false;
+ float sides=(float)cfg.meshSides;
+ if(!read("ThreadSpacing",cfg.threadSpacing,.25f,2)||!read("Breakup",cfg.breakup,0,4)||!read("MeshSides",sides,8,20))return false;cfg.meshSides=(int)sides;
+ cfg.capacity=(int)capacity;cfg.iterations=(int)pressure;cfg.viscIterations=(int)visc;cfg.catchPlane=plane>.5f;
+ float speed=cfg.volume/cfg.feed/(3.14159265f*cfg.nozzle*cfg.nozzle*.88f)*(1+cfg.flowVariation);
+ if(speed*min(4,(int)ceilf(cfg.feed/1.5f))>250){Log("Fluid config rejected: flow speed exceeds supported range");return false;}
+ volumeFluid::config=cfg;Log("Fluid config: Volume=%.3f Duration=%.3f Viscosity=%.3f Spacing=%.3f Capacity=%d",cfg.volume,cfg.feed,cfg.viscosity,cfg.spacing,cfg.capacity);return true;
 }
 static void DrawTeachingFluid(IDirect3DDevice9* d){
- if(teachingDrawSerial==renderFrameSerial)return;
- DWORD colorWrite=0;d->GetRenderState(D3DRS_COLORWRITEENABLE,&colorWrite);if(!(colorWrite&7))return;
- ShaderLayout* layout=GetShaderLayout(d);if(!layout||!layout->valid||!layout->viewValid)return;
- teachingSceneTick=GetTickCount();teachingDrawSerial=renderFrameSerial;
+ if(teachingDrawSerial==renderFrameSerial)return;DWORD color=0;d->GetRenderState(D3DRS_COLORWRITEENABLE,&color);if(!(color&7))return;
+ ShaderLayout* layout=GetShaderLayout(d);if(!layout||!layout->valid||!layout->viewValid)return;teachingSceneTick=GetTickCount();teachingDrawSerial=renderFrameSerial;
  if(!teachingTimeline.active)return;
- float local[16],view[16],bone[12];if(!TeachingMatrices(d,local,view,bone))return;
- V3 tip,dir;if(!TeachingEmitter(bone,tip,dir)){CancelTeaching();return;}
- if(!teachingFluid.ready)teachingFluid.Begin(tip);
+ float local[16],view[16],bone[12];if(!TeachingMatrices(d,local,view,bone))return;V3 tip,dir;if(!TeachingEmitter(bone,tip,dir)){CancelTeaching();return;}
+ // UE3 LocalToWorld includes pre-view translation. It is render data, not a
+ // persistent physics frame: feeding it into the solver makes camera movement
+ // stretch the trail or trip the teleport guard. Bones are component-space.
+ D3DXMATRIX localMatrix,viewMatrix,componentClip;
+ memcpy(&localMatrix,local,64);memcpy(&viewMatrix,view,64);
+ D3DXMatrixMultiply(&componentClip,&localMatrix,&viewMatrix);
+ if(!teachingFluid.ready){if(!teachingFluid.Begin(tip)){Log("Fluid unavailable: %s",teachingFluid.error.c_str());CancelTeaching();return;}teachingFluid.lastDir=dir;teachingLastTick=GetTickCount();}
+ // Conservative moving collision proxies sampled from the actual shaft rings.
+ for(int i=0;i<8;i++){UINT ring=2+(r14CrownRing-4)*i/7;V3 center=TransformPoint(bone,TeachingRing(ring));float radius=1e9f;for(UINT j=0;j<r14SegmentCount;j++){V3 p=TransformPoint(bone,r14Positions[r14NewStart+ring*r14SegmentCount+j]);radius=min(radius,Length(p-center));}teachingFluid.collision[i]={center.x,center.y,center.z,radius*.86f};}
  float dt=(float)(teachingTimeline.time-teachingFluidTime);teachingFluidTime=teachingTimeline.time;
- // Inverse orthonormal component-to-world rotation; translation is irrelevant.
- V3 gravity={-98.f*local[2],-98.f*local[6],-98.f*local[10]};
- teachingFluid.Advance(dt,tip,dir,gravity);
- if(!teachingFluid.ready){CancelTeaching();return;}
- if(!teachingFluid.Live()||!EnsureTeachingShaders(d))return;
- static std::vector<TeachingVertex> vertices;TeachingMesh(vertices);if(vertices.empty())return;
- IDirect3DStateBlock9* state=nullptr;if(FAILED(d->CreateStateBlock(D3DSBT_ALL,&state))||!state)return;
- // Some D3D9 software-vertex-processing drivers lose high palette constants
- // on state-block application. Preserve the complete vs_3_0 register bank.
- float savedConstants[256*4];if(FAILED(d->GetVertexShaderConstantF(0,savedConstants,256))){state->Release();return;}
- // Keep the scene target/depth surface; restore every modified pipeline state.
- d->SetVertexShader(teachingVS);d->SetPixelShader(teachingPS);
- d->SetFVF(D3DFVF_XYZ|D3DFVF_DIFFUSE);d->SetVertexShaderConstantF(0,local,4);d->SetVertexShaderConstantF(4,view,4);
- d->SetRenderState(D3DRS_ZENABLE,TRUE);d->SetRenderState(D3DRS_ZWRITEENABLE,FALSE);d->SetRenderState(D3DRS_ZFUNC,D3DCMP_LESSEQUAL);
- d->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);d->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_SRCALPHA);d->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_INVSRCALPHA);d->SetRenderState(D3DRS_BLENDOP,D3DBLENDOP_ADD);
- d->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_ALPHATESTENABLE,FALSE);
- d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);d->SetRenderState(D3DRS_STENCILENABLE,FALSE);d->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE);
- d->SetRenderState(D3DRS_CLIPPLANEENABLE,0);d->SetRenderState(D3DRS_COLORWRITEENABLE,7);
- d->SetRenderState(D3DRS_COLORWRITEENABLE1,0);d->SetRenderState(D3DRS_COLORWRITEENABLE2,0);d->SetRenderState(D3DRS_COLORWRITEENABLE3,0);
- d->SetRenderState(D3DRS_DEPTHBIAS,0);d->SetRenderState(D3DRS_SLOPESCALEDEPTHBIAS,0);
- teachingLastDraw=d->DrawPrimitiveUP(D3DPT_TRIANGLELIST,(UINT)vertices.size()/3,vertices.data(),sizeof(TeachingVertex));
- if(SUCCEEDED(teachingLastDraw))++teachingDraws;state->Apply();
- d->SetVertexShaderConstantF(0,savedConstants,256);state->Release();
+ LARGE_INTEGER begin,end;if(!fluidProfileFrequency.QuadPart)QueryPerformanceFrequency(&fluidProfileFrequency);QueryPerformanceCounter(&begin);
+ teachingFluid.Advance(dt,tip,dir,{0,0,-98});if(!teachingFluid.ready){Log("Fluid stopped: %s",teachingFluid.error.c_str());CancelTeaching();return;}
+ if(!teachingFluid.Live())return;
+ teachingLastDraw=fluidSurface.Draw(d,teachingFluid.mesh,(const float*)&componentClip);
+ QueryPerformanceCounter(&end);double elapsed=1000.*(end.QuadPart-begin.QuadPart)/fluidProfileFrequency.QuadPart;fluidProfileSum+=elapsed;fluidProfilePeak=max(fluidProfilePeak,elapsed);if(++fluidProfileFrames>=120)LogFluidProfile();
+ if(SUCCEEDED(teachingLastDraw))++teachingDraws;else {Log("Fluid render failed: %s hr=%08X",fluidSurface.error.c_str(),(unsigned)teachingLastDraw);CancelTeaching();}
 }
 static void TeachingInput(IDirect3DDevice9* d){
- DWORD now=GetTickCount(),pid=0;GetWindowThreadProcessId(GetForegroundWindow(),&pid);
- bool focused=pid==GetCurrentProcessId();
- bool down=(GetAsyncKeyState(teachingKey)&0x8000)!=0;
- static bool oldDown=false;bool edge=down&&!oldDown;oldDown=down;
+ DWORD now=GetTickCount(),pid=0;GetWindowThreadProcessId(GetForegroundWindow(),&pid);bool focused=pid==GetCurrentProcessId();bool down=(GetAsyncKeyState(teachingKey)&0x8000)!=0;static bool oldDown=false;bool edge=down&&!oldDown;oldDown=down;
  if(!focused){if(teachingTimeline.active)CancelTeaching();teachingLastTick=now;return;}
- if(edge){
-  if(teachingTimeline.active)CancelTeaching();
-  else if(teachingSceneTick&&now-teachingSceneTick<250&&r14Ready){teachingTimeline.Start();teachingFluid.Clear();teachingFluidTime=0;teachingLastTick=now;}
- }
+ if(edge){if(teachingTimeline.active)CancelTeaching();else if(teachingSceneTick&&now-teachingSceneTick<250&&r14Ready){
+  if(LoadVolumeConfig()&&teachingFluid.Prepare()&&fluidSurface.Initialize(d)){teachingTimeline.Start();teachingAudio.Begin();teachingFluid.Clear();teachingFluidTime=0;}else Log("Cannot start fluid: %s / %s",teachingFluid.error.c_str(),fluidSurface.error.c_str());
+  now=GetTickCount();teachingLastTick=now;teachingSceneTick=now;
+ }}
  float dt=teachingLastTick?(now-teachingLastTick)*.001f:0.f;teachingLastTick=now;
- if(teachingTimeline.active&&(dt>.25f||!teachingSceneTick||now-teachingSceneTick>250)){CancelTeaching();return;}
- teachingTimeline.Advance(dt);
- if(!teachingTimeline.active)teachingFluid.Clear();
+ if(teachingTimeline.active&&(dt>.25f||!teachingSceneTick||now-teachingSceneTick>1000)){CancelTeaching();return;}
+ double audioFrom=teachingTimeline.time;teachingTimeline.Advance(dt);teachingAudio.Advance((float)audioFrom,(float)teachingTimeline.time);if(!teachingTimeline.active){teachingAudio.End(false);LogFluidProfile();teachingFluid.Clear();}
 }
+
+
+

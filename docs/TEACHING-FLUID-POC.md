@@ -1,3 +1,5 @@
+> Historical v1.3 proof of concept; superseded by `TEACHING-FLUID-1.5.md` for current implementation, controls, and limits.
+
 # Teaching fluid proof of concept on 1.3
 
 This is a local development candidate based on tag `v1.3.0`, commit
@@ -94,3 +96,4 @@ restoration, and release/recreation. See the delivered logs for actual results.
 The installer is tested against a separate fake game directory. That fixture
 stubs only the process query because the real game is running; the production
 installer retains its process guard. No live game files are changed by testing.
+
