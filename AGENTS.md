@@ -1,10 +1,5 @@
-﻿# Working across accounts
+# Release handoff
 
-Read `docs/PROJECT_HANDOFF.md` at the start of work. Keep it current after
-material discoveries, changes, tests, installation, and user feedback. Distinguish
-observations, hypotheses, proposals, compiled candidates, and user-confirmed results.
+Read docs/PROJECT_HANDOFF.md and keep it current. Distinguish observations, offline validation and live user confirmation.
 
-The current release line is Wolverine Anatomy Tool 1.7.0, based on character
-revision 161. Use the release tag and checksums in `manifest.json` as the source
-of truth. Experimental drafts are not release inputs. See the project handoff
-for current runtime provenance, validation, and known limitations.
+The current release is Wolverine Anatomy Tool 1.8.0, based on character revision 161. manifest.json identifies the exact release payload. docs/PERFORMANCE-REVIEW.md records the performance work and remaining limits. Runtime behavior is frozen at the installed performance build for this release.

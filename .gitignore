@@ -28,3 +28,7 @@ __pycache__/
 /tools/teaching/*.obj
 /tools/teaching/*.exp
 /tools/teaching/*.lib
+
+/tools/performance/*.exe
+/tools/performance/TankCameraPresets.txt
+/tools/teaching/TankCameraPresets.txt

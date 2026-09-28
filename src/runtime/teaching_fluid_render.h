@@ -74,7 +74,14 @@ static bool LoadVolumeConfig(){
  cfg.capacity=(int)capacity;cfg.iterations=(int)pressure;cfg.viscIterations=(int)visc;cfg.catchPlane=plane>.5f;
  volumeFluid::config=cfg;Log("Fluid config: Volume=%.3f Duration=%.3f Viscosity=%.3f Spacing=%.3f Capacity=%d",cfg.volume,cfg.feed,cfg.viscosity,cfg.spacing,cfg.capacity);return true;
 }
+static bool FluidWorkActive(){return teachingTimeline.active||throbMode||!fluidStains.marks.empty();}
+static bool FluidBodyWorkActive(){
+ if(teachingTimeline.active||throbMode)return true;
+ for(const auto& mark:fluidStains.marks)if(mark.kind==volumeFluid::FLUID_IMPACT_BODY)return true;
+ return false;
+}
 static void DrawTeachingFluid(IDirect3DDevice9* d){
+ teachingSceneTick=GetTickCount();if(!FluidWorkActive()){volumeFluid::collisionSweep=nullptr;return;}
  if(teachingDrawSerial==renderFrameSerial)return;DWORD color=0;d->GetRenderState(D3DRS_COLORWRITEENABLE,&color);if(!(color&7))return;
  ShaderLayout* layout=GetShaderLayout(d);if(!layout||!layout->valid||!layout->viewValid)return;
  float local[16],view[16],bone[12];if(!TeachingMatrices(d,local,view,bone))return;
@@ -93,7 +100,7 @@ static void DrawTeachingFluid(IDirect3DDevice9* d){
  D3DXMATRIX localMatrix,viewMatrix,componentClip;
  memcpy(&localMatrix,local,64);memcpy(&viewMatrix,view,64);
  D3DXMatrixMultiply(&componentClip,&localMatrix,&viewMatrix);
- CaptureFluidBodySection(d,2);if(teachingTimeline.active||throbMode||!fluidStains.marks.empty())PrepareFluidCollision();else volumeFluid::collisionSweep=nullptr;float simulationClip[16];V3 simulationOrigin,simulationAxis;FluidSimulationTransform({0,0,0},{1,0,0},simulationOrigin,simulationAxis,simulationClip);
+ CaptureFluidBodySection(d,2);if(FluidBodyWorkActive())PrepareFluidCollision();else {volumeFluid::collisionSweep=nullptr;fluidCollisionWorld=!TankCameraSceneActive()&&fluidWorldCameraFrame==renderFrameSerial;}float simulationClip[16];V3 simulationOrigin,simulationAxis;FluidSimulationTransform({0,0,0},{1,0,0},simulationOrigin,simulationAxis,simulationClip);
  if(!teachingTimeline.active&&!throbMode){if(teachingFluid.passiveMode)teachingFluid.Clear();passiveFluidLastTick=passiveRetryAt=0;passiveThrobGate.Reset();fluidStains.Draw(d,simulationClip,now);return;}
  V3 tip,dir;if(!TeachingEmitter(bone,tip,dir)){CancelTeaching();fluidStains.Draw(d,simulationClip,now);return;}
  FluidSimulationTransform(tip,dir,tip,dir,simulationClip);

@@ -85,7 +85,7 @@ static void BuildPreparedShape(unsigned char* controlled,UINT graftFirstVertex,V
   CaptureLogicalShaftSurface();
   ++geometryRestRevision;
 }
-static void PrepareShape(unsigned char* controlled,UINT graftFirstVertex,V3& tipSum,int& tipCount){
+static void PrepareShape(unsigned char* controlled,UINT graftFirstVertex,V3& tipSum,int& tipCount){PerfScope perf(4);
   static PreparedShapeKey key{};
   static V3 cage[graftCount],centers[shaftRestSampleCount],ballRest[2],radii[2],savedTip;
   static float radius,length,inputLength;static int savedCount;

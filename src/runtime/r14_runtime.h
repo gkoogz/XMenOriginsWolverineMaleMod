@@ -26,7 +26,9 @@ static void LoadR14SkinTextures(IDirect3DDevice9* d){
   const char* names[2]={"R14-skin-natural.png","R14-skin-erect.png"};
   for(int i=0;i<2;i++){
     char path[MAX_PATH];SiblingPath(path,names[i]);
-    HRESULT hr=D3DXCreateTextureFromFileExA(d,path,D3DX_DEFAULT,D3DX_DEFAULT,D3DX_DEFAULT,0,
+    PerfScope perf(10);char cached[MAX_PATH];strcpy_s(cached,path);strcpy_s(strrchr(cached,'.'),5,".dds");
+    HRESULT hr=D3DXCreateTextureFromFileExA(d,cached,D3DX_DEFAULT,D3DX_DEFAULT,D3DX_DEFAULT,0,D3DFMT_UNKNOWN,D3DPOOL_MANAGED,D3DX_FILTER_NONE,D3DX_FILTER_NONE,0,nullptr,nullptr,&r14SkinTexture[i]);
+    if(FAILED(hr))hr=D3DXCreateTextureFromFileExA(d,path,D3DX_DEFAULT,D3DX_DEFAULT,D3DX_DEFAULT,0,
       D3DFMT_UNKNOWN,D3DPOOL_MANAGED,D3DX_FILTER_TRIANGLE,D3DX_FILTER_TRIANGLE,0,nullptr,nullptr,&r14SkinTexture[i]);
     Log("R14 skin texture %s load=%08X",names[i],hr);
   }
@@ -162,7 +164,7 @@ static void ReleaseR14(){
   if(r14IB){r14IB->Release();r14IB=nullptr;}
   r14UploadPending=true;
 }
-static void UpdateR14(const unsigned char* source){
+static void UpdateR14(const unsigned char* source){PerfScope perf(5);
   const float amount=R14Scale(GlansControlV4(glansUI))-1.f;
   const float lowerFactor=R14LowerFactor(GlansControlV4(glansUI));
   static V3 delta[graftCount];

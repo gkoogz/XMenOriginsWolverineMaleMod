@@ -1,4 +1,5 @@
 #pragma once
+static bool FluidWorkActive();
 // Exact skinned-body collision plus read-only PhysX 2.8.1 static-scene queries.
 // No PhysX SDK binary or header is redistributed; this file declares only the
 // documented query ABI already provided by the game.
@@ -18,7 +19,7 @@ static LONG fluidBodyPaletteFrame[3]={-2,-2,-2};
 static float fluidCollisionLocal[16]{},fluidCollisionView[16]{};
 static V3 fluidCameraWorld{};static DWORD fluidCameraTick;static bool fluidCollisionWorld;
 static V3 fluidCollisionEmitter{};static bool fluidCollisionEmitterValid;
-static LONG fluidCollisionFrame=-2;static bool fluidBvhTopologyReady;
+static LONG fluidCollisionFrame=-2;static bool fluidBvhTopologyReady;static unsigned fluidTopologyMask=0;
 
 static V3 FluidMatrixPoint(const float* m,V3 p){return {p.x*m[0]+p.y*m[4]+p.z*m[8]+m[12],p.x*m[1]+p.y*m[5]+p.z*m[9]+m[13],p.x*m[2]+p.y*m[6]+p.z*m[10]+m[14]};}
 static V3 FluidMatrixVector(const float* m,V3 p){return {p.x*m[0]+p.y*m[4]+p.z*m[8],p.x*m[1]+p.y*m[5]+p.z*m[9],p.x*m[2]+p.y*m[6]+p.z*m[10]};}
@@ -34,6 +35,7 @@ static void CaptureFluidCamera(IDirect3DDevice9* d){
  FluidPixelCameraLayout* p=FluidPixelCameraLayoutFor(d);if(p&&p->valid&&SUCCEEDED(d->GetPixelShaderConstantF(p->reg,c,1))&&_finite(c[0])&&_finite(c[1])&&_finite(c[2])){fluidCameraWorld={c[0],c[1],c[2]};fluidCameraTick=GetTickCount();fluidWorldCameraFrame=renderFrameSerial;}
 }
 static void CaptureFluidBodySection(IDirect3DDevice9* d,int section){
+ if(!FluidWorkActive())return;
  if(section<0||section>2)return;ShaderLayout* l=GetShaderLayout(d);if(!l||!l->valid)return;UINT n=min(75u,l->boneCount/3u);
  if(!n||FAILED(d->GetVertexShaderConstantF(l->boneRegister,fluidBodyPalette[section],n*3)))return;
  fluidBodyPaletteCount[section]=n;fluidBodyPaletteFrame[section]=renderFrameSerial;
@@ -153,16 +155,18 @@ static bool FluidGroundSweep(V3 from,V3 to,float radius,volumeFluid::FluidImpact
 }
 static bool FluidCollisionSweep(V3 from,V3 to,float radius,volumeFluid::FluidImpact& hit){float best=1.0001f;bool body=FluidBodySweep(from,to,radius,hit,best);bool world=FluidGroundSweep(from,to,radius,hit,best);return body||world;}
 
-static void FluidAppendSection(const unsigned char* packed,UINT vertexCount,const unsigned short* indices,UINT triangleCount,const unsigned char* gameplayBones,const float* palette,UINT paletteCount,unsigned char section,bool world){
+static void FluidAppendSection(const unsigned char* packed,UINT vertexCount,const unsigned short* indices,UINT triangleCount,const unsigned char* gameplayBones,const float* palette,UINT paletteCount,unsigned char section,bool world,bool buildTopology){
  unsigned base=(unsigned)fluidCollisionVertices.size();fluidCollisionVertices.reserve(base+vertexCount);
  for(UINT i=0;i<vertexCount;i++){const unsigned char* p=packed+i*32;const unsigned char* bones=gameplayBones?gameplayBones+i*4:nullptr;V3 v=FluidSkinVertex(p,bones,palette,paletteCount);if(world)v=FluidMatrixPoint(fluidCollisionLocal,v)+fluidCameraWorld;fluidCollisionVertices.push_back(v);}
- for(UINT i=0;i<triangleCount;i++)fluidCollisionTriangles.push_back({base+indices[i*3],base+indices[i*3+1],base+indices[i*3+2],section,i});
+ if(buildTopology)for(UINT i=0;i<triangleCount;i++)fluidCollisionTriangles.push_back({base+indices[i*3],base+indices[i*3+1],base+indices[i*3+2],section,i});
 }
-static void PrepareFluidCollision(){
+static void PrepareFluidCollision(){PerfScope perf(9);
  bool title=TankCameraSceneActive();fluidCollisionWorld=!title&&fluidWorldCameraFrame==renderFrameSerial;
- if(fluidCollisionFrame==renderFrameSerial)return;fluidCollisionFrame=renderFrameSerial;fluidCollisionVertices.clear();fluidCollisionTriangles.clear();
- for(int s=0;s<2;s++){if(fluidBodyPaletteCount[s]==0)continue;const unsigned char* packed=s?menuRetargetBodyDynamic1:menuRetargetBodyDynamic0;UINT vc=s?menuRetargetBodyVertexCount1:menuRetargetBodyVertexCount0;const unsigned short* ix=s?menuRetargetBodyIndices1:menuRetargetBodyIndices0;UINT tc=s?menuRetargetBodyTriangleCount1:menuRetargetBodyTriangleCount0;const unsigned char* bones=title?nullptr:(s?fluidGameplayBones1:fluidGameplayBones0);FluidAppendSection(packed,vc,ix,tc,bones,fluidBodyPalette[s],fluidBodyPaletteCount[s],(unsigned char)s,fluidCollisionWorld);}
- if(fluidBodyPaletteCount[2]){const unsigned char* packed=title?menuTankPacked:rsPacked;FluidAppendSection(packed,rsCount,rsIndices,rsIndexCount/3,nullptr,fluidBodyPalette[2],fluidBodyPaletteCount[2],2,fluidCollisionWorld);}
+ if(fluidCollisionFrame==renderFrameSerial)return;fluidCollisionFrame=renderFrameSerial;fluidCollisionVertices.clear();
+ unsigned mask=0;for(int i=0;i<3;i++)if(fluidBodyPaletteCount[i])mask|=1u<<i;
+ bool rebuild=!fluidBvhTopologyReady||mask!=fluidTopologyMask;if(rebuild){fluidCollisionTriangles.clear();fluidBvhTopologyReady=false;fluidTopologyMask=mask;}
+ for(int s=0;s<2;s++){if(fluidBodyPaletteCount[s]==0)continue;const unsigned char* packed=s?menuRetargetBodyDynamic1:menuRetargetBodyDynamic0;UINT vc=s?menuRetargetBodyVertexCount1:menuRetargetBodyVertexCount0;const unsigned short* ix=s?menuRetargetBodyIndices1:menuRetargetBodyIndices0;UINT tc=s?menuRetargetBodyTriangleCount1:menuRetargetBodyTriangleCount0;const unsigned char* bones=title?nullptr:(s?fluidGameplayBones1:fluidGameplayBones0);FluidAppendSection(packed,vc,ix,tc,bones,fluidBodyPalette[s],fluidBodyPaletteCount[s],(unsigned char)s,fluidCollisionWorld,rebuild);}
+ if(fluidBodyPaletteCount[2]){const unsigned char* packed=title?menuTankPacked:rsPacked;FluidAppendSection(packed,rsCount,rsIndices,rsIndexCount/3,nullptr,fluidBodyPalette[2],fluidBodyPaletteCount[2],2,fluidCollisionWorld,rebuild);}
  if(fluidCollisionTriangles.empty()){volumeFluid::collisionSweep=nullptr;return;}
  if(!fluidBvhTopologyReady||fluidTriangleOrder.size()!=fluidCollisionTriangles.size()){fluidTriangleOrder.resize(fluidCollisionTriangles.size());for(unsigned i=0;i<fluidTriangleOrder.size();i++)fluidTriangleOrder[i]=i;fluidBvh.clear();FluidBuildBvh(0,(unsigned)fluidTriangleOrder.size());fluidBvhTopologyReady=true;Log("exact fluid collision BVH: %u skinned vertices, %u triangles, %u nodes",(unsigned)fluidCollisionVertices.size(),(unsigned)fluidCollisionTriangles.size(),(unsigned)fluidBvh.size());}
  FluidRefitBvh(0);volumeFluid::collisionSweep=FluidCollisionSweep;
@@ -172,4 +176,4 @@ static void FluidSimulationTransform(V3 componentPoint,V3 componentDirection,V3&
  if(fluidCollisionWorld){point=FluidMatrixPoint(fluidCollisionLocal,componentPoint)+fluidCameraWorld;direction=Unit(FluidMatrixVector(fluidCollisionLocal,componentDirection));D3DXMATRIX translated,view,out;D3DXMatrixTranslation(&translated,-fluidCameraWorld.x,-fluidCameraWorld.y,-fluidCameraWorld.z);memcpy(&view,fluidCollisionView,64);D3DXMatrixMultiply(&out,&translated,&view);memcpy(clip,&out,64);}else{point=componentPoint;direction=componentDirection;D3DXMATRIX local,view,out;memcpy(&local,fluidCollisionLocal,64);memcpy(&view,fluidCollisionView,64);D3DXMatrixMultiply(&out,&local,&view);memcpy(clip,&out,64);}
 }
 static void SetFluidCollisionEmitter(V3 point){fluidCollisionEmitter=point;fluidCollisionEmitterValid=true;}
-static void ResetFluidCollision(){ResetFluidWorldOrigin();fluidPhysicsScale=0;fluidScaleReference=0;fluidScaleMatches[0]=fluidScaleMatches[1]=0;fluidScaleFrame=-2;fluidPhysicsScene=nullptr;fluidScaleScenes[0]=fluidScaleScenes[1]=nullptr;fluidCollisionVertices.clear();fluidCollisionTriangles.clear();fluidTriangleOrder.clear();fluidBvh.clear();fluidGroundCells.clear();fluidGroundHitLogged=false;fluidNxSdk=nullptr;fluidNxRetryTick=0;fluidNxFrame=-2;fluidNxQueries=0;fluidBvhTopologyReady=false;fluidCollisionFrame=-2;fluidCameraTick=0;fluidCameraWorld={};fluidCollisionWorld=false;fluidCollisionEmitterValid=false;memset(fluidBodyPaletteCount,0,sizeof(fluidBodyPaletteCount));for(UINT i=0;i<fluidPixelCameraLayoutCount;i++)if(fluidPixelCameraLayouts[i].shader)fluidPixelCameraLayouts[i].shader->Release();memset(fluidPixelCameraLayouts,0,sizeof(fluidPixelCameraLayouts));fluidPixelCameraLayoutCount=0;volumeFluid::collisionSweep=nullptr;}
+static void ResetFluidCollision(){fluidTopologyMask=0;ResetFluidWorldOrigin();fluidPhysicsScale=0;fluidScaleReference=0;fluidScaleMatches[0]=fluidScaleMatches[1]=0;fluidScaleFrame=-2;fluidPhysicsScene=nullptr;fluidScaleScenes[0]=fluidScaleScenes[1]=nullptr;fluidCollisionVertices.clear();fluidCollisionTriangles.clear();fluidTriangleOrder.clear();fluidBvh.clear();fluidGroundCells.clear();fluidGroundHitLogged=false;fluidNxSdk=nullptr;fluidNxRetryTick=0;fluidNxFrame=-2;fluidNxQueries=0;fluidBvhTopologyReady=false;fluidCollisionFrame=-2;fluidCameraTick=0;fluidCameraWorld={};fluidCollisionWorld=false;fluidCollisionEmitterValid=false;memset(fluidBodyPaletteCount,0,sizeof(fluidBodyPaletteCount));for(UINT i=0;i<fluidPixelCameraLayoutCount;i++)if(fluidPixelCameraLayouts[i].shader)fluidPixelCameraLayouts[i].shader->Release();memset(fluidPixelCameraLayouts,0,sizeof(fluidPixelCameraLayouts));fluidPixelCameraLayoutCount=0;volumeFluid::collisionSweep=nullptr;}

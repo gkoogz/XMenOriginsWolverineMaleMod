@@ -1,3 +1,12 @@
+# 1.8.0 — 2026-09-28
+
+- Prebuild lossless mipmapped skin textures to eliminate PNG decode/filter work at first draw.
+- Batch HUD submissions, skip absent-character loading work and prevent duplicate overlay updates.
+- Isolate saved cameras from diagnostics; bound session logging and remove automatic screenshot capture.
+- Restrict camera overrides and attract-movie blocking to their intended scene/content.
+- Gate inactive fluid capture and retain collision topology across animated vertex updates.
+- Include the complete 1.7 menu anatomy, world-space contacts and menu-return fixes.
+
 # 1.7.0 — 2026-09-28
 
 - Bundle the approved menu anatomy, body retarget, pelvic weld, necklace contact, camera package and blend textures.

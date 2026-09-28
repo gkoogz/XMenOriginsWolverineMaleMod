@@ -27,7 +27,7 @@ static bool menuRetargetBodyDynamicReady=false,menuRetargetBodyUploadPending[2]=
 static IDirect3DTexture9* menuBlendTexture[2]{};
 static bool menuBlendTextureAttempted=false;
 static bool menuTankSurfaceReady=false,menuTankUploadPending=true;
-static bool menuTankDrawnThisFrame=false,menuTankPreviewSaved=false;
+static bool menuTankDrawnThisFrame=false;
 static UINT menuTankSuccessfulDraws=0;
 
 static void ReleaseMenuTank(){
@@ -100,7 +100,7 @@ static HRESULT DrawMenuShellFace(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT b
   return hr;
 }
 
-static void PrepareMenuTankSurface(){
+static void PrepareMenuTankSurface(){PerfScope perf(3);
   bool report=shapeDirty||!menuTankSurfaceReady;
   // Reuse the production shape pipeline with a private CPU donor buffer.  It
   // contains the exact authored graft and pelvic attachment bases but never
@@ -306,11 +306,4 @@ static HRESULT DrawMenuTank(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original
   d->SetStreamSource(0,original,offset,stride);d->SetIndices(originalIB);if(originalIB)originalIB->Release();
   if(SUCCEEDED(hr)){menuTankDrawnThisFrame=true;if(menuTankSuccessfulDraws++==0)Log("menu tank anatomy draw active; WStart body/electrodes retained");}
   return hr;
-}
-
-static void SaveMenuTankPreview(IDirect3DDevice9* d){
-  if(menuTankPreviewSaved||!menuTankDrawnThisFrame||menuTankSuccessfulDraws<90)return;
-  IDirect3DSurface9* back=nullptr;if(FAILED(d->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&back))||!back)return;
-  char path[MAX_PATH];SiblingPath(path,"MenuTankPreview.png");HRESULT hr=D3DXSaveSurfaceToFileA(path,D3DXIFF_PNG,back,nullptr,nullptr);back->Release();
-  if(SUCCEEDED(hr)){menuTankPreviewSaved=true;Log("menu tank preview saved: %s",path);}
 }

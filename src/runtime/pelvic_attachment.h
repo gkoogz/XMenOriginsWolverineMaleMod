@@ -18,7 +18,7 @@ static void ResetPelvicAttachmentBody(unsigned char* buffer){
   }
   paBasisSaved=true;
 }
-static void ApplyPelvicAttachment(unsigned char* buffer){
+static void ApplyPelvicAttachment(unsigned char* buffer){PerfScope perf(6);
   paAppliedFraction=0.f;
   const float knots[3]={2.890559f,5.161067f,6.045556f};
   float radius=logicalShaftBodyRadius,blend=0.f,extra=1.f;unsigned a=0,b=1;

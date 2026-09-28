@@ -1,2 +1,1 @@
-# Release handoff
-Read docs/PROJECT_HANDOFF.md. Keep observations, offline validation and user confirmation distinct. The current release is 1.7.0, character revision 161. manifest.json is the payload identity.
+Read PROJECT_HANDOFF.md. Current release: 1.8.0, character revision 161. Keep offline evidence and live confirmation distinct. manifest.json identifies the release payload.
