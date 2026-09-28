@@ -34,7 +34,7 @@ static __m128 CPLevel4(CPPoints4 p,V3 radii){
   return _mm_sub_ps(_mm_sqrt_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(x,x),_mm_mul_ps(y,y)),_mm_mul_ps(z,z))),CPSplat(1.f));
 }
 static void CPKeepSkinOutside(){
- for(unsigned k=0;k<cpActiveCount;k+=4){
+ GeometryFor((cpActiveCount+3)/4,[&](unsigned group){unsigned k=group*4;
   V3 p[4];for(unsigned lane=0;lane<4;lane++)p[lane]=rsPositions[cpActive[min(k+lane,cpActiveCount-1)]];
   CPPoints4 points{_mm_set_ps(p[3].x,p[2].x,p[1].x,p[0].x),_mm_set_ps(p[3].y,p[2].y,p[1].y,p[0].y),_mm_set_ps(p[3].z,p[2].z,p[1].z,p[0].z)};
   for(int side=0;side<2;side++){
@@ -55,9 +55,9 @@ static void CPKeepSkinOutside(){
   }
   float x[4],y[4],z[4];_mm_storeu_ps(x,points.x);_mm_storeu_ps(y,points.y);_mm_storeu_ps(z,points.z);
   for(unsigned lane=0;lane<4&&k+lane<cpActiveCount;lane++)rsPositions[cpActive[k+lane]]={x[lane],y[lane],z[lane]};
- }
+ });
 }
-static void ApplyPouchSurface(){
+static void ApplyPouchSurface(){PerfScope perf(11);
  if(!eggRestReady||!constraintSolverReady)return;CPEnsure();
  for(int s=0;s<2;s++){
   cpCenters[s]=CPCenter(s);cpRenderRadii[s]=CPRadii(s);V3 scale=CPDiv(cpRenderRadii[s],s?V3{5.724f,4.86f,7.81f}:V3{5.724f,4.86f,7.93f});
@@ -75,7 +75,7 @@ static void ApplyPouchSurface(){
  __m128 origins[2][3];
  for(int s=0;s<2;s++){V3 p=CPDiv(CPLocalPoint(center,s),cpSkinRadii[s]);origins[s][0]=_mm_set1_ps(p.x);origins[s][1]=_mm_set1_ps(p.y);origins[s][2]=_mm_set1_ps(p.z);}
  const __m128 zero=_mm_setzero_ps(),one=_mm_set1_ps(1.f),half=_mm_set1_ps(.5f),fieldK=_mm_set1_ps(cpSurfaceK);
- for(unsigned k=0;k<cpActiveCount;k+=4){
+ GeometryFor((cpActiveCount+3)/4,[&](unsigned group){unsigned k=group*4;
   V3 d[4],local[2][4];
   for(unsigned lane=0;lane<4;lane++){
    unsigned q=min(k+lane,cpActiveCount-1);V3 v=CPMul({cpDirections[q*3],cpDirections[q*3+1],cpDirections[q*3+2]},scale);
@@ -100,7 +100,7 @@ static void ApplyPouchSurface(){
   for(unsigned lane=0;lane<4&&k+lane<cpActiveCount;lane++){
    unsigned q=k+lane,id=cpActive[q];V3 target=center+d[lane]*distance[lane];rsPositions[id]=rsPositions[id]+(target-rsPositions[id])*cpWeights[q];
   }
- }
+ });
  V3 anchor=(BallAnchor(0)+BallAnchor(1))*.5f;
  V3 lateral=Unit(span),up=Unit(anchor-center-lateral*Dot(anchor-center,lateral)),forward=Unit(Cross(lateral,up));
  float neckLength=max(.2f,Length(anchor-center)/19.11f);
@@ -118,12 +118,12 @@ static void ApplyPouchSurface(){
   cpTemplate[i]=center+forward*(local.x*scale.x)+lateral*(local.y*scale.y)+up*(local.z*neckLength);
   cpSurfaceDelta[i]=rsPositions[i]-cpTemplate[i];
  }
- for(unsigned k=0;k<cpNeckCount;k++){
+ GeometryFor(cpNeckCount,[&](unsigned k){
   unsigned id=cpNeckIDs[k];V3 t=cpTemplate[id];__m128 target=_mm_set_ps(0.f,t.z,t.y,t.x);
   for(unsigned j=cpNeckRows[k];j<cpNeckRows[k+1];j++){const V3& v=cpSurfaceDelta[cpNeckSources[j]];target=_mm_add_ps(target,_mm_mul_ps(_mm_set_ps(0.f,v.z,v.y,v.x),_mm_set1_ps(cpNeckWeights[j])));}
   float q[4];_mm_storeu_ps(q,target);V3 result{q[0],q[1],q[2]};
   rsPositions[id]=rsPositions[id]+(result-rsPositions[id])*cpNeckBlend[k];
- }
+ });
  // Fixed topology is prepared once; SIMD evaluates XYZ together without
  // changing neighbor order, pass count or the interleaved contact projection.
  // Keep the public V3 layout intact (GPU buffers and replay captures use it).

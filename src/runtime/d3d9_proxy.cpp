@@ -86,16 +86,20 @@ static float physValues[8]={78.f,86.f,12.f,62.f,28.f,94.f,18.f,72.f};
 static int physicsState=2,menuPage=0,selectedPhysics=0;
 struct Spring2 {float pitch,yaw,pitchVelocity,yawVelocity;};
 static Spring2 shaftSpring{},ballsSpring{};
+#include <xmmintrin.h>
 struct V3 {float x,y,z;};
 static float debugRampFraction=1.f,debugRapheFraction=1.f,debugSmoothFraction=1.f;
-static V3 operator+(V3 a,V3 b){return {a.x+b.x,a.y+b.y,a.z+b.z};}
-static V3 operator-(V3 a,V3 b){return {a.x-b.x,a.y-b.y,a.z-b.z};}
-static V3 operator*(V3 a,float s){return {a.x*s,a.y*s,a.z*s};}
-static V3 operator/(V3 a,float s){return {a.x/s,a.y/s,a.z/s};}
-static float Dot(V3 a,V3 b){return a.x*b.x+a.y*b.y+a.z*b.z;}
-static V3 Cross(V3 a,V3 b){return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
-static float Length(V3 a){return sqrtf(Dot(a,a));}
-static V3 Unit(V3 a){float n=Length(a);return n>1e-6f?a/n:V3{1,0,0};}
+static __forceinline V3 operator+(V3 a,V3 b){return {a.x+b.x,a.y+b.y,a.z+b.z};}
+static __forceinline V3 operator-(V3 a,V3 b){return {a.x-b.x,a.y-b.y,a.z-b.z};}
+static __forceinline V3 operator*(V3 a,float s){return {a.x*s,a.y*s,a.z*s};}
+static __forceinline V3 operator/(V3 a,float s){
+  __m128 value=_mm_div_ps(_mm_set_ps(0.f,a.z,a.y,a.x),_mm_set1_ps(s));
+  float result[4];_mm_storeu_ps(result,value);return {result[0],result[1],result[2]};
+}
+static __forceinline float Dot(V3 a,V3 b){return a.x*b.x+a.y*b.y+a.z*b.z;}
+static __forceinline V3 Cross(V3 a,V3 b){return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
+static __forceinline float Length(V3 a){return _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(Dot(a,a))));}
+static __forceinline V3 Unit(V3 a){float n=Length(a);return n>1e-6f?a/n:V3{1,0,0};}
 #include "teaching_sequence.h"
 #include "teaching_audio.h"
 #include "teaching_volume.h"
@@ -332,6 +336,7 @@ static V3 InverseRigidPoint(const float m[12],V3 p){V3 q={p.x-m[3],p.y-m[7],p.z-
 static V3 RestShaftDirection(){float a=sliderValues[4]*3.1415926535f/180.f;return {cosf(a),0.f,-sinf(a)};}
 static float shaftMode=2.f;
 static float ModeValue(float erect,float semi,float floppy){return shaftMode<=1.f?erect+(semi-erect)*Smoother01(shaftMode):semi+(floppy-semi)*Smoother01(shaftMode-1.f);}
+#include "raphe_tube_profile.h"
 static float rootDriveAngle,rootDriveVelocity;
 static bool rootDriveReady;
 // A fixed-step angular drive keeps the root command continuous. Local bend
@@ -339,6 +344,7 @@ static bool rootDriveReady;
 static const float rootDriveOmega=18.f,bendVelocityDamping=4.f,rootMotionTransfer=6.f;
 static V3 LiveRootDirection(){
   float pitch=(rootDriveReady?rootDriveAngle:sliderValues[4])*3.1415926535f/180.f+shaftSpring.pitch,yaw=shaftSpring.yaw;
+  if(teachingTimeline.active)yaw+=teachingFluid.MainLateralYaw(teachingTimeline.time);
   return {cosf(pitch)*cosf(yaw),sinf(yaw),-sinf(pitch)*cosf(yaw)};
 }
 static void StepRootSuspension(float dt,float gait,float side){
@@ -1235,7 +1241,9 @@ static void FairUnifiedCollar(unsigned char* controlled,UINT graftFirstVertex,fl
     for(UINT member=collarFairMemberOffsets[group];member<collarFairMemberOffsets[group+1];member++)
       WriteCollarMember(collarFairMembers[member],collarFairA[group],controlled,graftFirstVertex);
 }
-static unsigned char PackSigned(float value){return (unsigned char)max(0.f,min(255.f,floorf((value+1.f)*127.5f+.5f)));}
+// Clamp before truncation: the value is nonnegative, so conversion is exactly
+// floor without a CRT call for every normal/tangent component.
+static __forceinline unsigned char PackSigned(float value){return (unsigned char)(unsigned)max(0.f,min(255.f,(value+1.f)*127.5f+.5f));}
 static V3 ReadAnyCollarPosition(UINT globalIndex,UINT corner,unsigned char* controlled,UINT graftFirstVertex){
   if(globalIndex>=graftFirstVertex&&globalIndex<graftFirstVertex+graftCount)return graftDeformedPositions[globalIndex-graftFirstVertex];
   if(globalIndex>=pelvisControlFirstVertex&&globalIndex<graftFirstVertex){float value[3];memcpy(value,controlled+(globalIndex-pelvisControlFirstVertex)*graftStride,12);return {value[0],value[1],value[2]};}
@@ -1652,13 +1660,17 @@ static float SampleOverallWidthVertex(UINT q,float overall,float width){
 }
 #include "render_capture.h"
 #include "lighting_direction_fix.h"
+#include "shared_skin_material.h"
 #include "continuous_raphe.h"
 #include "r14_runtime.h"
 #include "hourglass_neck.h"
 #include "pelvic_tube_node.h"
 #include "pelvic_attachment.h"
 #include "rounded_shape.h"
+#include "neck_render.h"
 #include "prepared_shape.h"
+#include "shared_body_surface.h"
+#include "anatomy_surface.h"
 #include "menu_tank.h"
 #include "tank_set_extension.h"
 #include "fluid_collision.h"
@@ -1672,78 +1684,8 @@ static void ApplyShape(){PerfScope perf(8);
   if(FAILED(hr)){Log("live shape lock failed %08X",hr);return;}
   auto* fullBuffer=(unsigned char*)raw;
   ResetPelvicAttachmentBody(fullBuffer);
-  auto* controlled=fullBuffer+pelvisControlFirstVertex*graftStride;
-  auto* p=controlled+(graftFirstVertex-pelvisControlFirstVertex)*graftStride;
-  V3 tipSum{};int tipCount=0;
-  PrepareShape(controlled,graftFirstVertex,tipSum,tipCount);
-  if(!constraintSolverReady)InitializeConstraintSolver();
-  for(UINT i=0;i<graftCount;i++){
-    float value[3]={graftDeformedPositions[i].x,graftDeformedPositions[i].y,graftDeformedPositions[i].z};
-    float bw=phys_scrotum_weight[i],membership=max(phys_shaft_weight[i],phys_attachment_weight[i]);float motionWeight=membership;if(bw<.05f&&membership>.02f)motionWeight=1.f;
-    if(suspensionWeight[i]>0.f)ApplySuspendedSkin(value,i);
-    else if(motionWeight>.001f)ApplyConstraintCurve(value,i);
-    graftDeformedPositions[i]=V3{value[0],value[1],value[2]};
-  }
-  // Reassert the one shaft after every physics state.  This transports the
-  // cached complete cross-section through the live centerline and prevents a
-  // mixed-weight ring from reappearing in semi/floppy motion.
-  ConstructLogicalShaftSurface(true);
-  // Keep the distal shaft independent of skin fairing. The proximal .40
-  // belongs to the shared pelvic ramp, whose support fades at .40. Restoring
-  // the old tube at .04-.10 would undo that ramp and recreate the shelf.
-  static V3 solidCore[graftCount];memcpy(solidCore,graftDeformedPositions,sizeof(solidCore));
-  FinishScrotalJunction();
-  for(UINT i=0;i<graftCount;i++){
-    if(suspensionWeight[i]!=0.f||max(phys_shaft_weight[i],phys_attachment_weight[i])<.5f)continue;
-    float follow=Smoother01((graftRestFlex[i]-.30f)/.10f);
-    graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-follow)+solidCore[i]*follow;
-  }
-  SculptVentralContourStudy();
-  // Glans Size is evaluated on the approved R14 mesh, not on the donor cage.
-  ResolveSuspendedSkinContact();
-  PreserveEggSupports();
-  SculptPelvicTubeNode(controlled,graftFirstVertex);
-  // The proxy changes vertex positions after UE3 has prepared the skeletal
-  // buffer.  Rebuild the normals from that final deformed surface so lighting
-  // follows every physics bend.  Wolverine's meshes use the opposite of the
-  // raw index-buffer cross-product; the topology header also welds UV-split
-  // duplicates into shared smoothing groups.
-  memset(graftDynamicNormalSums,0,sizeof(graftDynamicNormalSums));
-  memset(graftDynamicTangentSums,0,sizeof(graftDynamicTangentSums));
-  memset(collarTangentSums,0,sizeof(collarTangentSums));
-  for(UINT k=0;k<graftTriangleIndexCount;k+=3){
-    UINT ia=graftTriangleIndices[k],ib=graftTriangleIndices[k+1],ic=graftTriangleIndices[k+2];
-    V3 edge1=graftDeformedPositions[ib]-graftDeformedPositions[ia],edge2=graftDeformedPositions[ic]-graftDeformedPositions[ia];
-    V3 face=Cross(edge2,edge1);
-    UINT ga=graftNormalGroup[ia],gb=graftNormalGroup[ib],gc=graftNormalGroup[ic];
-    graftDynamicNormalSums[ga]=graftDynamicNormalSums[ga]+face;
-    graftDynamicNormalSums[gb]=graftDynamicNormalSums[gb]+face;
-    graftDynamicNormalSums[gc]=graftDynamicNormalSums[gc]+face;
-    float du1=graftUVs[ib*2]-graftUVs[ia*2],dv1=graftUVs[ib*2+1]-graftUVs[ia*2+1];
-    float du2=graftUVs[ic*2]-graftUVs[ia*2],dv2=graftUVs[ic*2+1]-graftUVs[ia*2+1],det=du1*dv2-dv1*du2;
-    if(fabsf(det)>1e-8f){
-      V3 tangent=(edge1*dv2-edge2*dv1)/det;graftDynamicTangentSums[ia]=graftDynamicTangentSums[ia]+tangent;graftDynamicTangentSums[ib]=graftDynamicTangentSums[ib]+tangent;graftDynamicTangentSums[ic]=graftDynamicTangentSums[ic]+tangent;
-      V3 direction=Unit(tangent);UINT groups[3]={graftCollarGroups[ia],graftCollarGroups[ib],graftCollarGroups[ic]};
-      for(int q=0;q<3;q++)if(groups[q]!=65535u)collarTangentSums[groups[q]]=collarTangentSums[groups[q]]+direction;
-    }
-  }
-  RebuildUnifiedCollarNormals(controlled,graftFirstVertex);
-  RebuildUnifiedCollarTangents();
-  for(UINT i=0;i<graftCount;i++){
-    memcpy(p+i*graftStride,&graftDeformedPositions[i],12);
-    UINT collarGroup=graftCollarGroups[i];
-    V3 dynamic=collarGroup!=65535u?collarNormalSums[collarGroup]:Unit(graftDynamicNormalSums[graftNormalGroup[i]]);
-    V3 baseNormal={graftBaseNormals[i*3],graftBaseNormals[i*3+1],graftBaseNormals[i*3+2]};
-    float lock=collarGroup!=65535u?0.f:graftSeamNormalLock[i];V3 normal=Unit(dynamic*(1.f-lock)+baseNormal*lock);
-    V3 tangent=collarGroup!=65535u?collarTangentSums[collarGroup]:graftDynamicTangentSums[i]-normal*Dot(normal,graftDynamicTangentSums[i]);tangent=Unit(tangent);
-    unsigned char* packedTangent=p+i*graftStride+12;unsigned char* packedNormal=p+i*graftStride+16;
-    packedTangent[0]=PackSigned(tangent.x);packedTangent[1]=PackSigned(tangent.y);packedTangent[2]=PackSigned(tangent.z);
-    packedNormal[0]=PackSigned(normal.x);packedNormal[1]=PackSigned(normal.y);packedNormal[2]=PackSigned(normal.z);
-  }
-  UpdateR14(p);
-  ApplyPelvicAttachment(fullBuffer);
-  ApplyRoundedShape(fullBuffer);
-  if(tipCount){V3 tip=tipSum/(float)tipCount;float newLength=max(8.f,min(60.f,Length(tip-ShaftRoot())));constraintRestLength=(constraintRestLength*.1656f+newLength*.08f)/.2456f;}
+  EvaluateAnatomy(fullBuffer,graftFirstVertex);
+  auto* p=fullBuffer+graftFirstVertex*graftStride;
   float written[3];memcpy(written,p,12);graftBuffer->Unlock();shapeDirty=false;if(report)Log("live controls, recruited pelvis collar, and dynamic tangent basis applied state=%d collar=%.3f shape=%.2f %.2f %.2f %.2f %.1f %.2f %.2f shaft=%.0f %.0f %.0f %.0f balls=%.0f %.0f %.0f %.0f first=(%.4f %.4f %.4f)",physicsState,PelvisCollarGrowth(),sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6],physValues[0],physValues[1],physValues[2],physValues[3],physValues[4],physValues[5],physValues[6],physValues[7],written[0],written[1],written[2]);
 }
 static bool KeyEdge(int vk){static bool old[256]{};bool now=(GetAsyncKeyState(vk)&0x8000)!=0;bool edge=now&&!old[vk];old[vk]=now;return edge;}
@@ -1891,7 +1833,7 @@ static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const R
   if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}menuTankDrawnThisFrame=false;frameRendered=false;d->Release();}
   return origSwapPresent(sc,src,dst,wnd,dirty,flags);
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){anatomyVisibleFrame=-3;anatomyScene=-1;tankCameraSceneTick=0;ReleaseTeaching();ReleaseFluidSpaceDiagnostics();ResetFluidCollision();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;shaderLayoutIndex.clear();motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){anatomyVisibleFrame=-3;anatomyScene=-1;tankCameraSceneTick=0;ReleaseTeaching();ReleaseFluidSpaceDiagnostics();ResetFluidCollision();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseSharedSkin();ReleaseR14SkinTextures();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;shaderLayoutIndex.clear();motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
 static void Log(const char* fmt, ...) {
   static volatile LONG lines=0;LONG line=InterlockedIncrement(&lines);if(line>12000)return;
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);
@@ -2131,20 +2073,24 @@ static HRESULT DrawMenuNecklaceClearance(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
 }
 // The layer uses native neck/head tracks, applied only to this verified
 // character buffer. Every shader constant is restored before returning to UE3.
+static HRESULT DrawBodySectionMaterial(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){
+ bool body=(start==85446u&&count==28536u)||(start==219414u&&count==10130u);
+ return body?DrawSharedBodySkin(d,type,base,minv,nv,start,count):origDIP(d,type,base,minv,nv,start,count);
+}
 static HRESULT DrawWithIdleGesture(IDirect3DDevice9* dev,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){
   unsigned paletteCount=0;const unsigned char*palette=IGPalette(start,count,paletteCount);
   IdleGesturePlayback playback=ReadIdleGesture();
   float elapsed=float(DWORD(GetTickCount()-playback.started))*.001f;
   IGPose pose=IGEvaluate(playback.clip,elapsed,playback.duration,idleChatterEnabled);
   ShaderLayout*layout=palette&&pose.active?GetShaderLayout(dev):nullptr;
-  if(!layout||!layout->valid||paletteCount>75||layout->boneCount<paletteCount*3)return origDIP(dev,type,base,minv,nv,start,count);
+  if(!layout||!layout->valid||paletteCount>75||layout->boneCount<paletteCount*3)return DrawBodySectionMaterial(dev,type,base,minv,nv,start,count);
   float original[75*12],changed[75*12];
-  if(FAILED(dev->GetVertexShaderConstantF(layout->boneRegister,original,paletteCount*3)))return origDIP(dev,type,base,minv,nv,start,count);
+  if(FAILED(dev->GetVertexShaderConstantF(layout->boneRegister,original,paletteCount*3)))return DrawBodySectionMaterial(dev,type,base,minv,nv,start,count);
   memcpy(changed,original,paletteCount*12*sizeof(float));
-  if(!IGApply(changed,palette,paletteCount,pose))return origDIP(dev,type,base,minv,nv,start,count);
+  if(!IGApply(changed,palette,paletteCount,pose))return DrawBodySectionMaterial(dev,type,base,minv,nv,start,count);
   HRESULT applied=dev->SetVertexShaderConstantF(layout->boneRegister,changed,paletteCount*3);
-  if(FAILED(applied)){dev->SetVertexShaderConstantF(layout->boneRegister,original,paletteCount*3);return origDIP(dev,type,base,minv,nv,start,count);}
-  HRESULT result=origDIP(dev,type,base,minv,nv,start,count);
+  if(FAILED(applied)){dev->SetVertexShaderConstantF(layout->boneRegister,original,paletteCount*3);return DrawBodySectionMaterial(dev,type,base,minv,nv,start,count);}
+  HRESULT result=DrawBodySectionMaterial(dev,type,base,minv,nv,start,count);
   dev->SetVertexShaderConstantF(layout->boneRegister,original,paletteCount*3);
   if(InterlockedExchange(&idleGestureDrawSerial,playback.serial)!=playback.serial)Log("idle gesture rendered: custom=%02d style=bored%d serial=%ld",playback.clip+1,playback.clip%4+1,playback.serial);
   return result;
@@ -2195,6 +2141,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
       vb->Release();return D3D_OK;
     }
     if(haveDesc&&stride==32&&probeDesc.Size==12082u*32u){
+      if(captureTankMaterials&&IsHdrSceneColorPass(dev))CaptureBoundDraw(dev,type,base,minv,nv,start,count);
       tankCameraSceneTick=GetTickCount();
       if(settingsLoaded&&!menuTankSurfaceReady)PrepareMenuTankSurface();
       bool chest=EnsureMenuChestBuffer(dev,vb);if(chest)dev->SetStreamSource(0,menuChestVB,offset,stride);
@@ -2202,6 +2149,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
       if(start==0u&&count==360u)body=DrawMenuNecklaceClearance(dev,type,base,minv,nv,start,count);
       else if(start==1080u&&count==7134u){CaptureFluidBodySection(dev,0);body=DrawMenuRetargetBody(dev,0,type);}
       else if(start==39960u&&count==2540u){CaptureFluidBodySection(dev,1);if(motionCaptureSerial!=renderFrameSerial){motionCaptureSerial=renderFrameSerial;CaptureMenuTankMotion(dev);}body=DrawMenuRetargetBody(dev,1,type);if(EnsureMenuTank(dev)){CaptureFluidBodySection(dev,2);HRESULT anatomy=DrawMenuTank(dev,vb,offset,stride);if(IsHdrSceneColorPass(dev)){DrawTeachingFluid(dev);DrawTankSetExtension(dev);}if(FAILED(body))body=anatomy;}}
+      else if(start==47580u&&count==3168u)body=DrawBodyAttachments(dev,vb,offset,stride,type,base,minv,nv,start,count);
       else body=origDIP(dev,type,base,minv,nv,start,count);
       if(chest)dev->SetStreamSource(0,vb,offset,stride);vb->Release();return body;
     }
@@ -2269,4 +2217,3 @@ IDirect3D9* WINAPI Direct3DCreate9(UINT sdk){LoadReal();IDirect3D9* d=realCreate
 int WINAPI D3DPERF_BeginEvent(D3DCOLOR c,LPCWSTR n){LoadReal();return realBegin?realBegin(c,n):-1;}
 int WINAPI D3DPERF_EndEvent(){LoadReal();return realEnd?realEnd():-1;}
 BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");HookBinkImport();HookAudioFactory();}return TRUE;}
-

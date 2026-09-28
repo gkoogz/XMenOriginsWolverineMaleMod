@@ -33,7 +33,7 @@ static bool Sequence(int fps,int preset,bool moving){
   float t=(frame+1.f)/fps;V3 tip=moving?V3{t*1.5f,sinf(t)*.3f,50}:V3{0,0,50};
   auto start=std::chrono::steady_clock::now();f.Advance(1.f/fps,tip,Unit({1,0,.4f}),{});double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();CHECK(f.ready);
   if(t>=7&&t<11.5f+c.feed)timings.push_back(ms);peak=max(peak,f.Live());peakVertices=max(peakVertices,f.mesh.vertices.size());
-  for(const auto& s:f.streams){double total=s.retiredVolume;for(const auto& l:s.links){CHECK(l.volume>=0&&std::isfinite(l.volume));total+=l.volume;}maxVolumeError=max(maxVolumeError,fabs(total-s.volume));for(const auto& n:s.nodes)CHECK(Finite(n.p)&&Finite(n.v));}
+  for(const auto& s:f.streams){double total=s.retiredVolume;for(const auto& node:s.nodes)total+=node.lump;for(const auto& l:s.links){CHECK(l.volume>=0&&std::isfinite(l.volume));total+=l.volume;}maxVolumeError=max(maxVolumeError,fabs(total-s.volume));for(const auto& n:s.nodes)CHECK(Finite(n.p)&&Finite(n.v));}
   for(const auto& v:f.mesh.vertices)CHECK(Finite(v.p)&&Finite(v.n));
   if(preset==0&&frame==int(7.95f*fps))CHECK(Topology(f.mesh));
  }
@@ -101,13 +101,40 @@ static bool PassiveClear(){
  printf("PASS passive pulse edge gate, clear-only emissions, larger/longer shared preliminary strand, bounded 8-slot pool (peak concurrent=%d)\n",peakLive);return true;
 }
 static teaching::ViscousThread Make(){teaching::ViscousThread s;s.live=true;for(int i=0;i<30;i++){s.nodes.push_back({{float(i),0,50},{float(i)-14.5f,2,0},0});if(i){s.links.push_back({1,1,1,false,(unsigned)(i-1)});s.volume+=1;}}return s;}
-static V3 Momentum(const teaching::ViscousThread& s){V3 p{};for(size_t i=0;i<s.links.size();i++)p=p+(s.nodes[i].v+s.nodes[i+1].v)*(s.links[i].volume*.5f);return p;}
-static float Energy(const teaching::ViscousThread& s){float e=0;for(size_t i=0;i<s.links.size();i++)e+=s.links[i].volume*(Dot(s.nodes[i].v,s.nodes[i].v)+Dot(s.nodes[i+1].v,s.nodes[i+1].v))*.25f;return e;}
+static V3 Momentum(const teaching::ViscousThread& s){V3 p{};for(size_t i=0;i<s.links.size();i++)p=p+(s.nodes[i].v+s.nodes[i+1].v)*(s.links[i].volume*.5f);for(const auto& node:s.nodes)p=p+node.v*node.lump;return p;}
+static float Energy(const teaching::ViscousThread& s){float e=0;for(size_t i=0;i<s.links.size();i++)e+=s.links[i].volume*(Dot(s.nodes[i].v,s.nodes[i].v)+Dot(s.nodes[i+1].v,s.nodes[i+1].v))*.25f;for(const auto& node:s.nodes)e+=.5f*node.lump*Dot(node.v,node.v);return e;}
 static bool Material(){
  volumeFluid::Settings c;volumeFluid::F4 collisions[8]{};c.gravity=0;c.breakup=0;auto s=Make();V3 p=Momentum(s);float energy=Energy(s);for(int k=0;k<120;k++)s.Step(1.f/120,k/120.f,c,collisions,{});CHECK(Length(Momentum(s)-p)<.01f&&Energy(s)<energy);printf("PASS viscous deformation dissipates energy %.3f -> %.3f; momentum error %.6f\n",energy,Energy(s),Length(Momentum(s)-p));
  s=Make();for(auto& n:s.nodes)n.v={3,2,1};V3 before=s.nodes[15].p;c.gravity=98;for(int k=0;k<36;k++)s.Step(1.f/120,k/120.f,c,collisions,{});CHECK(Length(s.nodes[15].p-(before+V3{.9f,.6f,.3f-98.f/120/120*36*37*.5f}))<.002f);printf("PASS detached ballistic translation; no global drag\n");
- s=Make();c.gravity=0;c.breakup=4;c.tension=100;c.viscosity=0;for(auto& n:s.nodes){n.p.x*=4;n.v={};}for(int k=0;k<300;k++)s.Step(1.f/120,1+k/120.f,c,collisions,{});CHECK(s.breaks>0);teaching::LiquidMesh m;std::vector<volumeFluid::Particle>b;s.Append(m,12,b);CHECK(m.components>=2&&Topology(m));double amount=0;for(auto& l:s.links)amount+=l.volume;CHECK(fabs(amount-s.volume)<.0001);printf("PASS necking/breakup preserves volume %.6f, cuts=%d\n",amount,s.breaks);
+ s=Make();c.gravity=0;c.breakup=4;c.tension=100;c.viscosity=0;for(auto& n:s.nodes){n.p.x*=4;n.v={};}for(int k=0;k<300;k++)s.Step(1.f/120,1+k/120.f,c,collisions,{});CHECK(s.breaks>0);teaching::LiquidMesh m;std::vector<volumeFluid::Particle>b;s.Append(m,12,b);CHECK(m.components>=2&&Topology(m));double amount=0;for(auto& l:s.links)amount+=l.volume;for(const auto& node:s.nodes)amount+=node.lump;CHECK(fabs(amount-s.volume)<.0001);printf("PASS necking/breakup preserves volume %.6f, cuts=%d\n",amount,s.breaks);
  volumeFluid::config={};teaching::Fluid a,bf;CHECK(a.Begin({0,0,50})&&bf.Begin({0,0,50}));for(int i=0;i<270;i++)a.Advance(1.f/30,{0,0,50},{1,0,0},{});for(int i=0;i<1080;i++)bf.Advance(1.f/120,{0,0,50},{1,0,0},{});CHECK(a.streams[0].nodes.size()==bf.streams[0].nodes.size());float error=0;for(size_t i=0;i<a.streams[0].nodes.size();i++)error=max(error,Length(a.streams[0].nodes[i].p-bf.streams[0].nodes[i].p));CHECK(error<.001f);printf("PASS 30/120 Hz fixed-step agreement maxError=%.8f\n",error);
  return true;
 }
-int main(int argc,char**argv){setvbuf(stdout,nullptr,_IONBF,0);if(argc>1&&strcmp(argv[1],"material")==0)return Material()?0:1;if(argc>1&&strcmp(argv[1],"variance")==0)return Variations()?0:1;if(argc>1&&strcmp(argv[1],"taper")==0)return PulseTaper()?0:1;if(argc>1&&strcmp(argv[1],"passive")==0)return PassiveClear()?0:1;return Sequence(argc>1?atoi(argv[1]):60,argc>2?atoi(argv[2]):0,argc>3)?0:1;}
+static bool LateralWobble(){
+ volumeFluid::config={};teaching::Fluid a,b;a.SetVariationSeed(123);b.SetVariationSeed(123);CHECK(a.Prepare()&&b.Prepare());
+ for(int i=0;i<4;i++){
+  float peak=a.MainLateralYaw(teaching::peaks[i+4]);CHECK(fabsf(peak)>.015f&&fabsf(peak)<=3.f*.0174533f);
+  CHECK(peak==b.MainLateralYaw(teaching::peaks[i+4]));
+  if(i)CHECK(peak*a.MainLateralYaw(teaching::peaks[i+3])<0);
+ }
+ CHECK(a.MainLateralYaw(3.5)==0&&a.MainLateralYaw(6)==0&&a.MainLateralYaw(13)==0);
+ float previous=0;for(int i=0;i<15000;i++){float yaw=a.MainLateralYaw(i*.001);CHECK(std::isfinite(yaw)&&fabsf(yaw-previous)<.002f);previous=yaw;}
+ a.settings.lateralWobbleDegrees=0;for(double t=0;t<15;t+=.01)CHECK(a.MainLateralYaw(t)==0);
+ printf("PASS bounded, smooth, alternating per-pulse lateral yaw; seeded repeatability, preliminary/rest exclusion and zero-disable\n");return true;
+}
+static bool ForceVariation(){
+ volumeFluid::config={};int weak=0,strong=0,ordinary=0;
+ for(unsigned seed=1;seed<=600;seed++){
+  teaching::Fluid f;f.SetVariationSeed(seed);CHECK(f.Prepare());
+  for(float gain:f.forceGain){CHECK(gain>=.8199f&&gain<=1.1201f);if(gain<.9f)weak++;else if(gain>1.06f)strong++;else{CHECK(gain>=.9699f&&gain<=1.0301f);ordinary++;}}
+ }
+ CHECK(weak>320&&weak<480&&strong>320&&strong<480);
+ teaching::Fluid a,b;a.SetVariationSeed(31);b.SetVariationSeed(31);CHECK(a.Begin({}));volumeFluid::config.pulseForceVariation=0;CHECK(b.Begin({}));
+ for(int i=0;i<4;i++){CHECK(b.forceGain[i]==1&&a.pulseVolume[i]==b.pulseVolume[i]&&a.pulseDuration[i]==b.pulseDuration[i]&&a.angleGain[i]==b.angleGain[i]&&a.lateralGain[i]==b.lateralGain[i]);}
+ // Start inside an emission window and check the actual newly injected velocity.
+ a.clock=b.clock=7.1;a.steps=b.steps=1;CHECK(a.Tick(1.f/120,{0,0,50},{1,0,0},{})&&b.Tick(1.f/120,{0,0,50},{1,0,0},{}));
+ CHECK(!a.streams[0].nodes.empty()&&!b.streams[0].nodes.empty());
+ float ratio=a.streams[0].nodes.back().v.x/b.streams[0].nodes.back().v.x;CHECK(fabsf(ratio-a.forceGain[0])<.0001f&&fabs(a.emittedVolume-b.emittedVolume)<1e-6);
+ printf("PASS launch force: weak/normal/strong=%d/%d/%d of 2400; actual velocity ratio %.6f; volumes and prior random parameters unchanged; zero disables\n",weak,ordinary,strong,ratio);return true;
+}
+int main(int argc,char**argv){setvbuf(stdout,nullptr,_IONBF,0);if(argc>1&&strcmp(argv[1],"force")==0)return ForceVariation()?0:1;if(argc>1&&strcmp(argv[1],"wobble")==0)return LateralWobble()?0:1;if(argc>1&&strcmp(argv[1],"material")==0)return Material()?0:1;if(argc>1&&strcmp(argv[1],"variance")==0)return Variations()?0:1;if(argc>1&&strcmp(argv[1],"taper")==0)return PulseTaper()?0:1;if(argc>1&&strcmp(argv[1],"passive")==0)return PassiveClear()?0:1;return Sequence(argc>1?atoi(argv[1]):60,argc>2?atoi(argv[2]):0,argc>3)?0:1;}

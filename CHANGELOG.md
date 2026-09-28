@@ -1,3 +1,10 @@
+## 1.9.0 — shared anatomy and CPU performance
+
+- Bounded parallel skin evaluation, full-precision SIMD, cached normal decoding and bending coefficients reduce CPU cost while retaining the approved geometry and solver quality.
+- Includes tank/gameplay body and anatomy harmonization, captured tank material-pass corrections, shared normal/specular maps, the approved upright flared neck and structural support model.
+- Includes the recent directional surface-contact rendering, body-contact coverage and density improvements.
+- Adds separate surface-stage telemetry and versioned installation/rollback with settings preservation. See docs/VALIDATION-1.9.md for measured results and live-verification limits.
+
 # 1.8.0 — 2026-09-28
 
 - Prebuild lossless mipmapped skin textures to eliminate PNG decode/filter work at first draw.

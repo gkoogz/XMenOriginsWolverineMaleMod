@@ -4,24 +4,26 @@ namespace volumeFluid {
 static const char* liquidShader=R"HLSL(
 float4 VP[4]:register(c0);float4 IP[4]:register(c4);float4 Material:register(c8);
 struct O {float4 p:POSITION;float3 world:TEXCOORD0;float3 normal:TEXCOORD1;float4 clip:TEXCOORD2;};
+float3 SafeUnit(float3 v){return v*rsqrt(max(dot(v,v),1e-12));}
 O Vertex(float3 p:POSITION,float3 n:NORMAL){O o;o.p=p.x*VP[0]+p.y*VP[1]+p.z*VP[2]+VP[3];o.world=p;o.normal=n;o.clip=o.p;return o;}
 float4 Pixel(O o):COLOR0{
- float2 ndc=o.clip.xy/o.clip.w;float4 nearPoint=ndc.x*IP[0]+ndc.y*IP[1]+IP[3];float3 eye=normalize(nearPoint.xyz/nearPoint.w-o.world);
- float3 n=normalize(o.normal);if(dot(n,eye)<0)n=-n;
+ float2 ndc=o.clip.xy/o.clip.w;float4 nearPoint=ndc.x*IP[0]+ndc.y*IP[1]+IP[3];float3 eye=SafeUnit(nearPoint.xyz/nearPoint.w-o.world);
+ float3 n=SafeUnit(o.normal);if(dot(n,eye)<0)n=-n;
  float3 key=normalize(float3(-.35,-.65,.8)),fill=normalize(float3(.6,.3,.6));
  float diffuse=.62+.24*max(0,dot(n,key))+.10*max(0,dot(n,fill));
- float broad=pow(max(0,dot(n,normalize(key+eye))),18)*.23;
- float wet=pow(max(0,dot(n,normalize(key+eye))),90)*.32;
+ float broad=pow(saturate(dot(n,SafeUnit(key+eye))),18)*.23;
+ float wet=pow(saturate(dot(n,SafeUnit(key+eye))),90)*.32;
  float edge=pow(1-saturate(dot(n,eye)),5);
  float tank=step(.5,Material.y);
- float3 base=lerp(float3(.97,.97,.97),float3(1.42,1.25,.94),tank);
- // WStart applies its underwater blue grade after this draw. Its diffuse term
- // previously darkened the opaque liquid a second time, producing grey pumps.
- // Keep gameplay conventionally lit; make only the tank material near-emissive
- // and warm enough to resolve as neutral white after the cinematic grade.
- float opaqueLight=lerp(diffuse,.96+.04*diffuse,tank);
- float3 color=base*opaqueLight+broad*(1-.55*tank)+wet*(1-.45*tank)+.035*edge;
- float alpha=1;if(Material.x>.5){color=(Material.y>.5?float3(.96,.90,.80):float3(.79,.79,.79))+broad+wet;alpha=saturate(.05+.27*edge+wet*.75+broad*.2);}
+ float3 base=lerp(float3(.97,.97,.97),float3(.94,.91,.84),tank);
+ // Gentle shading and restrained highlights retain shape without HDR glare.
+ float opaqueLight=lerp(diffuse,.80+.16*diffuse,tank);
+ float3 color=base*opaqueLight+broad*(1-.80*tank)+wet*(1-.90*tank)+.035*edge*(1-.6*tank);
+ if(tank>.5)color=min(color,float3(.98,.97,.94));
+ // PC UE3 Common.usf EncodeFloatW stores projected device depth in scene
+ // color alpha. One is far-plane depth, NOT an opaque/compositor mask.
+ float alpha=tank>.5?saturate(o.clip.z/o.clip.w):1;
+ if(Material.x>.5){color=(Material.y>.5?float3(.86,.84,.79):float3(.79,.79,.79))+broad*(1-.6*tank)+wet*(1-.75*tank);alpha=saturate(.05+.27*edge+wet*.75+broad*.2);}
  return float4(color,alpha);
 }
 )HLSL";
@@ -51,11 +53,8 @@ public:
   d->SetVertexShader(vs);d->SetPixelShader(ps);d->SetVertexDeclaration(decl);d->SetStreamSource(0,vertices,0,sizeof(teaching::LiquidVertex));d->SetIndices(indices);for(int i=0;i<4;i++)d->SetStreamSourceFreq(i,1);
   d->SetVertexShaderConstantF(0,c,9);d->SetPixelShaderConstantF(0,c,9);
   d->SetRenderState(D3DRS_ZENABLE,TRUE);d->SetRenderState(D3DRS_ZWRITEENABLE,TRUE);d->SetRenderState(D3DRS_ZFUNC,D3DCMP_LESSEQUAL);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);d->SetRenderState(D3DRS_ALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_ALPHATESTENABLE,FALSE);d->SetRenderState(D3DRS_STENCILENABLE,FALSE);d->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE);d->SetRenderState(D3DRS_CLIPPLANEENABLE,0);d->SetRenderState(D3DRS_SRGBWRITEENABLE,FALSE);
-  // WStart's HDR alpha is a scene-validity/composite mask. RGB-only writes
-  // made opaque fluid inherit alpha from whatever was behind it: correct over
-  // Wolverine, grey/black over open water. Opaque fluid owns the pixel and
-  // therefore writes its shader alpha of one. The clear strand preserves the
-  // destination mask when it switches to conventional alpha blending below.
+  // Opaque tank fluid writes its own projected scene depth in alpha. Clear
+  // fluid blends RGB only and preserves destination depth, like translucency.
   d->SetRenderState(D3DRS_COLORWRITEENABLE,0xF);d->SetRenderState(D3DRS_FILLMODE,D3DFILL_SOLID);d->SetRenderState(D3DRS_DEPTHBIAS,0);d->SetRenderState(D3DRS_SLOPESCALEDEPTHBIAS,0);
   if(mesh.opaqueIndices)hr=d->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,0,0,vc,0,mesh.opaqueIndices/3);else hr=S_OK;
   if(SUCCEEDED(hr)&&ic>mesh.opaqueIndices){c[32]=1;d->SetPixelShaderConstantF(0,c,9);d->SetRenderState(D3DRS_ZWRITEENABLE,FALSE);d->SetRenderState(D3DRS_COLORWRITEENABLE,7);d->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);d->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_BLENDOP,D3DBLENDOP_ADD);d->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_SRCALPHA);d->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_INVSRCALPHA);

@@ -41,11 +41,12 @@ static bool IntegrationTests(){
   ResetStudyControls();physicsState=state;throbMode=2;throbSizePulse=.4f;throbTwitchPulse=.3f;
   sliderUI[0]=sliderUI[1]=100;ApplyControlMapping();InitMesh();
   float before[7];memcpy(before,sliderUI,sizeof(before));float beforePhysics[8];memcpy(beforePhysics,physUI,sizeof(beforePhysics));
-  teachingTimeline.Start();float minMode=10;float identity[12]={1,0,0,0,0,1,0,0,0,0,1,0};
+  CHECK(teachingFluid.Prepare());teachingTimeline.Start();float minMode=10,minSide=0,maxSide=0;float identity[12]={1,0,0,0,0,1,0,0,0,0,1,0};
   V3 oldTip{},dir{};float worst=0,peakHeight[4]{},restHeight[4]{};
   for(int i=0;i<601;i++){
    teachingTimeline.Advance(1.f/30);ApplyControlMapping();UpdateConstraintSolver(1.f/30,0,0);ApplyShape();
    V3 tip;CHECK(TeachingEmitter(identity,tip,dir));if(i)worst=max(worst,Length(tip-oldTip));oldTip=tip;
+   if(teachingTimeline.time>6.7&&teachingTimeline.time<12.5){minSide=min(minSide,dir.y);maxSide=max(maxSide,dir.y);}
    if(i>210&&i<390)minMode=min(minMode,shaftMode);
    for(int p=0;p<4;p++){
     float t=(float)teachingTimeline.time;
@@ -55,6 +56,7 @@ static bool IntegrationTests(){
    for(UINT v=0;v<r14Count;v++)CHECK(std::isfinite(r14Positions[v].x)&&std::isfinite(r14Positions[v].y)&&std::isfinite(r14Positions[v].z));
   }
   CHECK(!teachingTimeline.active&&minMode<.03f&&physicsState==state&&throbMode==2);
+  printf("Actual mesh outlet lateral direction state=%d range %.6f..%.6f\n",state,minSide,maxSide);CHECK(minSide<-.005f&&maxSide>.005f);
   CHECK(!memcmp(before,sliderUI,sizeof(before))&&!memcmp(beforePhysics,physUI,sizeof(beforePhysics)));
   for(int p=0;p<4;p++){
    printf("Suspension state=%d pulse=%d peak/rest height %.4f/%.4f, drop %.4f\n",state,p+1,peakHeight[p],restHeight[p],peakHeight[p]-restHeight[p]);
@@ -294,7 +296,11 @@ static bool MenuReturnTest(){
  SelectAnatomyScene(false);CHECK(!TankCameraSceneActive()&&!menuTankSurfaceReady);
  printf("PASS returning to tank updates visible mesh even with a retained gameplay buffer\n");return true;
 }
+#include "splat_contact_test.h"
+#include "collision_budget_test.h"
 int main(int argc,char** argv){
+ if(argc>1&&strcmp(argv[1],"--collision-budget")==0)return CollisionBudgetTest()?0:1;
+ if(argc>1&&strcmp(argv[1],"--splat-contact")==0)return SplatContactTest()?0:1;
  if(argc>1&&strcmp(argv[1],"--world-origin-gpu")==0){worldOriginGpuTest=true;return RenderTest()?0:1;}
  if(argc>1&&strcmp(argv[1],"--world-space")==0)return WorldSpaceTest()?0:1;
  if(argc>1&&strcmp(argv[1],"--menu-return")==0)return MenuReturnTest()?0:1;
@@ -319,6 +325,3 @@ int main(int argc,char** argv){
  if(argc>1&&strcmp(argv[1],"--render-passive")==0)return RenderTest(false,true,false,false,false,true)?0:1;
  if(!PulseTests())return 1;if(!IntegrationTests())return 2;return 0;
 }
-
-
-

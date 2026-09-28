@@ -70,6 +70,8 @@ static bool LoadVolumeConfig(){
  float capacity=(float)cfg.capacity,pressure=(float)cfg.iterations,visc=(float)cfg.viscIterations,plane=0;
  if(!read("Volume",cfg.volume,.01f,4000)||!read("Duration",cfg.feed,.15f,10)||!read("PulseVolumeVariation",cfg.pulseVolumeVariation,0,.75f)||!read("PulseDurationVariation",cfg.pulseDurationVariation,0,.9f)||!read("AngleVariation",cfg.angleVariation,0,1)||!read("PulseTaper",cfg.pulseTaper,0,1)||!read("Viscosity",cfg.viscosity,0,100)||!read("SurfaceTension",cfg.tension,0,100)||!read("NozzleRadius",cfg.nozzle,.15f,4)||!read("Spacing",cfg.spacing,.15f,.8f)||!read("FlowVariation",cfg.flowVariation,0,.7f)||!read("Lifetime",cfg.lifetime,1,15)||!read("DropVolume",cfg.dropVolume,.005f,20)||!read("DropDuration",cfg.dropDuration,.3f,5)||!read("DropHold",cfg.dropHold,.1f,5)||!read("DropLength",cfg.dropLength,.5f,15)||!read("Capacity",capacity,1024,65536)||!read("PressureIterations",pressure,2,12)||!read("ViscosityIterations",visc,2,32)||!read("CatchPlane",plane,0,1)||!read("CatchDepth",cfg.catchDepth,5,150))return false;
  float sides=(float)cfg.meshSides;
+ if(!read("LateralWobbleDegrees",cfg.lateralWobbleDegrees,0,8))return false;
+ if(!read("PulseForceVariation",cfg.pulseForceVariation,0,.3f))return false;
  if(!read("ThreadSpacing",cfg.threadSpacing,.25f,2)||!read("Breakup",cfg.breakup,0,4)||!read("MeshSides",sides,8,20))return false;cfg.meshSides=(int)sides;
  cfg.capacity=(int)capacity;cfg.iterations=(int)pressure;cfg.viscIterations=(int)visc;cfg.catchPlane=plane>.5f;
  volumeFluid::config=cfg;Log("Fluid config: Volume=%.3f Duration=%.3f Viscosity=%.3f Spacing=%.3f Capacity=%d",cfg.volume,cfg.feed,cfg.viscosity,cfg.spacing,cfg.capacity);return true;
@@ -121,7 +123,7 @@ static void DrawTeachingFluid(IDirect3DDevice9* d){
   float dt=passiveFluidLastTick?(float)min(100UL,now-passiveFluidLastTick)*.001f:0.f;passiveFluidLastTick=now;
   LARGE_INTEGER begin,end;if(!fluidProfileFrequency.QuadPart)QueryPerformanceFrequency(&fluidProfileFrequency);QueryPerformanceCounter(&begin);
   V3 actorVelocity{};if(dt>0&&teachingActorOriginValid)actorVelocity=(simulationOrigin-teachingActorOrigin)/dt;teachingActorOrigin=simulationOrigin;teachingActorOriginValid=true;
-  if(dt>0)teachingFluid.Advance(dt,tip,dir,actorVelocity);fluidStains.Add(teachingFluid.impacts,now);
+  teachingFluid.surfaceDeposits=fluidStains.Initialize(d);if(dt>0)teachingFluid.Advance(dt,tip,dir,actorVelocity);fluidStains.Add(teachingFluid.impacts,now);
   if(!teachingFluid.ready){passiveThrobGate.Reset();passiveFluidLastTick=0;fluidStains.Draw(d,simulationClip,now);return;}
   if(!teachingFluid.Live()){fluidStains.Draw(d,simulationClip,now);return;}
   teachingLastDraw=fluidSurface.Draw(d,teachingFluid.mesh,simulationClip,TankCameraSceneActive());
@@ -135,7 +137,7 @@ static void DrawTeachingFluid(IDirect3DDevice9* d){
  float dt=(float)(teachingTimeline.time-teachingFluidTime);teachingFluidTime=teachingTimeline.time;
  LARGE_INTEGER begin,end;if(!fluidProfileFrequency.QuadPart)QueryPerformanceFrequency(&fluidProfileFrequency);QueryPerformanceCounter(&begin);
  V3 actorVelocity{};if(dt>0&&teachingActorOriginValid)actorVelocity=(simulationOrigin-teachingActorOrigin)/dt;teachingActorOrigin=simulationOrigin;teachingActorOriginValid=true;
- teachingFluid.Advance(dt,tip,dir,actorVelocity);if(!teachingFluid.ready){Log("Fluid stopped: %s",teachingFluid.error.c_str());CancelTeaching();fluidStains.Draw(d,simulationClip,now);return;}
+ teachingFluid.surfaceDeposits=fluidStains.Initialize(d);teachingFluid.Advance(dt,tip,dir,actorVelocity);if(!teachingFluid.ready){Log("Fluid stopped: %s",teachingFluid.error.c_str());CancelTeaching();fluidStains.Draw(d,simulationClip,now);return;}
  fluidStains.Add(teachingFluid.impacts,now);
  if(!teachingFluid.Live()){fluidStains.Draw(d,simulationClip,now);return;}
  teachingLastDraw=fluidSurface.Draw(d,teachingFluid.mesh,simulationClip,TankCameraSceneActive());
@@ -149,7 +151,7 @@ static void TeachingInput(IDirect3DDevice9* d){
  bool tankReady=TankCameraSceneActive()&&menuTankSurfaceReady&&r14Ready;
  bool gameplayReady=teachingSceneTick&&now-teachingSceneTick<250&&r14Ready;
  if(edge){Log("J sequence input: tankReady=%d gameplayReady=%d r14=%d tankSurface=%d sceneAge=%lu",tankReady?1:0,gameplayReady?1:0,r14Ready?1:0,menuTankSurfaceReady?1:0,teachingSceneTick?DWORD(now-teachingSceneTick):0xFFFFFFFFu);if(teachingTimeline.active)CancelTeaching();else if(tankReady||gameplayReady){
-  teachingFluid.SetVariationSeed(now);if(LoadVolumeConfig()&&teachingFluid.Prepare()&&fluidSurface.Initialize(d)){teachingTimeline.Start();teachingAudio.Begin();teachingFluid.Clear();teachingActorOriginValid=false;teachingFluidTime=0;passiveFluidLastTick=0;passiveThrobGate.Reset();}else Log("Cannot start fluid: %s / %s",teachingFluid.error.c_str(),fluidSurface.error.c_str());
+  teachingFluid.SetVariationSeed(now);if(LoadVolumeConfig()&&teachingFluid.Prepare()&&fluidSurface.Initialize(d)){fluidStains.Initialize(d);teachingTimeline.Start();teachingAudio.Begin();teachingFluid.Clear();teachingActorOriginValid=false;teachingFluidTime=0;passiveFluidLastTick=0;passiveThrobGate.Reset();}else Log("Cannot start fluid: %s / %s",teachingFluid.error.c_str(),fluidSurface.error.c_str());
   now=GetTickCount();teachingLastTick=now;teachingSceneTick=now;
  }}
  float dt=teachingLastTick?(now-teachingLastTick)*.001f:0.f;teachingLastTick=now;
@@ -158,6 +160,3 @@ static void TeachingInput(IDirect3DDevice9* d){
  if(teachingTimeline.active&&(dt>.25f||(!liveTank&&staleGameplay))){CancelTeaching();return;}
  double audioFrom=teachingTimeline.time;teachingTimeline.Advance(dt);teachingAudio.Advance((float)audioFrom,(float)teachingTimeline.time);if(!teachingTimeline.active){teachingAudio.End(false);LogFluidProfile();if(!teachingFluid.passiveMode)teachingFluid.Clear();}
 }
-
-
-

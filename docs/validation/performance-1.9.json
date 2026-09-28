@@ -1,0 +1,80 @@
+{
+  "baseline": [
+    {
+      "state": 0,
+      "pulse": 0,
+      "physics_ms": 5.926,
+      "surface_ms": 29.776
+    },
+    {
+      "state": 0,
+      "pulse": 1,
+      "physics_ms": 5.815,
+      "surface_ms": 35.494
+    },
+    {
+      "state": 1,
+      "pulse": 0,
+      "physics_ms": 5.861,
+      "surface_ms": 28.952
+    },
+    {
+      "state": 1,
+      "pulse": 1,
+      "physics_ms": 5.913,
+      "surface_ms": 35.33
+    },
+    {
+      "state": 2,
+      "pulse": 0,
+      "physics_ms": 5.909,
+      "surface_ms": 28.571
+    },
+    {
+      "state": 2,
+      "pulse": 1,
+      "physics_ms": 5.907,
+      "surface_ms": 34.644
+    }
+  ],
+  "release": [
+    {
+      "state": 0,
+      "pulse": 0,
+      "physics_ms": 5.462,
+      "surface_ms": 20.353
+    },
+    {
+      "state": 0,
+      "pulse": 1,
+      "physics_ms": 5.453,
+      "surface_ms": 25.955
+    },
+    {
+      "state": 1,
+      "pulse": 0,
+      "physics_ms": 5.554,
+      "surface_ms": 20.087
+    },
+    {
+      "state": 1,
+      "pulse": 1,
+      "physics_ms": 5.506,
+      "surface_ms": 25.842
+    },
+    {
+      "state": 2,
+      "pulse": 0,
+      "physics_ms": 5.534,
+      "surface_ms": 19.484
+    },
+    {
+      "state": 2,
+      "pulse": 1,
+      "physics_ms": 5.536,
+      "surface_ms": 25.308
+    }
+  ],
+  "exact_snapshot_bytes": 35391168,
+  "snapshot_sha256": "8688dfd6cce4601a56b1ad7733238d5f7a663e6e2e75cbb83e0a0588052fb116"
+}

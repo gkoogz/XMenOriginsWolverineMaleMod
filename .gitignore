@@ -32,3 +32,10 @@ __pycache__/
 /tools/performance/*.exe
 /tools/performance/TankCameraPresets.txt
 /tools/teaching/TankCameraPresets.txt
+*.res
+*.h.tmp
+/tools/harmonization/SharedBody-*.dds
+/tools/harmonization/*.exe
+/tools/neck/*.exe
+/tools/neck/authoring/render-attributes.bin
+/tools/raphe/*.exe

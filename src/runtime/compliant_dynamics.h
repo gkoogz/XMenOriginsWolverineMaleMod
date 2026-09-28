@@ -22,7 +22,11 @@ static V3 pdPressureDirection[2]={{0,-1,0},{0,1,0}};
 static void ResetCompliantDynamics(){pdReady=false;pdMaxTetherRatio=0.f;pdMinimumGap=1e9f;pdPairForce=0.f;pdShaftForce[0]=pdShaftForce[1]=0.f;}
 static void PDRotateBody(int s,V3 rotation){
  float angle=Length(rotation);if(angle<1e-9f)return;V3 axis=rotation/angle;
- for(int j=0;j<3;j++)cpBasis[s][j]=CPRotate(cpBasis[s][j],axis,angle);
+ const float cosine=cosf(angle),sine=sinf(angle);
+ for(int j=0;j<3;j++){
+  const V3 v=cpBasis[s][j];
+  cpBasis[s][j]=v*cosine+Cross(axis,v)*sine+axis*(Dot(axis,v)*(1.f-cosine));
+ }
  cpBasis[s][2]=Unit(cpBasis[s][2]);cpBasis[s][0]=Unit(cpBasis[s][0]-cpBasis[s][2]*Dot(cpBasis[s][0],cpBasis[s][2]));cpBasis[s][1]=Cross(cpBasis[s][2],cpBasis[s][0]);
 }
 static void PDSync(){for(int s=0;s<2;s++)ballNodes[s]=pdPosition[pdBody0+s]+cpBasis[s][2]*(CPRadii(s).z*.23f);}
@@ -120,16 +124,22 @@ static void PDDistance(int a,int b,float rest,float compliance,float& lambda,flo
  float alpha=compliance/(dt*dt),dl=(-(distance-rest)-alpha*lambda)/(pdInvMass[a]+pdInvMass[b]+alpha);lambda+=dl;
  V3 impulse=delta*(dl/distance);pdPosition[a]=pdPosition[a]-impulse*pdInvMass[a];pdPosition[b]=pdPosition[b]+impulse*pdInvMass[b];
 }
-static void PDBend(int i,float compliance,V3& lambda,float dt){
- V3 value=pdPosition[i-1]-pdPosition[i]*2.f+pdPosition[i+1];float alpha=compliance/(dt*dt),w=pdInvMass[i-1]+4.f*pdInvMass[i]+pdInvMass[i+1];
+struct PDBendData {float alpha,gamma,factor;V3 oldValue;};
+static PDBendData PDPrepareBend(int i,float compliance,float dt){
+ float alpha=compliance/(dt*dt),w=pdInvMass[i-1]+4.f*pdInvMass[i]+pdInvMass[i+1];
  // Kelvin-Voigt bending: dissipate changes in curvature, leaving rigid
  // translation and a common swing untouched. The ratio follows BOUNCE.
  float ratio=.10f+.40f*(1.f-max(0.f,min(1.f,physUI[2]/100.f)));
  float gamma=2.f*ratio*sqrtf(compliance/max(w,1e-8f))/dt;
  V3 oldValue=pdOldPosition[i-1]-pdOldPosition[i]*2.f+pdOldPosition[i+1];
- V3 dl=(value+lambda*alpha+(value-oldValue)*gamma)*(-1.f/((1.f+gamma)*w+alpha));lambda=lambda+dl;
+ return {alpha,gamma,-1.f/((1.f+gamma)*w+alpha),oldValue};
+}
+static void PDBendPrepared(int i,const PDBendData& data,V3& lambda){
+ V3 value=pdPosition[i-1]-pdPosition[i]*2.f+pdPosition[i+1];
+ V3 dl=(value+lambda*data.alpha+(value-data.oldValue)*data.gamma)*data.factor;lambda=lambda+dl;
  pdPosition[i-1]=pdPosition[i-1]+dl*pdInvMass[i-1];pdPosition[i]=pdPosition[i]-dl*(2.f*pdInvMass[i]);pdPosition[i+1]=pdPosition[i+1]+dl*pdInvMass[i+1];
 }
+static void PDBend(int i,float compliance,V3& lambda,float dt){PDBendPrepared(i,PDPrepareBend(i,compliance,dt),lambda);}
 // The attachment is transported by the proximal Hermite span. Its Jacobian
 // transmits the equal reaction to that span; treating it as a moving wall
 // silently supplied energy whenever a large support pulled on the shaft.
@@ -319,13 +329,17 @@ static void StepConstraintSolver(float dt,float gait,float side){
  float lengthLambda[shaftNodeCount]{},tetherLambda[2]{},stopLambda[2]{},shearLambda[2][2]{};V3 bendLambda[shaftNodeCount]{};
  PDConstraint pair,thigh[2][2],pelvis[2],rodContact[2][shaftNodeCount],rodThigh[shaftNodeCount][2];
  float stiffness=max(0.f,min(1.f,physUI[0]/100.f));float bendCompliance=ModeValue(.00000001f,.00008f,.0015f)*expf((.5f-stiffness)*3.f);
+ // These depend on this substep's rest inputs and masses, not the evolving
+ // positions. Prepare once; preserve all 24 coupled constraint iterations.
+ PDBendData bendData[shaftNodeCount];
+ for(int i=1;i<shaftNodeCount-1;i++){float t=float(i-1)/(shaftNodeCount-2);bendData[i]=PDPrepareBend(i,bendCompliance*(.02f+.98f*t*t)*RapheTubeBendMultiplier(float(i)/(shaftNodeCount-1)),dt);}
  pdContactCount=0;
  for(int iteration=0;iteration<24;iteration++){
   pdVelocityPass=iteration==23;
   for(int i=0;i<shaftNodeCount-1;i++)PDDistance(i,i+1,segment,.0000001f,lengthLambda[i],dt);
   // A rod supported at the pelvis has a reinforced proximal section. Its
   // flexural compliance increases continuously toward the free end.
-  for(int i=1;i<shaftNodeCount-1;i++){float t=float(i-1)/(shaftNodeCount-2);PDBend(i,bendCompliance*(.02f+.98f*t*t),bendLambda[i],dt);}
+  for(int i=1;i<shaftNodeCount-1;i++)PDBendPrepared(i,bendData[i],bendLambda[i]);
   for(int i=0;i<shaftNodeCount;i++)shaftNodes[i]=pdPosition[i];PDSync();
   for(int s=0;s<2;s++){PDSuspensionShear(s,shearLambda[s],dt);PDSuspension(s,tetherLambda[s],stopLambda[s],dt);}
   for(int s=0;s<2;s++){

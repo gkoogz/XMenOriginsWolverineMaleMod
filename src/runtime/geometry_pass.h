@@ -1,5 +1,29 @@
 #pragma once
 #include <xmmintrin.h>
+#include <ppl.h>
+// Bounded synchronous batches. Each callback owns distinct output vertices;
+// constraints, reductions, D3D calls and simulation state remain on the caller.
+// The scheduler is process-lifetime: never wait for workers from DllMain.
+static Concurrency::Scheduler* GeometryScheduler(){
+ static Concurrency::Scheduler* scheduler=Concurrency::Scheduler::Create(
+  Concurrency::SchedulerPolicy(2,Concurrency::MaxConcurrency,4,Concurrency::MinConcurrency,1));
+ return scheduler;
+}
+template<class Function> static void GeometryFor(unsigned count,const Function& fn){
+ if(count<512){for(unsigned i=0;i<count;i++)fn(i);return;}
+ GeometryScheduler()->Attach();
+ struct Detach {~Detach(){Concurrency::CurrentScheduler::Detach();}} detach;
+ const unsigned mxcsr=_mm_getcsr();
+ // More batches than workers balances cheap retained vertices against the
+ // denser edited region without changing any vertex's arithmetic order.
+ constexpr unsigned batches=16;
+ Concurrency::parallel_for(0u,batches,[&](unsigned batch){
+  const unsigned saved=_mm_getcsr();_mm_setcsr(mxcsr);
+  unsigned begin=count*batch/batches,end=count*(batch+1)/batches;
+  for(unsigned i=begin;i<end;i++)fn(i);
+  _mm_setcsr(saved);
+ });
+}
 
 // Prepared arithmetic, not a rotation matrix: retain the scalar operation
 // order so existing authored surfaces and packed normals stay reproducible.

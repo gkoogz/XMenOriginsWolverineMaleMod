@@ -8,6 +8,7 @@ static char captureDirectory[MAX_PATH];
 static std::set<void*> captureTextures;
 static unsigned long long captureBytes=0;
 static bool captureComplete=false;
+static bool captureTankMaterials=false;
 static UINT captureWaitFrames=0;
 static void CaptureWrite(const char* name,const void* data,size_t size){
   char path[MAX_PATH];sprintf_s(path,"%s\\%s",captureDirectory,name);
@@ -15,7 +16,14 @@ static void CaptureWrite(const char* name,const void* data,size_t size){
 }
 static void CapturePoll(){
   bool down=(GetAsyncKeyState(VK_F10)&0x8000)!=0;
-  if(down&&!captureKey&&captureRemaining==0){
+  bool requested=false;static DWORD materialPollTick=0,tankWarmupTick=0;DWORD now=GetTickCount();
+  if(!TankCameraSceneActive())tankWarmupTick=0;else if(!tankWarmupTick)tankWarmupTick=now;
+  if(tankWarmupTick&&DWORD(now-tankWarmupTick)>3000&&DWORD(now-materialPollTick)>1000&&captureRemaining==0){
+    materialPollTick=now;char request[MAX_PATH];SiblingPath(request,"TankMaterialCapture.request");
+    if(GetFileAttributesA(request)!=INVALID_FILE_ATTRIBUTES)requested=DeleteFileA(request)!=FALSE;
+  }
+  if(((down&&!captureKey)||requested)&&captureRemaining==0){
+    captureTankMaterials=requested||TankCameraSceneActive();
     GetModuleFileNameA((HMODULE)&__ImageBase,captureDirectory,MAX_PATH);
     char* slash=strrchr(captureDirectory,'\\');if(slash)*slash=0;
     SYSTEMTIME t;GetLocalTime(&t);char leaf[64];sprintf_s(leaf,"\\R14Capture_%04u%02u%02u_%02u%02u%02u",t.wYear,t.wMonth,t.wDay,t.wHour,t.wMinute,t.wSecond);strcat_s(captureDirectory,leaf);
@@ -76,6 +84,19 @@ static void CaptureSurface(IDirect3DDevice9* d,const char* suffix){
  char file[MAX_PATH];sprintf_s(file,"%s\\draw_%03d_%s.dds",captureDirectory,captureDraw-1,suffix);
  HRESULT hr=D3DXSaveSurfaceToFileA(file,D3DXIFF_DDS,rt,nullptr,nullptr);
  Log("R14 capture RT %s hr=%08X",suffix,hr);rt->Release();
+}
+// Diagnostic-only copy of currently bound native geometry and material state.
+// Never lock or read the buffers outside an explicitly requested capture.
+static void CaptureBoundDraw(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){
+ if(!captureTankMaterials||captureRemaining<=0||captureDraw>=16)return;
+ IDirect3DVertexBuffer9* vb=nullptr;IDirect3DIndexBuffer9* ib=nullptr;UINT offset=0,stride=0;
+ if(FAILED(d->GetStreamSource(0,&vb,&offset,&stride))||!vb)return;
+ if(FAILED(d->GetIndices(&ib))||!ib){vb->Release();return;}
+ D3DVERTEXBUFFER_DESC vd{};D3DINDEXBUFFER_DESC id{};void *v=nullptr,*i=nullptr;
+ if(SUCCEEDED(vb->GetDesc(&vd))&&SUCCEEDED(ib->GetDesc(&id))&&stride==32&&offset==0&&vd.Size<4*1024*1024&&id.Size<4*1024*1024&&id.Format==D3DFMT_INDEX16&&SUCCEEDED(vb->Lock(0,0,&v,D3DLOCK_READONLY))){
+  if(SUCCEEDED(ib->Lock(0,0,&i,D3DLOCK_READONLY))){CaptureDraw(d,type,base,minv,nv,start,count,v,vd.Size,i,id.Size);ib->Unlock();}vb->Unlock();
+ }
+ ib->Release();vb->Release();
 }
 static void CaptureFinish(IDirect3DDevice9* d){
  if(captureRemaining<=0)return;

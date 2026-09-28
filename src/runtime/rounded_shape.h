@@ -27,6 +27,7 @@ struct RSPreparedFrame {
   }
 };
 #include "pouch_surface.h"
+#include "raphe_tube_surface.h"
 static void ApplyRoundedShape(unsigned char* body){PerfScope perf(7);
   memcpy(rsBefore,r14Positions,sizeof(rsBefore));memset(rsStep,0,sizeof(rsStep));memset(rsBodyStep,0,sizeof(rsBodyStep));
   V3 live=Unit(shaftNodes[5]-shaftNodes[1]);float attachment=Smoother01((live.x+.15f)/.5f)*Smoother01((live.z+.05f)/.50f)*ModeValue(1.f,1.f,0.f);
@@ -71,13 +72,13 @@ static void ApplyRoundedShape(unsigned char* body){PerfScope perf(7);
   static V3 fineBase[rsFineCount],fineStep[rsFineCount];
   static RSPreparedFrame fineFrames[geometryFineFrameCount];
   for(unsigned k=0;k<geometryFineFrameCount;k++)fineFrames[k].Prepare(r14Positions,geometryFineFrames+3*k);
-  for(unsigned k=0;k<rsFineCount;k++){
+  GeometryFor(rsFineCount,[&](unsigned k){
     const unsigned* tri=rsFineSource+3*k;const float* w=rsFineBary+3*k;
     V3 base=r14Positions[tri[0]]*w[0]+r14Positions[tri[1]]*w[1]+r14Positions[tri[2]]*w[2];
     float fade=rsFineLobeFade[k]+(1.f-rsFineLobeFade[k])*attachment;
     fineBase[k]=base;fineStep[k]=fineFrames[geometryFineFrameIDs[k]].Offset(rsFineCoeff+3*k)*(fade*fraction);
     rsPositions[r14Count+k]=base;
-  }
+  });
   for(int pass=0;pass<6;pass++){bool changed=false;for(unsigned k:geometryFineFaces){unsigned a=rsIndices[k],b=rsIndices[k+1],c=rsIndices[k+2];
     V3 da=a<r14Count?V3{}:fineStep[a-r14Count],db=b<r14Count?V3{}:fineStep[b-r14Count],dc=c<r14Count?V3{}:fineStep[c-r14Count];
     float local=RSSafeFraction(rsPositions[a],rsPositions[b],rsPositions[c],da,db,dc,.02f);
@@ -89,6 +90,7 @@ static void ApplyRoundedShape(unsigned char* body){PerfScope perf(7);
   rsFineFraction=fineFraction;
   for(unsigned k=0;k<rsFineCount;k++)rsPositions[r14Count+k]=fineBase[k]+fineStep[k]*fineFraction;
   ApplyPouchSurface();
+  ApplyRapheTubeSkin(body);
   memcpy(rsPacked,r14Packed,sizeof(r14Packed));
   static bool attributesReady=false;
   if(!attributesReady)for(unsigned k=0;k<rsFineCount;k++){
@@ -104,13 +106,13 @@ static void ApplyRoundedShape(unsigned char* body){PerfScope perf(7);
   attributesReady=true;
   // UV topology is immutable; only the geometric edges change with the pose.
   // Decode the exact packed half floats once to retain the original tangent basis.
-  static float uvDifferences[cpNormalFaceCount][5];static bool uvReady=false;
-  if(!uvReady){for(unsigned k=0;k<cpNormalFaceCount*3;k+=3){
-    float uv[3][2];for(unsigned j=0;j<3;j++)D3DXFloat16To32Array(uv[j],reinterpret_cast<const D3DXFLOAT16*>(rsPacked+cpNormalFaces[k+j]*32+28),2);
+  static float uvDifferences[rsIndexCount/3][5];static bool uvReady=false;
+  if(!uvReady){for(unsigned k=0;k<rsIndexCount;k+=3){
+    float uv[3][2];for(unsigned j=0;j<3;j++)D3DXFloat16To32Array(uv[j],reinterpret_cast<const D3DXFLOAT16*>(rsPacked+rsIndices[k+j]*32+28),2);
     float* d=uvDifferences[k/3];d[0]=uv[1][0]-uv[0][0];d[1]=uv[1][1]-uv[0][1];d[2]=uv[2][0]-uv[0][0];d[3]=uv[2][1]-uv[0][1];d[4]=d[0]*d[3]-d[1]*d[2];
   }uvReady=true;}
   memset(rsNormals,0,sizeof(rsNormals));memset(rsTangents,0,sizeof(rsTangents));
-  for(unsigned k=0;k<cpNormalFaceCount*3;k+=3){unsigned a=cpNormalFaces[k],b=cpNormalFaces[k+1],c=cpNormalFaces[k+2];V3 e=rsPositions[b]-rsPositions[a],g=rsPositions[c]-rsPositions[a],normal=Cross(g,e);
+  for(unsigned k=0;k<rsIndexCount;k+=3){unsigned a=rsIndices[k],b=rsIndices[k+1],c=rsIndices[k+2];V3 e=rsPositions[b]-rsPositions[a],g=rsPositions[c]-rsPositions[a],normal=Cross(g,e);
     rsNormals[a]=rsNormals[a]+normal;rsNormals[b]=rsNormals[b]+normal;rsNormals[c]=rsNormals[c]+normal;
     const float* uv=uvDifferences[k/3];float u1=uv[0],v1=uv[1],u2=uv[2],v2=uv[3],det=uv[4];
     if(fabsf(det)>1e-10f){V3 t=(e*v2-g*v1)/det;rsTangents[a]=rsTangents[a]+t;rsTangents[b]=rsTangents[b]+t;rsTangents[c]=rsTangents[c]+t;}}
@@ -119,7 +121,9 @@ static void ApplyRoundedShape(unsigned char* body){PerfScope perf(7);
   for(unsigned k=0;k<paBodyNormalCount;k++)paBodyGroupNormals[paBodyNormalGroup[k]]=paBodyGroupNormals[paBodyNormalGroup[k]]+paBodyNormals[k];
   for(unsigned k=0;k<paSeamCount;k++)paBodyGroupNormals[paBodyNormalGroup[paSeamBody[k]]]=paBodyGroupNormals[paBodyNormalGroup[paSeamBody[k]]]+rsNormals[paSeamR14[k]];
   for(unsigned k=0;k<paSeamCount;k++)rsNormals[paSeamR14[k]]=paBodyGroupNormals[paBodyNormalGroup[paSeamBody[k]]];
-  for(unsigned k=0;k<cpNormalCount;k++){unsigned i=cpNormalIDs[k];V3 normal=Unit(rsNormals[i]),tangent=rsTangents[i]-normal*Dot(normal,rsTangents[i]);
+  static bool normalWrite[rsCount]{},normalWriteReady=false;
+  if(!normalWriteReady){for(unsigned k=0;k<cpNormalCount;k++)normalWrite[cpNormalIDs[k]]=true;normalWriteReady=true;}
+  for(unsigned i=0;i<rsCount;i++){if(!normalWrite[i]&&!rapheNormalNeeded[i])continue;V3 normal=Unit(rsNormals[i]),tangent=rsTangents[i]-normal*Dot(normal,rsTangents[i]);
     if(Length(tangent)<1e-6f)tangent=Cross(fabsf(normal.z)<.9f?V3{0,0,1}:V3{0,1,0},normal);tangent=Unit(tangent);unsigned char* dst=rsPacked+i*32;
     dst[12]=PackSigned(tangent.x);dst[13]=PackSigned(tangent.y);dst[14]=PackSigned(tangent.z);dst[16]=PackSigned(normal.x);dst[17]=PackSigned(normal.y);dst[18]=PackSigned(normal.z);}
   for(unsigned k=0;k<rsCount;k++)memcpy(rsPacked+k*32,&rsPositions[k],12);

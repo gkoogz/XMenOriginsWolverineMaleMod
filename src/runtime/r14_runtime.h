@@ -3,6 +3,9 @@
 #include "r14_asset.h"
 #include "rounded_render_data.h"
 static unsigned char rsPacked[rsCount*32];
+#include "neck_render_data.h"
+static unsigned char nrPacked[nrCount*32];
+static void UpdateNeckRender();
 static IDirect3DVertexBuffer9* r14VB;
 static IDirect3DIndexBuffer9* r14IB;
 static V3 r14Positions[r14Count],r14Normals[r14Count],r14Tangents[r14Count];
@@ -32,6 +35,12 @@ static void LoadR14SkinTextures(IDirect3DDevice9* d){
       D3DFMT_UNKNOWN,D3DPOOL_MANAGED,D3DX_FILTER_TRIANGLE,D3DX_FILTER_TRIANGLE,0,nullptr,nullptr,&r14SkinTexture[i]);
     Log("R14 skin texture %s load=%08X",names[i],hr);
   }
+}
+// Both body scene adapters use the same state-dependent color/SSS maps.
+// As with the normal/specular profile, only touch the verified skin pass.
+static HRESULT DrawSharedBodySkin(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){
+ LoadR14SkinTextures(d);
+ return DrawSharedSkin(d,type,base,minv,nv,start,count,false,r14SkinTexture[physicsState==0?1:0]);
 }
 static float interLobeWebMask[r14NewStart];
 static float obliqueLobeMask[r14NewStart];
@@ -182,7 +191,8 @@ static void UpdateR14(const unsigned char* source){PerfScope perf(5);
     preparedAmount=amount;mapReady=true;
   }
   for(UINT i=0;i<graftCount;i++)deltas[i]=_mm_set_ps(0.f,delta[i].z,delta[i].y,delta[i].x);
-  for(UINT i=0;i<r14Count;i++){
+  volatile LONG invalidPosition=0;
+  GeometryFor(r14Count,[&](unsigned i){
     __m128 position=_mm_set_ps(0.f,base[i].z,base[i].y,base[i].x);
     for(UINT k=r14Offsets[i];k<r14Offsets[i+1];k++)position=_mm_add_ps(position,_mm_mul_ps(deltas[r14Sources[k]],_mm_set1_ps(weights[k])));
     float xyz[4];_mm_storeu_ps(xyz,position);V3 p{xyz[0],xyz[1],xyz[2]};
@@ -190,9 +200,10 @@ static void UpdateR14(const unsigned char* source){PerfScope perf(5);
       V3 local{r14LowerDelta[3*i],r14LowerDelta[3*i+1],r14LowerDelta[3*i+2]};
       p=p+(columns[0]*local.x+columns[1]*local.y+columns[2]*local.z)*lowerFactor;
     }
-    if(!std::isfinite(p.x)||!std::isfinite(p.y)||!std::isfinite(p.z)){r14Ready=false;return;}
+    if(!std::isfinite(p.x)||!std::isfinite(p.y)||!std::isfinite(p.z)){InterlockedExchange(&invalidPosition,1);return;}
     r14Positions[i]=p;
-  }
+  });
+  if(invalidPosition){r14Ready=false;return;}
   // Length changes the shaft, while Glans Size alone owns the head. Restore
   // the crown-to-tip span lost in the legacy length morph by moving complete
   // ring centers; their radial offsets and lowest side points remain intact.
@@ -239,6 +250,8 @@ static void UpdateR14(const unsigned char* source){PerfScope perf(5);
   memset(undersideBlendMoved,0,sizeof(undersideBlendMoved));
   PreserveRigidLobeSurfaces();
   PreserveShaftRaphe();
+  // Retain the authored neck placement; the final shared tube changes only
+  // the shaft envelope and a bounded easing at the neck intersection.
   PreserveAxialRaphe();
   static float uv[r14IndexCount/3][5];static bool uvReady=false;
   if(!uvReady){for(UINT k=0;k<r14IndexCount;k+=3){UINT a=r14Indices[k],b=r14Indices[k+1],c=r14Indices[k+2];float* d=uv[k/3];
@@ -280,17 +293,17 @@ static void UpdateR14(const unsigned char* source){PerfScope perf(5);
 static bool EnsureR14(IDirect3DDevice9* d){
   if(!r14Ready)return false;
   if(!r14VB){
-    if(FAILED(d->CreateVertexBuffer(sizeof(rsPacked),D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY,0,D3DPOOL_DEFAULT,&r14VB,nullptr)))return false;
+    if(FAILED(d->CreateVertexBuffer(sizeof(nrPacked),D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY,0,D3DPOOL_DEFAULT,&r14VB,nullptr)))return false;
     r14UploadPending=true;
   }
   if(!r14IB){
-    if(FAILED(d->CreateIndexBuffer(sizeof(rsIndices),D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_DEFAULT,&r14IB,nullptr)))return false;
+    if(FAILED(d->CreateIndexBuffer(sizeof(nrIndices),D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_DEFAULT,&r14IB,nullptr)))return false;
     void* raw=nullptr;if(FAILED(r14IB->Lock(0,0,&raw,0))){ReleaseR14();return false;}
-    memcpy(raw,rsIndices,sizeof(rsIndices));r14IB->Unlock();
+    memcpy(raw,nrIndices,sizeof(nrIndices));r14IB->Unlock();
   }
   if(r14UploadPending){
-    void* raw=nullptr;if(FAILED(r14VB->Lock(0,sizeof(rsPacked),&raw,D3DLOCK_DISCARD)))return false;
-    memcpy(raw,rsPacked,sizeof(rsPacked));r14VB->Unlock();r14UploadPending=false;
+    void* raw=nullptr;if(FAILED(r14VB->Lock(0,sizeof(nrPacked),&raw,D3DLOCK_DISCARD)))return false;
+    memcpy(raw,nrPacked,sizeof(nrPacked));r14VB->Unlock();r14UploadPending=false;
   }
   return true;
 }
@@ -312,13 +325,13 @@ static HRESULT DrawR14(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original,UINT
   if(SUCCEEDED(hr))hr=d->SetIndices(r14IB);
   if(SUCCEEDED(hr)){
     bool capture=captureRemaining>0&&captureDraw<16;
-    if(capture){CaptureDraw(d,D3DPT_TRIANGLELIST,0,0,rsCount,0,rsIndexCount/3,rsPacked,sizeof(rsPacked),rsIndices,sizeof(rsIndices));CaptureSurface(d,"before");}
-    hr=capture?origDIP(d,D3DPT_TRIANGLELIST,0,0,rsCount,0,rsIndexCount/3):DrawWithLightingDirections(d,D3DPT_TRIANGLELIST,0,0,rsCount,0,rsIndexCount/3);
+    if(capture){CaptureDraw(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,nrIndexCount/3,nrPacked,sizeof(nrPacked),nrIndices,sizeof(nrIndices));CaptureSurface(d,"before");}
+    hr=capture?origDIP(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,nrIndexCount/3):DrawSharedSkin(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,nrIndexCount/3,true);
     if(capture)CaptureSurface(d,"after");
   }
   if(replaced){d->SetTexture(2,oldDiffuse);d->SetTexture(10,oldSkin);}
   if(oldDiffuse)oldDiffuse->Release();if(oldSkin)oldSkin->Release();
   d->SetStreamSource(0,original,offset,stride);d->SetIndices(ib);if(ib)ib->Release();
-  if(SUCCEEDED(hr)){if(r14SuccessfulDraws++==0)Log("R14 rounded replacement draw active: %u vertices, %u triangles",rsCount,rsIndexCount/3);}
+  if(SUCCEEDED(hr)){if(r14SuccessfulDraws++==0)Log("R14 rounded replacement draw active: %u vertices, %u triangles",nrCount,nrIndexCount/3);}
   return hr;
 }
