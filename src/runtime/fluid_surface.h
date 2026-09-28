@@ -13,8 +13,15 @@ float4 Pixel(O o):COLOR0{
  float broad=pow(max(0,dot(n,normalize(key+eye))),18)*.23;
  float wet=pow(max(0,dot(n,normalize(key+eye))),90)*.32;
  float edge=pow(1-saturate(dot(n,eye)),5);
- float3 color=float3(.97,.97,.97)*diffuse+broad+wet+.035*edge;
- float alpha=1;if(Material.x>.5){color=.79+broad+wet;alpha=saturate(.05+.27*edge+wet*.75+broad*.2);}
+ float tank=step(.5,Material.y);
+ float3 base=lerp(float3(.97,.97,.97),float3(1.42,1.25,.94),tank);
+ // WStart applies its underwater blue grade after this draw. Its diffuse term
+ // previously darkened the opaque liquid a second time, producing grey pumps.
+ // Keep gameplay conventionally lit; make only the tank material near-emissive
+ // and warm enough to resolve as neutral white after the cinematic grade.
+ float opaqueLight=lerp(diffuse,.96+.04*diffuse,tank);
+ float3 color=base*opaqueLight+broad*(1-.55*tank)+wet*(1-.45*tank)+.035*edge;
+ float alpha=1;if(Material.x>.5){color=(Material.y>.5?float3(.96,.90,.80):float3(.79,.79,.79))+broad+wet;alpha=saturate(.05+.27*edge+wet*.75+broad*.2);}
  return float4(color,alpha);
 }
 )HLSL";
@@ -29,7 +36,7 @@ public:
   for(int i=0;i<2;i++){ID3DXBuffer *code=nullptr,*err=nullptr;HRESULT hr=D3DXCompileShader(liquidShader,(UINT)strlen(liquidShader),nullptr,nullptr,i?"Pixel":"Vertex",i?"ps_3_0":"vs_3_0",D3DXSHADER_OPTIMIZATION_LEVEL3,&code,&err,nullptr);if(FAILED(hr)){if(err)error.assign((char*)err->GetBufferPointer(),err->GetBufferSize());Drop(err);Drop(code);return false;}Drop(err);hr=i?d->CreatePixelShader((DWORD*)code->GetBufferPointer(),&ps):d->CreateVertexShader((DWORD*)code->GetBufferPointer(),&vs);Drop(code);if(FAILED(hr))return Fail("liquid shader",hr);}
   D3DVERTEXELEMENT9 elements[]={{0,0,D3DDECLTYPE_FLOAT3,D3DDECLMETHOD_DEFAULT,D3DDECLUSAGE_POSITION,0},{0,12,D3DDECLTYPE_FLOAT3,D3DDECLMETHOD_DEFAULT,D3DDECLUSAGE_NORMAL,0},D3DDECL_END()};HRESULT hr=d->CreateVertexDeclaration(elements,&decl);return SUCCEEDED(hr)||Fail("liquid declaration",hr);
  }
- HRESULT Draw(IDirect3DDevice9* d,const teaching::LiquidMesh& mesh,const float* vp){
+ HRESULT Draw(IDirect3DDevice9* d,const teaching::LiquidMesh& mesh,const float* vp,bool tankScene=false){
   if(mesh.indices.empty())return S_FALSE;if(!Initialize(d))return E_FAIL;HRESULT hr;
   UINT vc=(UINT)mesh.vertices.size(),ic=(UINT)mesh.indices.size();
   if(!vertices||vertexCapacity<vc){Drop(vertices);vertexCapacity=vc+4096;hr=d->CreateVertexBuffer(vertexCapacity*sizeof(teaching::LiquidVertex),D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY,0,D3DPOOL_DEFAULT,&vertices,nullptr);if(FAILED(hr)){Fail("mesh vertex buffer",hr);return hr;}}
@@ -37,15 +44,21 @@ public:
   void* raw=nullptr;hr=vertices->Lock(0,vc*sizeof(teaching::LiquidVertex),&raw,D3DLOCK_DISCARD);if(FAILED(hr))return hr;memcpy(raw,mesh.vertices.data(),vc*sizeof(teaching::LiquidVertex));vertices->Unlock();
   hr=indices->Lock(0,ic*sizeof(unsigned),&raw,D3DLOCK_DISCARD);if(FAILED(hr))return hr;memcpy(raw,mesh.indices.data(),ic*sizeof(unsigned));indices->Unlock();
   D3DXMATRIX matrix,inv;memcpy(&matrix,vp,64);if(!D3DXMatrixInverse(&inv,nullptr,&matrix))return E_FAIL;
-  float c[36]{};memcpy(c,vp,64);memcpy(c+16,&inv,64);
+  float c[36]{};memcpy(c,vp,64);memcpy(c+16,&inv,64);c[33]=tankScene?1.f:0.f;
   IDirect3DStateBlock9* saved=nullptr;hr=d->CreateStateBlock(D3DSBT_ALL,&saved);if(FAILED(hr))return hr;
   float bank[1024];hr=d->GetVertexShaderConstantF(0,bank,256);if(FAILED(hr)){Drop(saved);return hr;}
   IDirect3DSurface9* rt[3]{};for(int i=1;i<4;i++){d->GetRenderTarget(i,&rt[i-1]);d->SetRenderTarget(i,nullptr);}
   d->SetVertexShader(vs);d->SetPixelShader(ps);d->SetVertexDeclaration(decl);d->SetStreamSource(0,vertices,0,sizeof(teaching::LiquidVertex));d->SetIndices(indices);for(int i=0;i<4;i++)d->SetStreamSourceFreq(i,1);
   d->SetVertexShaderConstantF(0,c,9);d->SetPixelShaderConstantF(0,c,9);
-  d->SetRenderState(D3DRS_ZENABLE,TRUE);d->SetRenderState(D3DRS_ZWRITEENABLE,TRUE);d->SetRenderState(D3DRS_ZFUNC,D3DCMP_LESSEQUAL);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);d->SetRenderState(D3DRS_ALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_ALPHATESTENABLE,FALSE);d->SetRenderState(D3DRS_STENCILENABLE,FALSE);d->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE);d->SetRenderState(D3DRS_CLIPPLANEENABLE,0);d->SetRenderState(D3DRS_SRGBWRITEENABLE,FALSE);d->SetRenderState(D3DRS_COLORWRITEENABLE,7);d->SetRenderState(D3DRS_FILLMODE,D3DFILL_SOLID);d->SetRenderState(D3DRS_DEPTHBIAS,0);d->SetRenderState(D3DRS_SLOPESCALEDEPTHBIAS,0);
+  d->SetRenderState(D3DRS_ZENABLE,TRUE);d->SetRenderState(D3DRS_ZWRITEENABLE,TRUE);d->SetRenderState(D3DRS_ZFUNC,D3DCMP_LESSEQUAL);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);d->SetRenderState(D3DRS_ALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_ALPHATESTENABLE,FALSE);d->SetRenderState(D3DRS_STENCILENABLE,FALSE);d->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE);d->SetRenderState(D3DRS_CLIPPLANEENABLE,0);d->SetRenderState(D3DRS_SRGBWRITEENABLE,FALSE);
+  // WStart's HDR alpha is a scene-validity/composite mask. RGB-only writes
+  // made opaque fluid inherit alpha from whatever was behind it: correct over
+  // Wolverine, grey/black over open water. Opaque fluid owns the pixel and
+  // therefore writes its shader alpha of one. The clear strand preserves the
+  // destination mask when it switches to conventional alpha blending below.
+  d->SetRenderState(D3DRS_COLORWRITEENABLE,0xF);d->SetRenderState(D3DRS_FILLMODE,D3DFILL_SOLID);d->SetRenderState(D3DRS_DEPTHBIAS,0);d->SetRenderState(D3DRS_SLOPESCALEDEPTHBIAS,0);
   if(mesh.opaqueIndices)hr=d->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,0,0,vc,0,mesh.opaqueIndices/3);else hr=S_OK;
-  if(SUCCEEDED(hr)&&ic>mesh.opaqueIndices){c[32]=1;d->SetPixelShaderConstantF(0,c,9);d->SetRenderState(D3DRS_ZWRITEENABLE,FALSE);d->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);d->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_BLENDOP,D3DBLENDOP_ADD);d->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_SRCALPHA);d->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_INVSRCALPHA);
+  if(SUCCEEDED(hr)&&ic>mesh.opaqueIndices){c[32]=1;d->SetPixelShaderConstantF(0,c,9);d->SetRenderState(D3DRS_ZWRITEENABLE,FALSE);d->SetRenderState(D3DRS_COLORWRITEENABLE,7);d->SetRenderState(D3DRS_ALPHABLENDENABLE,TRUE);d->SetRenderState(D3DRS_SEPARATEALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_BLENDOP,D3DBLENDOP_ADD);d->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_SRCALPHA);d->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_INVSRCALPHA);
    // Front surfaces only avoid doubled opacity on a closed transparent tube.
    d->SetRenderState(D3DRS_CULLMODE,D3DCULL_CW);hr=d->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,0,0,vc,mesh.opaqueIndices,(ic-mesh.opaqueIndices)/3);
   }

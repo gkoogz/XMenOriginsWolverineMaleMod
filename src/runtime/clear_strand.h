@@ -8,7 +8,7 @@ struct ClearStrand {
  float volume=0,length=0;
  void Reset(){*this=ClearStrand{};}
  void Step(float dt,float age,V3 tip,V3 direction,const volumeFluid::Settings& cfg,
-           const volumeFluid::F4* collision,float fraction,float amount,V3 origin){
+           const volumeFluid::F4* collision,float fraction,float amount,V3 origin,std::vector<volumeFluid::FluidImpact>* impacts=nullptr){
   if(age<=0||age>cfg.dropDuration+cfg.dropHold+cfg.lifetime){live=false;return;}
   if(!started){started=live=true;for(int i=0;i<count;i++)p[i]=tip+direction*(.02f+.03f*i/(count-1));}
   volume=amount*fraction;attached=age<cfg.dropDuration+cfg.dropHold;
@@ -36,6 +36,7 @@ struct ClearStrand {
     for(int j=0;j<8;j++)if(collision[j].w>0){V3 center{collision[j].x,collision[j].y,collision[j].z},delta=p[i]-center;float d=Length(delta),r=collision[j].w+.08f;if(d>1e-6f&&d<r)p[i]=center+delta*(r/d);}
    }
   }
+  if(volumeFluid::collisionSweep)for(int i=attached?2:0;i<count;i++){volumeFluid::FluidImpact hit{};if(volumeFluid::collisionSweep(old[i],p[i],.08f,hit)){p[i]=hit.p+hit.n*.105f;if(impacts&&Dot(velocity[i],hit.n)<-.25f)impacts->push_back(hit);}}
   if(attached){p[0]=anchor;p[1]=anchor+direction*rest;}
   for(int i=0;i<count;i++){velocity[i]=(p[i]-old[i])/dt;float speed=Length(velocity[i]);if(speed>cfg.speedLimit)velocity[i]=velocity[i]*(cfg.speedLimit/speed);}
   if(!attached&&p[count/2].z<origin.z-180)live=false;

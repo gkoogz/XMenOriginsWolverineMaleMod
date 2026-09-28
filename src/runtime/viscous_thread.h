@@ -18,7 +18,7 @@ struct ViscousThread {
   if(distance<.002f)p=nodes.back().p-dir*.002f;
   links.push_back({amount,max(.002f,Length(p-nodes.back().p)),1,false,nextLabel++});nodes.push_back({p,velocity,time});volume+=amount;live=feeding=true;
  }
- void Step(float dt,float time,const volumeFluid::Settings& cfg,const volumeFluid::F4* colliders,V3 origin){
+ void Step(float dt,float time,const volumeFluid::Settings& cfg,const volumeFluid::F4* colliders,V3 origin,int colliderCount=8,std::vector<volumeFluid::FluidImpact>* impacts=nullptr){
   size_t n=nodes.size();if(!live||n<2)return;
   size_t expired=0;
   while(expired+1<n&&(time-nodes[expired].born>cfg.lifetime||nodes[expired].p.z<origin.z-180||Length(nodes[expired].p-origin)>1000))expired++;
@@ -39,8 +39,13 @@ struct ViscousThread {
   for(size_t i=0;i<n;i++){
    V3 old=nodes[i].p;nodes[i].p=old+nodes[i].v*dt;
    float radius=sqrtf(max(.000001f,mass[i])/(3.14159265f*max(.1f,i<links.size()?Length(nodes[i+1].p-old):Length(old-nodes[i-1].p))));radius=min(cfg.nozzle*1.5f,radius);
-   if(cfg.catchPlane&&nodes[i].p.z<origin.z-cfg.catchDepth+radius){nodes[i].p.z=origin.z-cfg.catchDepth+radius;nodes[i].v.z=max(0.f,nodes[i].v.z);float friction=expf(-dt*4);nodes[i].v.x*=friction;nodes[i].v.y*=friction;}
-   for(int j=0;j<8;j++)if(colliders[j].w>0){V3 center{colliders[j].x,colliders[j].y,colliders[j].z},delta=nodes[i].p-center;float d=Length(delta),r=colliders[j].w+radius*.7f;if(d>1e-6f&&d<r){V3 normal=delta/d;nodes[i].p=center+normal*r;float inward=Dot(nodes[i].v,normal);if(inward<0)nodes[i].v=nodes[i].v-normal*inward;}}
+   volumeFluid::FluidImpact exactHit{};
+   if(volumeFluid::collisionSweep&&volumeFluid::collisionSweep(old,nodes[i].p,radius,exactHit)){
+    nodes[i].p=exactHit.p+exactHit.n*(radius*.72f+.025f);float inward=Dot(nodes[i].v,exactHit.n);
+    if(impacts&&inward<-.35f&&i+2<n)impacts->push_back(exactHit);
+    if(inward<0)nodes[i].v=nodes[i].v-exactHit.n*inward;float friction=expf(-dt*3.2f);nodes[i].v=exactHit.n*Dot(nodes[i].v,exactHit.n)+(nodes[i].v-exactHit.n*Dot(nodes[i].v,exactHit.n))*friction;
+   } else if(cfg.catchPlane&&nodes[i].p.z<origin.z-cfg.catchDepth+radius){nodes[i].p.z=origin.z-cfg.catchDepth+radius;nodes[i].v.z=max(0.f,nodes[i].v.z);float friction=expf(-dt*4);nodes[i].v.x*=friction;nodes[i].v.y*=friction;}
+   if(!volumeFluid::collisionSweep)for(int j=0;j<colliderCount;j++)if(colliders[j].w>0){V3 center{colliders[j].x,colliders[j].y,colliders[j].z},delta=nodes[i].p-center;float d=Length(delta),r=colliders[j].w+radius*.7f;if(d>1e-6f&&d<r){V3 normal=delta/d;nodes[i].p=center+normal*r;float inward=Dot(nodes[i].v,normal);if(inward<0)nodes[i].v=nodes[i].v-normal*inward;}}
    if(nodes[i].p.z<origin.z-180||Length(nodes[i].p-origin)>1000)below++;
   }
   if(below==(int)n){live=false;return;}

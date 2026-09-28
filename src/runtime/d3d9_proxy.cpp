@@ -103,7 +103,7 @@ static teaching::PatientAudio teachingAudio;
 // driver from a static destructor while Windows holds the DLL loader lock.
 static teaching::Fluid teachingFluid(false);
 static DWORD teachingLastTick;
-static int teachingKey=VK_OEM_PERIOD;
+static int teachingKey='J';
 static float teachingViscosity=2.f,teachingCohesion=1.8f,teachingSpread=1.f;
 #include "surface_limit.h"
 #include "geometry_pass.h"
@@ -140,8 +140,21 @@ static bool eggRestReady=false;
 static DWORD physicsLastTick;
 static float physicsPhase;
 static const float* overallWidthTargets[3][3]={{morph_ow_lo_lo,morph_ow_lo_def,morph_ow_lo_hi},{morph_ow_def_lo,morph_ow_def_def,morph_ow_def_hi},{morph_ow_hi_lo,morph_ow_hi_def,morph_ow_hi_hi}};
-struct ShaderLayout {IDirect3DVertexShader9* shader;UINT boneRegister,boneCount,localRegister,localCount,viewRegister;bool viewValid;D3DXPARAMETER_CLASS localClass;bool valid;};
-static ShaderLayout shaderLayouts[16]{};static UINT shaderLayoutCount;
+struct ShaderLayout {IDirect3DVertexShader9* shader;UINT boneRegister,boneCount,localRegister,localCount,viewRegister,cameraRegister;bool viewValid,cameraValid;D3DXPARAMETER_CLASS localClass;bool valid;};
+static constexpr UINT shaderLayoutCapacity=256;
+static ShaderLayout shaderLayouts[shaderLayoutCapacity]{};static UINT shaderLayoutCount;
+// Saved WStart camera views. The temporary free-camera editor has been removed;
+// the title menu now exposes only playback and attract-video controls.
+static DWORD tankCameraSceneTick;
+static int anatomyScene=-1;
+static bool tankAttractMovieBlocked=true;
+static V3 tankCameraLocation={-103.3393f,49.81406f,59.95958f};
+static float tankCameraPitch=-13.705444f,tankCameraYaw=-40.468140f,tankCameraRoll=-2.636719f,tankCameraFov=48.f;
+struct TankCameraPose {V3 location;float pitch,yaw,roll,fov;};
+static TankCameraPose tankCameraPoses[64];
+static int tankCameraPoseCount,tankCameraPoseIndex;
+static bool tankCameraCycleEnabled;
+static DWORD tankCameraCycleTick;
 static bool motionTracked,motionBasisReady;static float motionPitchForce,motionYawForce,motionSpinSpeed,motionPrevPosition[3],motionPrevVelocity[3],motionFilteredAccel[3],motionPrevBasis[9],motionPrevAngularVelocity[3];static DWORD motionLastTick,motionLastCaptureTick;static LONG motionSamples;static int motionWarmupSamples,motionQuietFrames;
 static LONG renderFrameSerial=-1,motionCaptureSerial=-2;
 static bool settingsLoaded,settingsPending;static DWORD settingsChangedTick;
@@ -162,31 +175,79 @@ static DWORD necklaceDiagnosticTick;
 static bool collisionCapsuleOverride;
 static V3 overrideLeftA,overrideLeftB,overrideRightA,overrideRightB;
 static __declspec(thread) bool inOverlay;
+static bool KeyEdge(int vk);
+static void Patch(void** slot,void* replacement,void** original);
 
 static ShaderLayout* GetShaderLayout(IDirect3DDevice9* d){
   IDirect3DVertexShader9* shader=nullptr;if(FAILED(d->GetVertexShader(&shader))||!shader)return nullptr;
   for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader==shader){shader->Release();return &shaderLayouts[i];}
-  if(shaderLayoutCount>=16){shader->Release();return nullptr;}ShaderLayout& layout=shaderLayouts[shaderLayoutCount++];layout.shader=shader;
+  if(shaderLayoutCount>=shaderLayoutCapacity){static volatile LONG loggedShaderCacheFull=0;if(InterlockedCompareExchange(&loggedShaderCacheFull,1,0)==0)Log("Wolverine shader layout cache full at %u entries",shaderLayoutCapacity);shader->Release();return nullptr;}ShaderLayout& layout=shaderLayouts[shaderLayoutCount++];layout.shader=shader;
   UINT bytes=0;if(FAILED(shader->GetFunction(nullptr,&bytes))||!bytes)return &layout;std::vector<DWORD> code((bytes+3)/4);if(FAILED(shader->GetFunction(code.data(),&bytes)))return &layout;
   ID3DXConstantTable* table=nullptr;if(FAILED(D3DXGetShaderConstantTable(code.data(),&table))||!table)return &layout;D3DXHANDLE bh=table->GetConstantByName(nullptr,"BoneMatrices"),lh=table->GetConstantByName(nullptr,"LocalToWorld");D3DXCONSTANT_DESC bd{},ld{};UINT one=1;
-  if(bh&&SUCCEEDED(table->GetConstantDesc(bh,&bd,&one))){one=1;if(lh&&SUCCEEDED(table->GetConstantDesc(lh,&ld,&one))){layout.boneRegister=bd.RegisterIndex;layout.boneCount=bd.RegisterCount;layout.localRegister=ld.RegisterIndex;layout.localCount=ld.RegisterCount;layout.localClass=ld.Class;layout.valid=bd.RegisterCount>=3&&ld.RegisterCount>=4;}}
+  if(bh&&SUCCEEDED(table->GetConstantDesc(bh,&bd,&one))){layout.boneRegister=bd.RegisterIndex;layout.boneCount=bd.RegisterCount;}
+  one=1;if(lh&&SUCCEEDED(table->GetConstantDesc(lh,&ld,&one))){layout.localRegister=ld.RegisterIndex;layout.localCount=ld.RegisterCount;layout.localClass=ld.Class;}
+  layout.valid=layout.boneCount>=3&&layout.localCount>=4;
   D3DXHANDLE vh=table->GetConstantByName(nullptr,"ViewProjectionMatrix");D3DXCONSTANT_DESC vd{};one=1;
   if(vh&&SUCCEEDED(table->GetConstantDesc(vh,&vd,&one))&&vd.RegisterCount==4){layout.viewRegister=vd.RegisterIndex;layout.viewValid=true;}
-  table->Release();Log("Wolverine shader layout bone=c%u count=%u local=c%u count=%u class=%u valid=%d",layout.boneRegister,layout.boneCount,layout.localRegister,layout.localCount,layout.localClass,layout.valid?1:0);return &layout;
+  D3DXHANDLE ch=table->GetConstantByName(nullptr,"CameraWorldPos");D3DXCONSTANT_DESC cd{};one=1;
+  if(ch&&SUCCEEDED(table->GetConstantDesc(ch,&cd,&one))&&cd.RegisterSet==D3DXRS_FLOAT4&&cd.RegisterCount>=1){layout.cameraRegister=cd.RegisterIndex;layout.cameraValid=true;}
+  // Several WStart lighting and depth permutations name the same world-to-clip
+  // transform ProjectionMatrix because LocalToWorld is supplied separately.
+  // Treat it as the camera matrix so those passes stay registered with the
+  // main ViewProjectionMatrix permutations during temporary camera edits.
+  if(!layout.viewValid){D3DXHANDLE ph=table->GetConstantByName(nullptr,"ProjectionMatrix");D3DXCONSTANT_DESC pd{};one=1;if(ph&&SUCCEEDED(table->GetConstantDesc(ph,&pd,&one))&&pd.RegisterCount==4){layout.viewRegister=pd.RegisterIndex;layout.viewValid=true;}}
+  if(!layout.viewValid){D3DXCONSTANTTABLE_DESC td{};if(SUCCEEDED(table->GetDesc(&td)))for(UINT i=0;i<td.Constants;i++){D3DXHANDLE h=table->GetConstant(nullptr,i);D3DXCONSTANT_DESC cd{};UINT n=1;if(h&&SUCCEEDED(table->GetConstantDesc(h,&cd,&n))&&cd.Name&&(strstr(cd.Name,"View")||strstr(cd.Name,"Projection")||strstr(cd.Name,"World")||cd.RegisterCount==4))Log("shader #%u camera candidate %s c%u count=%u class=%u",shaderLayoutCount,cd.Name,cd.RegisterIndex,cd.RegisterCount,cd.Class);}}
+  table->Release();Log("Wolverine shader layout #%u bone=c%u count=%u local=c%u count=%u class=%u valid=%d view=c%u viewValid=%d camera=c%u cameraValid=%d",shaderLayoutCount,layout.boneRegister,layout.boneCount,layout.localRegister,layout.localCount,layout.localClass,layout.valid?1:0,layout.viewRegister,layout.viewValid?1:0,layout.cameraRegister,layout.cameraValid?1:0);return &layout;
 }
+static V3 TankCameraForward(float pitch,float yaw){
+  const float radians=3.14159265358979323846f/180.f,p=pitch*radians,y=yaw*radians;
+  return {cosf(p)*cosf(y),cosf(p)*sinf(y),-sinf(p)};
+}
+static bool TankCameraSceneActive(){return tankCameraSceneTick&&DWORD(GetTickCount()-tankCameraSceneTick)<1500u;}
+static void ApplyTankCameraPose(int index){
+  if(index<0||index>=tankCameraPoseCount)return;const auto& pose=tankCameraPoses[index];tankCameraLocation=pose.location;tankCameraPitch=pose.pitch;tankCameraYaw=pose.yaw;tankCameraRoll=pose.roll;tankCameraFov=pose.fov;tankCameraPoseIndex=index;
+}
+static bool AddTankCameraPose(const TankCameraPose& pose){
+  for(int i=0;i<tankCameraPoseCount;i++){const auto& p=tankCameraPoses[i];if(Length(p.location-pose.location)<.001f&&fabsf(p.pitch-pose.pitch)<.001f&&fabsf(p.yaw-pose.yaw)<.001f&&fabsf(p.fov-pose.fov)<.001f)return false;}
+  if(tankCameraPoseCount>=64)return false;tankCameraPoses[tankCameraPoseCount++]=pose;return true;
+}
+static void LoadTankCameraPoses(){
+  char path[MAX_PATH];GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);char* slash=strrchr(path,'\\');if(slash)strcpy_s(slash+1,MAX_PATH-(slash+1-path),"WolverineLive.log");
+  FILE* file=nullptr;fopen_s(&file,path,"r");if(!file)return;char line[768];
+  while(fgets(line,sizeof(line),file)){
+    TankCameraPose pose{};int rp=0,ry=0,rr=0;
+    if(sscanf_s(line,"TANK CAMERA POSE Location=(X=%f,Y=%f,Z=%f) Rotation=(Pitch=%d,Yaw=%d,Roll=%d) Degrees=(Pitch=%f,Yaw=%f,Roll=%f) FOV=%f",&pose.location.x,&pose.location.y,&pose.location.z,&rp,&ry,&rr,&pose.pitch,&pose.yaw,&pose.roll,&pose.fov)==10)AddTankCameraPose(pose);
+  }
+  fclose(file);if(tankCameraPoseCount>0)ApplyTankCameraPose(0);if(tankCameraPoseCount>1)tankCameraCycleEnabled=true;Log("loaded %d distinct logged tank camera poses; 15-second cycle=%s",tankCameraPoseCount,tankCameraCycleEnabled?"ON":"OFF");
+}
+static void UpdateTankCameraCycle(){
+  DWORD now=GetTickCount();
+  if(tankCameraCycleEnabled&&TankCameraSceneActive()&&tankCameraPoseCount>1){
+    if(!tankCameraCycleTick)tankCameraCycleTick=now;
+    if(DWORD(now-tankCameraCycleTick)>=15000u){tankCameraCycleTick+=15000u;ApplyTankCameraPose((tankCameraPoseIndex+1)%tankCameraPoseCount);Log("tank camera cycle preset %d/%d",tankCameraPoseIndex+1,tankCameraPoseCount);}
+  } else if(!TankCameraSceneActive())tankCameraCycleTick=0;
+}
+struct TankCameraDrawOverride {
+  IDirect3DDevice9* device=nullptr;UINT reg=0;float original[16]{};bool applied=false;
+  TankCameraDrawOverride(IDirect3DDevice9* d):device(d){
+    if(tankCameraPoseCount<=0||!TankCameraSceneActive())return;ShaderLayout* layout=GetShaderLayout(d);if(!layout||!layout->viewValid)return;reg=layout->viewRegister;
+    if(FAILED(d->GetVertexShaderConstantF(reg,original,4)))return;
+    V3 baseForward=TankCameraForward(-13.705444f,-40.468140f),editForward=TankCameraForward(tankCameraPitch,tankCameraYaw);
+    D3DXVECTOR3 baseEye(-103.3393f,49.81406f,59.95958f),baseAt(baseEye.x+baseForward.x,baseEye.y+baseForward.y,baseEye.z+baseForward.z);
+    D3DXVECTOR3 editEye(tankCameraLocation.x,tankCameraLocation.y,tankCameraLocation.z),editAt(editEye.x+editForward.x,editEye.y+editForward.y,editEye.z+editForward.z),up(0,0,1);
+    D3DXMATRIX baseView,editView,inverseBase,delta,viewProjection,changed,zoom;D3DXMatrixLookAtLH(&baseView,&baseEye,&baseAt,&up);D3DXMatrixLookAtLH(&editView,&editEye,&editAt,&up);D3DXMatrixInverse(&inverseBase,nullptr,&baseView);D3DXMatrixMultiply(&delta,&editView,&inverseBase);memcpy(&viewProjection,original,sizeof(original));D3DXMatrixMultiply(&changed,&delta,&viewProjection);
+    D3DXMatrixIdentity(&zoom);float scale=tanf(48.f*3.14159265358979323846f/360.f)/tanf(tankCameraFov*3.14159265358979323846f/360.f);zoom._11=zoom._22=scale;D3DXMatrixMultiply(&changed,&changed,&zoom);
+    applied=SUCCEEDED(d->SetVertexShaderConstantF(reg,(const float*)&changed,4));
+  }
+  ~TankCameraDrawOverride(){if(applied)device->SetVertexShaderConstantF(reg,original,4);}
+};
 static void Normalize3(float* v){float n=sqrtf(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);if(n>1e-6f){v[0]/=n;v[1]/=n;v[2]/=n;}}
 static float SoftDeadzone(float value,float threshold){float magnitude=fabsf(value);return magnitude<=threshold?0.f:copysignf(magnitude-threshold,value);}
-static void CaptureCharacterMotion(IDirect3DDevice9* d){
-  ShaderLayout* layout=GetShaderLayout(d);if(!layout||!layout->valid)return;
-  // The section's actual bone map is: slot 0 = pelvis, slot 3 = left proximal
-  // thigh twist, slot 4 = right proximal thigh twist. LocalToWorld is excluded
-  // because UE3 folds camera-relative/pre-view translation into that matrix.
-  const UINT motionBone=0;float bone[12]{},leftThigh[12]{},rightThigh[12]{};
-  if(layout->boneCount<15||FAILED(d->GetVertexShaderConstantF(layout->boneRegister,bone,3))||FAILED(d->GetVertexShaderConstantF(layout->boneRegister+9,leftThigh,3))||FAILED(d->GetVertexShaderConstantF(layout->boneRegister+12,rightThigh,3)))return;
-  memcpy(motionPelvisMatrix,bone,sizeof(bone));memcpy(motionLeftThighMatrix,leftThigh,sizeof(leftThigh));memcpy(motionRightThighMatrix,rightThigh,sizeof(rightThigh));motionCollisionBonesReady=true;
+static void TrackCharacterMotionMatrices(const float bone[12],const float leftThigh[12],const float rightThigh[12],const char* source){
+  memcpy(motionPelvisMatrix,bone,12*sizeof(float));memcpy(motionLeftThighMatrix,leftThigh,12*sizeof(float));memcpy(motionRightThighMatrix,rightThigh,12*sizeof(float));motionCollisionBonesReady=true;
   float world[3]={bone[3],bone[7],bone[11]},basis[9]{};
   for(int axis=0;axis<3;axis++){for(int a=0;a<3;a++)basis[axis*3+a]=bone[axis*4+a];Normalize3(&basis[axis*3]);}
-  if(InterlockedCompareExchange(&motionBoneLogged,1,0)==0)Log("camera-invariant bones selected: pelvis=slot0 leftThighTwist=slot3 rightThighTwist=slot4; LocalToWorld excluded");
+  if(InterlockedCompareExchange(&motionBoneLogged,1,0)==0)Log("camera-invariant bones selected from %s; LocalToWorld excluded",source);
   DWORD now=GetTickCount();motionLastCaptureTick=now;if(!motionLastTick){memcpy(motionPrevPosition,world,12);memcpy(motionPrevBasis,basis,sizeof(basis));motionBasisReady=true;motionLastTick=now;motionWarmupSamples=motionQuietFrames=0;motionTracked=false;return;}float dt=(now-motionLastTick)*.001f;if(dt<.008f)return;motionLastTick=now;if(dt>.50f){memcpy(motionPrevPosition,world,12);memcpy(motionPrevBasis,basis,sizeof(basis));memset(motionPrevVelocity,0,12);memset(motionFilteredAccel,0,12);memset(motionPrevAngularVelocity,0,12);motionSpinSpeed=0;motionPitchForce=motionYawForce=0;motionBasisReady=true;motionWarmupSamples=0;motionQuietFrames=0;motionTracked=false;return;}
   float delta[3]={world[0]-motionPrevPosition[0],world[1]-motionPrevPosition[1],world[2]-motionPrevPosition[2]};memcpy(motionPrevPosition,world,12);float distance=sqrtf(delta[0]*delta[0]+delta[1]*delta[1]+delta[2]*delta[2]);float teleportDistance=max(8.f,dt*120.f);if(distance>teleportDistance){memset(motionPrevVelocity,0,12);memset(motionFilteredAccel,0,12);memset(motionPrevAngularVelocity,0,12);motionSpinSpeed=motionPitchForce=motionYawForce=0;motionTracked=false;motionWarmupSamples=0;motionQuietFrames=0;memcpy(motionPrevBasis,basis,sizeof(basis));return;}
   // A critically-smoothed velocity/acceleration estimate avoids the severe
@@ -210,6 +271,20 @@ static void CaptureCharacterMotion(IDirect3DDevice9* d){
   motionPitchForce+=(pitch-motionPitchForce)*forceAlpha;
   motionYawForce+=(yaw-motionYawForce)*forceAlpha;
   motionTracked=true;LONG sample=InterlockedIncrement(&motionSamples);if(sample==1||sample==120)Log("filtered character motion bone=(%.2f %.2f %.2f) accel=(%.1f %.1f %.1f) omega=(%.2f %.2f %.2f) force=(%.3f %.3f) quiet=%d",world[0],world[1],world[2],localAccel[0],localAccel[1],localAccel[2],localOmega[0],localOmega[1],localOmega[2],motionPitchForce,motionYawForce,motionQuietFrames);
+}
+static void CaptureCharacterMotion(IDirect3DDevice9* d){
+  ShaderLayout* layout=GetShaderLayout(d);if(!layout||!layout->valid)return;
+  // Gameplay section 7: pelvis slot 0, left/right proximal thigh twist 3/4.
+  float bone[12]{},leftThigh[12]{},rightThigh[12]{};
+  if(layout->boneCount<15||FAILED(d->GetVertexShaderConstantF(layout->boneRegister,bone,3))||FAILED(d->GetVertexShaderConstantF(layout->boneRegister+9,leftThigh,3))||FAILED(d->GetVertexShaderConstantF(layout->boneRegister+12,rightThigh,3)))return;
+  TrackCharacterMotionMatrices(bone,leftThigh,rightThigh,"gameplay slots 0/3/4");
+}
+static void CaptureMenuTankMotion(IDirect3DDevice9* d){
+  ShaderLayout* layout=GetShaderLayout(d);if(!layout||!layout->valid)return;
+  // WStart section 4: pelvis slot 30, left/right proximal thigh twist 31/32.
+  float bone[12]{},leftThigh[12]{},rightThigh[12]{};
+  if(layout->boneCount<99||FAILED(d->GetVertexShaderConstantF(layout->boneRegister+90,bone,3))||FAILED(d->GetVertexShaderConstantF(layout->boneRegister+93,leftThigh,3))||FAILED(d->GetVertexShaderConstantF(layout->boneRegister+96,rightThigh,3)))return;
+  TrackCharacterMotionMatrices(bone,leftThigh,rightThigh,"WStart slots 30/31/32");
 }
 static void StepSpring(Spring2& s,float stiffness,float weight,float bounce,float velocity,float pitchTarget,float yawTarget,float pitchForce,float yawForce,float dt){
   float speed=.50f+velocity*.014f;dt=min(dt*speed,.045f);float k=.18f+stiffness*.12f;float mass=.5f+weight*.02f;float damping=2.f*sqrtf(k*mass)*(1.f-bounce*.009f);
@@ -593,11 +668,10 @@ static void LoadSettings(){
     else glansUI=75.f+.25f*storedGlans;
     if(version<5){glansUI=GlansControlV5(glansUI);settingsPending=true;settingsChangedTick=GetTickCount();}
   }
-  teachingKey=GetPrivateProfileIntA("Teaching Sequence","TriggerKey",VK_OEM_PERIOD,path);
+  teachingKey='J';
   ReadIniFloat(path,"Teaching Sequence","Viscosity",.25f,3.f,teachingViscosity);
   ReadIniFloat(path,"Teaching Sequence","Cohesion",.25f,3.f,teachingCohesion);
   ReadIniFloat(path,"Teaching Sequence","Spread",0.f,2.f,teachingSpread);
-  if(teachingKey<8||teachingKey>254||teachingKey==VK_F6||teachingKey==VK_F8||teachingKey==VK_F9||teachingKey==VK_SHIFT)teachingKey=VK_OEM_PERIOD;
   int savedThrob=GetPrivateProfileIntA("Animation","Throb",0,path);throbMode=max(0,min(3,savedThrob));ResetThrobClock();
   idleChatterEnabled=GetPrivateProfileIntA("Animation","Idle Chatter",0,path)!=0;
   ApplyControlMapping();float state=(float)physicsState;if(ReadIniFloat(path,"Physics","State",0,2,state))physicsState=(int)(state+.5f);
@@ -1560,12 +1634,16 @@ static float SampleOverallWidthVertex(UINT q,float overall,float width){
 #include "lighting_direction_fix.h"
 #include "continuous_raphe.h"
 #include "r14_runtime.h"
-#include "teaching_fluid_render.h"
 #include "hourglass_neck.h"
 #include "pelvic_tube_node.h"
 #include "pelvic_attachment.h"
 #include "rounded_shape.h"
 #include "prepared_shape.h"
+#include "menu_tank.h"
+#include "tank_set_extension.h"
+#include "fluid_collision.h"
+#include "fluid_space_diagnostics.h"
+#include "teaching_fluid_render.h"
 static void ApplyShape(){
   if(!graftBuffer)return;bool report=shapeDirty;void* raw=nullptr;
   const UINT graftFirstVertex=graftOffset/graftStride;
@@ -1687,6 +1765,14 @@ static void Text(IDirect3DDevice9* d,const char* text,RECT r,D3DCOLOR c,DWORD fl
 }
 static void ResetStudyControls(){CancelTeaching();hangUI=glansUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;throbMode=0;idleChatterEnabled=false;ResetThrobClock();ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
 static void AdjustStudyControl(int index,int dir,float mult){
+  if(index==20){
+    tankCameraCycleEnabled=!tankCameraCycleEnabled;tankCameraCycleTick=GetTickCount();
+    Log("tank saved-view playback %s",tankCameraCycleEnabled?"playing":"paused");return;
+  }
+  if(index==21){
+    tankAttractMovieBlocked=!tankAttractMovieBlocked;
+    Log("tank idle video %s",tankAttractMovieBlocked?"off":"on");return;
+  }
   CancelTeaching();
   if(index==0){physicsState=(physicsState+dir+3)%3;shapeDirty=true;return;}
   if(index==1){throbMode=(throbMode+dir+4)%4;ResetThrobClock();ApplyControlMapping();shapeDirty=true;return;}
@@ -1698,15 +1784,22 @@ static void AdjustStudyControl(int index,int dir,float mult){
   else physUI[control-9]=max(1.f,min(100.f,physUI[control-9]+dir*mult));
   ApplyControlMapping();shapeDirty=true;
 }
+static void UpdateActiveAnatomySurface(){
+ // A retained gameplay buffer is not evidence that gameplay is still visible.
+ if(TankCameraSceneActive()){if(settingsLoaded)PrepareMenuTankSurface();}
+ else if(graftBuffer)ApplyShape();else if(settingsLoaded)PrepareMenuTankSurface();
+}
 static void OverlayFrame(IDirect3DDevice9* d){
   if(inOverlay)return;inOverlay=true;
   InterlockedIncrement(&renderFrameSerial);
   TeachingInput(d);
+  UpdateTankCameraCycle();
   if(KeyEdge(VK_F6))menuOpen=!menuOpen;
   CaptureFinish(d);CapturePoll();
   if(KeyEdge(VK_F9)){captureComplete=false;lightingDirectionsEnabled=!lightingDirectionsEnabled;Log("R28 layered physics lighting F9: %s",lightingDirectionsEnabled?"ON":"ORIGINAL");}
   if(menuOpen){
-    const int count=20;
+    const int count=TankCameraSceneActive()?22:20;
+    if(selectedSlider>=count)selectedSlider=count-1;
     if(KeyEdge(VK_UP))selectedSlider=(selectedSlider+count-1)%count;
     if(KeyEdge(VK_DOWN))selectedSlider=(selectedSlider+1)%count;
     if(KeyEdge(VK_F8))ResetStudyControls();
@@ -1715,9 +1808,9 @@ static void OverlayFrame(IDirect3DDevice9* d){
       AdjustStudyControl(selectedSlider,dir,mult);
     }
   }
-  if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdateThrob();UpdatePhysics();ApplyShape();FlushSettingsIfDue();
-  IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=20;float statusY=y+39+rows*31.f,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
-  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,"ANATOMY 1.3 + TEACHING FLUID POC",title,D3DCOLOR_ARGB(255,255,255,255));
+  if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdateThrob();UpdatePhysics();UpdateActiveAnatomySurface();FlushSettingsIfDue();
+  IDirect3DStateBlock9* state=nullptr;d->CreateStateBlock(D3DSBT_ALL,&state);float x=14,y=14,w=370;const int rows=20;bool showTankControls=TankCameraSceneActive();float tankSectionHeight=showTankControls?88.f:0.f;float statusY=y+39+rows*31.f+tankSectionHeight,h=menuOpen?(statusY-y+80.f):32.f;Rect(d,x,y,w,h,D3DCOLOR_ARGB(255,18,20,24));Rect(d,x,y,w,32,D3DCOLOR_ARGB(255,69,35,92));
+  RECT title{(LONG)x+10,(LONG)y,(LONG)(x+w-8),(LONG)y+32};Text(d,"Big Dick Controls [F6 to hide/show]",title,D3DCOLOR_ARGB(255,255,255,255));
   if(menuOpen){
     for(int i=0;i<rows;i++){float row=y+39+i*31;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       int control=i-3;
@@ -1730,11 +1823,22 @@ static void OverlayFrame(IDirect3DDevice9* d){
       else{const auto& s=physSpecs[control-9];name=s.name;value=physUI[control-9];lo=1;hi=100;sprintf_s(val,"%.0f",value);}
       RECT label{(LONG)x+10,(LONG)row,(LONG)x+128,(LONG)row+24};Text(d,name,label,tc);if(i<3){RECT stateValue{(LONG)x+135,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,stateValue,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);continue;}float bx=x+135,bw=150;Rect(d,bx,row+9,bw,5,D3DCOLOR_ARGB(255,70,70,76));float t=max(0.f,min(1.f,(value-lo)/(hi-lo)));Rect(d,bx,row+6,bw*t,11,D3DCOLOR_ARGB(255,155,80,202));Rect(d,bx+bw*t-3,row+3,7,17,tc);RECT vr{(LONG)x+292,(LONG)row,(LONG)x+362,(LONG)row+24};Text(d,val,vr,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
     }
+    if(showTankControls){
+      DWORD now=GetTickCount();int remaining=15;
+      if(tankCameraCycleEnabled&&tankCameraCycleTick)remaining=max(0,15-int(DWORD(now-tankCameraCycleTick)/1000u));
+      float sectionY=y+39+rows*31.f;Rect(d,x+8,sectionY,w-16,1,D3DCOLOR_ARGB(255,88,67,101));
+      RECT sectionTitle{(LONG)x+10,(LONG)sectionY+4,(LONG)x+362,(LONG)sectionY+22};Text(d,"START MENU",sectionTitle,D3DCOLOR_ARGB(255,165,132,190));
+      for(int control=0;control<2;control++){
+        int index=20+control;float row=sectionY+24+control*25.f;bool selected=index==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);
+        const char* name=control==0?"VIEW SWITCH":"IDLE VIDEO";const char* value=control==0?(tankCameraCycleEnabled?"PLAYING":"PAUSED"):(tankAttractMovieBlocked?"OFF":"ON");
+        RECT label{(LONG)x+10,(LONG)row,(LONG)x+210,(LONG)row+20};Text(d,name,label,tc);RECT valueRect{(LONG)x+215,(LONG)row,(LONG)x+362,(LONG)row+20};Text(d,value,valueRect,tc,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
+      }
+      char countdown[64];sprintf_s(countdown,"NEXT VIEW IN %d SECONDS",remaining);RECT countdownRect{(LONG)x+10,(LONG)sectionY+70,(LONG)x+362,(LONG)sectionY+87};Text(d,countdown,countdownRect,D3DCOLOR_ARGB(255,145,145,152));
+    }
     DWORD transformAge=motionLastCaptureTick?GetTickCount()-motionLastCaptureTick:0xFFFFFFFFu;bool transformLive=motionCollisionBonesReady&&transformAge<=1200u;
     D3DCOLOR statusColor=transformLive?D3DCOLOR_ARGB(255,92,230,130):graftBuffer?D3DCOLOR_ARGB(255,80,190,235):D3DCOLOR_ARGB(255,255,190,70);const char* statusText=transformLive?"STATUS: CHARACTER TRANSFORM LIVE":graftBuffer?"STATUS: TRANSFORM UNAVAILABLE":"STATUS: WAITING FOR WOLVERINE";RECT status{(LONG)x+10,(LONG)statusY,(LONG)(x+w-10),(LONG)statusY+20};Text(d,statusText,status,statusColor);RECT help1{(LONG)x+10,(LONG)statusY+22,(LONG)(x+w-10),(LONG)statusY+41};Text(d,"UP/DOWN SELECT  LEFT/RIGHT ADJUST",help1,D3DCOLOR_ARGB(255,185,185,190));RECT help2{(LONG)x+10,(LONG)statusY+42,(LONG)(x+w-10),(LONG)statusY+63};char sequenceHelp[96];
-    if(teachingTimeline.active)sprintf_s(sequenceHelp,"TEACHING FLUID %.1FS",(float)teachingTimeline.time);
-    else if(teachingKey==VK_OEM_PERIOD)sprintf_s(sequenceHelp,". DEMO  F8 RESET  F6 SHOW/HIDE");
-    else sprintf_s(sequenceHelp,"KEY %d DEMO  F8 RESET  F6 HIDE",teachingKey);
+    if(teachingTimeline.active)sprintf_s(sequenceHelp,"EJACULATION %.1FS",(float)teachingTimeline.time);
+    else sprintf_s(sequenceHelp,"J EJACULATION  F8 RESET");
     Text(d,sequenceHelp,help2,D3DCOLOR_ARGB(255,185,185,190));
   }
   if(state){state->Apply();state->Release();}inOverlay=false;
@@ -1742,16 +1846,15 @@ static void OverlayFrame(IDirect3DDevice9* d){
 static HRESULT STDMETHODCALLTYPE HookEndScene(IDirect3DDevice9* d){if(InterlockedCompareExchange(&endSceneLogged,1,0)==0)Log("EndScene hook active");IDirect3DSurface9* rt=nullptr;IDirect3DSurface9* bb=nullptr;d->GetRenderTarget(0,&rt);d->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&bb);LONG n=InterlockedIncrement(&endSceneCount);if(n<=12){D3DSURFACE_DESC rd{},bd{};if(rt)rt->GetDesc(&rd);if(bb)bb->GetDesc(&bd);Log("EndScene %ld rt=%p %ux%u fmt=%u bb=%p %ux%u fmt=%u",n,rt,rd.Width,rd.Height,rd.Format,bb,bd.Width,bd.Height,bd.Format);}bool final=rt&&bb&&rt==bb;if(final){OverlayFrame(d);frameRendered=true;}if(rt)rt->Release();if(bb)bb->Release();return origEndScene(d);}
 static HRESULT STDMETHODCALLTYPE HookPresent(IDirect3DDevice9* d,const RECT* src,const RECT* dst,HWND wnd,const RGNDATA* dirty){
   if(InterlockedCompareExchange(&presentLogged,1,0)==0)Log("Present hook active");
-  if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}frameRendered=false;
+  if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}SaveMenuTankPreview(d);menuTankDrawnThisFrame=false;frameRendered=false;
   return origPresent(d,src,dst,wnd,dirty);
 }
 static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const RECT* src,const RECT* dst,HWND wnd,const RGNDATA* dirty,DWORD flags){
   if(InterlockedCompareExchange(&presentLogged,1,0)==0)Log("SwapChain Present hook active");IDirect3DDevice9* d=nullptr;
-  if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}frameRendered=false;d->Release();}
+  if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}SaveMenuTankPreview(d);menuTankDrawnThisFrame=false;frameRendered=false;d->Release();}
   return origSwapPresent(sc,src,dst,wnd,dirty,flags);
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){ReleaseTeaching();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
-
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){anatomyScene=-1;tankCameraSceneTick=0;ReleaseTeaching();ReleaseFluidSpaceDiagnostics();ResetFluidCollision();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseR14SkinTextures();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
 static void Log(const char* fmt, ...) {
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);
   char* slash=strrchr(path,'\\'); if(slash) strcpy_s(slash+1,MAX_PATH-(slash+1-path),"WolverineLive.log");
@@ -1762,6 +1865,32 @@ static void Patch(void** slot, void* replacement, void** original) {
   DWORD old; VirtualProtect(slot,sizeof(void*),PAGE_EXECUTE_READWRITE,&old);
   if(original && !*original)*original=*slot; *slot=replacement;
   VirtualProtect(slot,sizeof(void*),old,&old); FlushInstructionCache(GetCurrentProcess(),slot,sizeof(void*));
+}
+typedef void* (__stdcall *BinkOpenFn)(const char*,DWORD);
+static BinkOpenFn origBinkOpen;
+static void* __stdcall HookBinkOpen(const char* name,DWORD flags){
+  if(tankAttractMovieBlocked&&TankCameraSceneActive()){
+    // BINKFROMMEMORY passes encoded bytes in the filename slot, so never
+    // dereference this argument for diagnostics.
+    Log("blocked title attract BinkOpen: source=%p flags=%08X",name,flags);return nullptr;
+  }
+  void* movie=origBinkOpen?origBinkOpen(name,flags):nullptr;
+  Log("BinkOpen: source=%p flags=%08X result=%p",name,flags,movie);return movie;
+}
+static void HookBinkImport(){
+  BYTE* base=(BYTE*)GetModuleHandleA(nullptr);auto dos=(IMAGE_DOS_HEADER*)base;if(!base||dos->e_magic!=IMAGE_DOS_SIGNATURE)return;
+  auto nt=(IMAGE_NT_HEADERS*)(base+dos->e_lfanew);if(nt->Signature!=IMAGE_NT_SIGNATURE)return;
+  auto& directory=nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];if(!directory.VirtualAddress)return;
+  auto imports=(IMAGE_IMPORT_DESCRIPTOR*)(base+directory.VirtualAddress);int patched=0;
+  for(;imports->Name;imports++){
+    const char* dll=(const char*)(base+imports->Name);if(_stricmp(dll,"binkw32.dll"))continue;
+    auto names=(IMAGE_THUNK_DATA*)(base+(imports->OriginalFirstThunk?imports->OriginalFirstThunk:imports->FirstThunk));auto slots=(IMAGE_THUNK_DATA*)(base+imports->FirstThunk);
+    for(;names->u1.AddressOfData;names++,slots++){
+      if(IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal))continue;auto imported=(IMAGE_IMPORT_BY_NAME*)(base+names->u1.AddressOfData);const char* name=(const char*)imported->Name;
+      if(!strcmp(name,"_BinkOpen@8")||!strcmp(name,"BinkOpen")){Patch((void**)&slots->u1.Function,(void*)HookBinkOpen,(void**)&origBinkOpen);patched++;}
+    }
+  }
+  Log("title attract-video BinkOpen hook slots=%d default=BLOCK",patched);
 }
 // The two spoken bored animations already supply their talking motion and
 // FaceFX notify. Replace only their PCM submissions, preserving those motions.
@@ -1873,11 +2002,21 @@ static bool IsFullResolutionScenePass(IDirect3DDevice9* dev){
   dev->GetRenderTarget(0,&rt);dev->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&bb);
   D3DSURFACE_DESC rd{},bd{};D3DVIEWPORT9 vp{};
   bool have=rt&&bb&&SUCCEEDED(rt->GetDesc(&rd))&&SUCCEEDED(bb->GetDesc(&bd))&&SUCCEEDED(dev->GetViewport(&vp));
+  // Gameplay uses more than one full-resolution scene format depending on the
+  // active material permutation. Matrix validation in DrawTeachingFluid now
+  // prevents an unusable early pass from consuming the frame's fluid draw.
   bool full=have&&rd.Width==bd.Width&&rd.Height==bd.Height&&vp.X==0&&vp.Y==0&&vp.Width==rd.Width&&vp.Height==rd.Height;
+  bool primary=full;
   LONG candidate=InterlockedIncrement(&motionCandidateLogs);
-  if(candidate<=20)Log("motion pass candidate rt=%p bb=%p rt=%ux%u fmt=%u bb=%ux%u fmt=%u vp=%u,%u %ux%u accepted=%d",rt,bb,rd.Width,rd.Height,(UINT)rd.Format,bd.Width,bd.Height,(UINT)bd.Format,vp.X,vp.Y,vp.Width,vp.Height,full?1:0);
-  if(full&&InterlockedCompareExchange(&motionPassLogged,1,0)==0)Log("character motion source selected: full-resolution scene target (%ux%u, backbuffer=%d)",rd.Width,rd.Height,rt==bb?1:0);
-  if(rt)rt->Release();if(bb)bb->Release();return full;
+  if(candidate<=20)Log("motion pass candidate rt=%p bb=%p rt=%ux%u fmt=%u bb=%ux%u fmt=%u vp=%u,%u %ux%u accepted=%d",rt,bb,rd.Width,rd.Height,(UINT)rd.Format,bd.Width,bd.Height,(UINT)bd.Format,vp.X,vp.Y,vp.Width,vp.Height,primary?1:0);
+  if(primary&&InterlockedCompareExchange(&motionPassLogged,1,0)==0)Log("gameplay character source selected: full-resolution target (%ux%u fmt=%u backbuffer=%d)",rd.Width,rd.Height,(UINT)rd.Format,rt==bb?1:0);
+  if(rt)rt->Release();if(bb)bb->Release();return primary;
+}
+static bool IsHdrSceneColorPass(IDirect3DDevice9* dev){
+  IDirect3DSurface9* rt=nullptr,*bb=nullptr;D3DSURFACE_DESC rd{},bd{};D3DVIEWPORT9 vp{};
+  bool have=SUCCEEDED(dev->GetRenderTarget(0,&rt))&&rt&&SUCCEEDED(dev->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&bb))&&bb&&SUCCEEDED(rt->GetDesc(&rd))&&SUCCEEDED(bb->GetDesc(&bd))&&SUCCEEDED(dev->GetViewport(&vp));
+  bool hdr=have&&rt!=bb&&rd.Format==D3DFMT_A16B16G16R16F&&rd.Width==bd.Width&&rd.Height==bd.Height&&vp.X==0&&vp.Y==0&&vp.Width==rd.Width&&vp.Height==rd.Height;
+  if(rt)rt->Release();if(bb)bb->Release();return hdr;
 }
 // Read the exact palettes used by the body draws preceding the necklace.
 // Contact geometry is exported from the installed chest, including its sculpt.
@@ -1920,6 +2059,29 @@ static bool PrepareNecklaceClearance(IDirect3DDevice9* dev,float original[48],UI
   }
   return SUCCEEDED(dev->SetVertexShaderConstantF(boneRegister,corrected,12));
 }
+static HRESULT DrawMenuNecklaceClearance(IDirect3DDevice9* dev,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){
+  ShaderLayout* layout=GetShaderLayout(dev);
+  if(!layout||!layout->valid||layout->boneCount<27)return origDIP(dev,type,base,minv,nv,start,count);
+  float original[108];
+  if(FAILED(dev->GetVertexShaderConstantF(layout->boneRegister,original,27)))return origDIP(dev,type,base,minv,nv,start,count);
+  float corrected[108];memcpy(corrected,original,sizeof(corrected));
+  // WStart chunk 0 palette: Tag03, Tag02, Tag04, Tag01, L_Clavicle,
+  // Spine2, Neck, Head, R_Clavicle. Move only the four tag matrices along
+  // animated Spine2's forward axis, increasing clearance toward the plates.
+  const float* spine=original+5*12;
+  const float amount[4]={4.f,3.5f,4.25f,2.75f};
+  for(int i=0;i<4;i++){
+    corrected[i*12+3]+=spine[0]*amount[i];
+    corrected[i*12+7]+=spine[4]*amount[i];
+    corrected[i*12+11]+=spine[8]*amount[i];
+  }
+  if(FAILED(dev->SetVertexShaderConstantF(layout->boneRegister,corrected,27)))return origDIP(dev,type,base,minv,nv,start,count);
+  HRESULT result=origDIP(dev,type,base,minv,nv,start,count);
+  dev->SetVertexShaderConstantF(layout->boneRegister,original,27);
+  static volatile LONG logged=0;
+  if(InterlockedCompareExchange(&logged,1,0)==0)Log("menu necklace bone-space clearance active: Tag01 2.75, Tag02 3.5, Tag03 4.0, Tag04 4.25");
+  return result;
+}
 // The layer uses native neck/head tracks, applied only to this verified
 // character buffer. Every shader constant is restored before returning to UE3.
 static HRESULT DrawWithIdleGesture(IDirect3DDevice9* dev,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){
@@ -1940,11 +2102,61 @@ static HRESULT DrawWithIdleGesture(IDirect3DDevice9* dev,D3DPRIMITIVETYPE type,I
   if(InterlockedExchange(&idleGestureDrawSerial,playback.serial)!=playback.serial)Log("idle gesture rendered: custom=%02d style=bored%d serial=%ld",playback.clip+1,playback.clip%4+1,playback.serial);
   return result;
 }
+static void SelectAnatomyScene(bool title){
+ const int next=title?1:0;
+ tankCameraSceneTick=title?GetTickCount():0;
+ if(anatomyScene==next)return;
+ int previous=anatomyScene;anatomyScene=next;
+ ReleaseTeaching();ResetFluidCollision();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();
+ if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}
+ menuTankSurfaceReady=false;menuRetargetBodyDynamicReady=false;r14Ready=false;
+ preparedShapeReady=false;constraintSolverReady=false;shaftRestFrameReady=false;eggRestReady=false;
+ constraintAccumulator=0;constraintSolverState=-1;physicsLastTick=throbLastTick=0;
+ shaftSpring=Spring2{};ballsSpring=Spring2{};shapeDirty=true;
+ motionTracked=motionBasisReady=motionCollisionBonesReady=false;motionSpinSpeed=0;
+ motionLastTick=motionLastCaptureTick=0;motionCaptureSerial=-2;motionWarmupSamples=motionQuietFrames=0;
+ memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));
+ necklaceBodyFrame=-2;necklaceRig=NcRig{};tankCameraCycleTick=0;
+ Log("anatomy scene transition %d -> %d: cleared old simulation, collision and mesh ownership",previous,next);
+}
 static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count) {
   if(inOverlay)return origDIP(dev,type,base,minv,nv,start,count);
   IDirect3DVertexBuffer9* vb=nullptr; UINT offset=0,stride=0;
   HRESULT gs=dev->GetStreamSource(0,&vb,&offset,&stride);
+  D3DVERTEXBUFFER_DESC probeDesc{};bool haveDesc=vb&&SUCCEEDED(vb->GetDesc(&probeDesc));
+  if(haveDesc&&stride==32){
+    if(probeDesc.Size==12082u*32u)SelectAnatomyScene(true);
+    else if(probeDesc.Size==50915u*32u)SelectAnatomyScene(false);
+  }
+  TankCameraDrawOverride cameraOverride(dev);
+  CaptureFluidWorldGeometry(dev,type,base,minv,nv,start,count,vb,offset,stride);
+  CaptureFluidCamera(dev);
   if(SUCCEEDED(gs)&&vb){
+    // WStart draws a stock CH_Wolverine shell over WolverineNudeMenuMesh. Keep
+    // its dedicated layered-hair draw and the two isolated eyeball components,
+    // but reject jeans and every duplicate body/skeleton/innards section.
+    if(haveDesc&&stride==32&&probeDesc.Size==14498u*32u){
+      if(start==55983u&&count==4030u){
+        static volatile LONG loggedMenuHair=0;
+        HRESULT hair=origDIP(dev,type,base,minv,nv,start,count);
+        if(SUCCEEDED(hair)&&InterlockedCompareExchange(&loggedMenuHair,1,0)==0)Log("menu tank layered CH_Wolverine hair section restored");
+        vb->Release();return hair;
+      }
+      if(start==29931u&&count==6996u){HRESULT face=DrawMenuShellFace(dev,type,base);vb->Release();return face;}
+      static volatile LONG loggedMenuShellSkip=0;
+      if(InterlockedCompareExchange(&loggedMenuShellSkip,1,0)==0)Log("menu tank secondary shell clothing/body sections suppressed; eyes and layered hair retained");
+      vb->Release();return D3D_OK;
+    }
+    if(haveDesc&&stride==32&&probeDesc.Size==12082u*32u){
+      tankCameraSceneTick=GetTickCount();
+      bool chest=EnsureMenuChestBuffer(dev,vb);if(chest)dev->SetStreamSource(0,menuChestVB,offset,stride);
+      HRESULT body;
+      if(start==0u&&count==360u)body=DrawMenuNecklaceClearance(dev,type,base,minv,nv,start,count);
+      else if(start==1080u&&count==7134u){CaptureFluidBodySection(dev,0);body=DrawMenuRetargetBody(dev,0,type);}
+      else if(start==39960u&&count==2540u){CaptureFluidBodySection(dev,1);if(motionCaptureSerial!=renderFrameSerial){motionCaptureSerial=renderFrameSerial;CaptureMenuTankMotion(dev);}body=DrawMenuRetargetBody(dev,1,type);if(EnsureMenuTank(dev)){CaptureFluidBodySection(dev,2);HRESULT anatomy=DrawMenuTank(dev,vb,offset,stride);if(IsHdrSceneColorPass(dev)){DrawTeachingFluid(dev);DrawTankSetExtension(dev);}if(FAILED(body))body=anatomy;}}
+      else body=origDIP(dev,type,base,minv,nv,start,count);
+      if(chest)dev->SetStreamSource(0,vb,offset,stride);vb->Release();return body;
+    }
     // Keep transform capture coupled to the generated graft topology.  The
     // watertight sack repair increased this section from 4408 to 4472
     // triangles; a duplicated numeric literal left the overlay connected to
@@ -1969,11 +2181,14 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
         bool drawSignature=start==graftTriangleIndexStart&&count==graftTriangleIndexCount/3u;
         LONG candidate=InterlockedIncrement(&motionCandidateLogs);
         if(candidate<=16)Log("candidate Wolverine VB=%p size=%u offset=%u stride=%u lock=%08X fingerprint=%d drawSignature=%d start=%u count=%u",vb,desc.Size,offset,stride,lk,match?1:0,drawSignature?1:0,start,count);
-        if(match||drawSignature){graftBuffer=vb;graftBuffer->AddRef();graftOffset=47050u*graftStride;InterlockedExchange(&logged,1);shapeDirty=true;ApplyShape();Log("graft buffer solidly connected at vertex %u via %s signature",graftOffset/graftStride,match?"geometry":"section-draw");}
+        if(match||drawSignature){graftBuffer=vb;graftBuffer->AddRef();graftOffset=47050u*graftStride;InterlockedExchange(&logged,1);preparedShapeReady=false;constraintSolverReady=false;shapeDirty=true;ApplyShape();Log("graft buffer solidly connected at vertex %u via %s signature",graftOffset/graftStride,match?"geometry":"section-draw");}
       }
     }
     if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST)CaptureNecklaceBodyPose(dev,start,count);
+    if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST&&start==85446u&&count==28536u)CaptureFluidBodySection(dev,0);
+    if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST&&start==219414u&&count==10130u)CaptureFluidBodySection(dev,1);
     if(vb==graftBuffer && type==D3DPT_TRIANGLELIST && start==graftTriangleIndexStart && count==graftTriangleIndexCount/3u && EnsureR14(dev)){
+      CaptureFluidBodySection(dev,2);
       HRESULT replacement=DrawR14(dev,vb,offset,stride);
       if(SUCCEEDED(replacement)){if(IsFullResolutionScenePass(dev))DrawTeachingFluid(dev);vb->Release();return replacement;}
     }
@@ -1992,9 +2207,10 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
   }
   return origDIP(dev,type,base,minv,nv,start,count);
 }
+
 static HRESULT STDMETHODCALLTYPE HookCreateDevice(IDirect3D9* self,UINT adapter,D3DDEVTYPE type,HWND wnd,DWORD flags,D3DPRESENT_PARAMETERS* pp,IDirect3DDevice9** out) {
   HRESULT hr=origCreateDevice(self,adapter,type,wnd,flags,pp,out);
-  if(SUCCEEDED(hr)&&out&&*out){LoadSettings();LoadIdlePool();teachingAudio.Load();void** vt=*(void***)*out;Patch(&vt[16],(void*)HookReset,(void**)&origReset);Patch(&vt[17],(void*)HookPresent,(void**)&origPresent);Patch(&vt[42],(void*)HookEndScene,(void**)&origEndScene);Patch(&vt[82],(void*)HookDIP,(void**)&origDIP);IDirect3DSwapChain9* sc=nullptr;if(SUCCEEDED((*out)->GetSwapChain(0,&sc))&&sc){void** svt=*(void***)sc;Patch(&svt[3],(void*)HookSwapPresent,(void**)&origSwapPresent);sc->Release();}Log("CreateDevice hooked %ux%u windowed=%d",pp->BackBufferWidth,pp->BackBufferHeight,pp->Windowed);}
+  if(SUCCEEDED(hr)&&out&&*out){LoadSettings();LoadIdlePool();teachingAudio.Load();LoadTankCameraPoses();void** vt=*(void***)*out;Patch(&vt[16],(void*)HookReset,(void**)&origReset);Patch(&vt[17],(void*)HookPresent,(void**)&origPresent);Patch(&vt[42],(void*)HookEndScene,(void**)&origEndScene);Patch(&vt[82],(void*)HookDIP,(void**)&origDIP);IDirect3DSwapChain9* sc=nullptr;if(SUCCEEDED((*out)->GetSwapChain(0,&sc))&&sc){void** svt=*(void***)sc;Patch(&svt[3],(void*)HookSwapPresent,(void**)&origSwapPresent);sc->Release();}Log("CreateDevice hooked %ux%u windowed=%d",pp->BackBufferWidth,pp->BackBufferHeight,pp->Windowed);}
   return hr;
 }
 static void LoadReal(){
@@ -2004,5 +2220,5 @@ static void LoadReal(){
 IDirect3D9* WINAPI Direct3DCreate9(UINT sdk){LoadReal();IDirect3D9* d=realCreate9(sdk);if(d){void** vt=*(void***)d;Patch(&vt[16],(void*)HookCreateDevice,(void**)&origCreateDevice);}return d;}
 int WINAPI D3DPERF_BeginEvent(D3DCOLOR c,LPCWSTR n){LoadReal();return realBegin?realBegin(c,n):-1;}
 int WINAPI D3DPERF_EndEvent(){LoadReal();return realEnd?realEnd():-1;}
-BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");HookAudioFactory();}return TRUE;}
+BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");HookBinkImport();HookAudioFactory();}return TRUE;}
 

@@ -99,8 +99,10 @@ static bool RestTest(int scenario){
 }
 static bool surfaceBenchmark=false;
 static bool cameraMotionTest=false;
-static bool RenderTest(bool late=false,bool closeup=false,bool pool=false,bool first=false,bool resting=false){
- if(pool){volumeFluid::config.catchPlane=true;volumeFluid::config.catchDepth=8;} ResetStudyControls();physicsState=0;sliderUI[4]=50;if(resting){sliderUI[0]=100;sliderUI[1]=95;sliderUI[3]=72;glansUI=29;}else{teachingTimeline.Start();teachingTimeline.time=7;}ApplyControlMapping();InitMesh();
+static bool spaceDiagnosticTest=false;
+static bool worldOriginGpuTest=false;
+static bool RenderTest(bool late=false,bool closeup=false,bool pool=false,bool first=false,bool resting=false,bool passive=false){
+ if(pool){volumeFluid::config.catchPlane=true;volumeFluid::config.catchDepth=8;} ResetStudyControls();physicsState=0;sliderUI[4]=50;if(resting){sliderUI[0]=100;sliderUI[1]=95;sliderUI[3]=72;glansUI=29;}else if(!passive){teachingTimeline.Start();teachingTimeline.time=7;}ApplyControlMapping();InitMesh();
  if(resting){for(int i=0;i<1200;i++)UpdateConstraintSolver(1.f/60,0,0);shapeDirty=true;ApplyShape();}
  WNDCLASSA wc{};wc.lpfnWndProc=Proc;wc.hInstance=GetModuleHandle(nullptr);wc.lpszClassName="TeachingFluidTest";RegisterClassA(&wc);
  HWND window=CreateWindowA(wc.lpszClassName,"Teaching fluid offline test",0,0,0,1000,750,nullptr,nullptr,wc.hInstance,nullptr);
@@ -112,9 +114,39 @@ static bool RenderTest(bool late=false,bool closeup=false,bool pool=false,bool f
  std::vector<char> bytes((std::istreambuf_iterator<char>(in)),{});CHECK(!bytes.empty());
  IDirect3DVertexShader9* gameVS=nullptr;CHECK(SUCCEEDED(d->CreateVertexShader((DWORD*)bytes.data(),&gameVS)));d->SetVertexShader(gameVS);
  ShaderLayout* layout=GetShaderLayout(d);CHECK(layout&&layout->valid&&layout->viewValid);
+ if(worldOriginGpuTest){
+  ResetFluidCollision();tankCameraSceneTick=0;anatomyScene=0;++renderFrameSerial;
+  const char* shader="float4x4 LocalToWorld:register(c5);float4x4 ViewProjectionMatrix:register(c0);float4 main(float4 p:POSITION):POSITION{return mul(mul(p,LocalToWorld),ViewProjectionMatrix);}";
+  ID3DXBuffer* code=nullptr;CHECK(SUCCEEDED(D3DXCompileShader(shader,(UINT)strlen(shader),nullptr,nullptr,"main","vs_3_0",0,&code,nullptr,nullptr)));
+  IDirect3DVertexShader9* bspShader=nullptr;CHECK(SUCCEEDED(d->CreateVertexShader((DWORD*)code->GetBufferPointer(),&bspShader)));code->Release();d->SetVertexShader(bspShader);
+  D3DVERTEXELEMENT9 elements[]={{0,0,D3DDECLTYPE_FLOAT3,0,D3DDECLUSAGE_POSITION,0},{0,12,D3DDECLTYPE_UBYTE4,0,D3DDECLUSAGE_TANGENT,0},{0,16,D3DDECLTYPE_UBYTE4,0,D3DDECLUSAGE_NORMAL,0},{0,20,D3DDECLTYPE_FLOAT2,0,D3DDECLUSAGE_TEXCOORD,0},{0,28,D3DDECLTYPE_FLOAT2,0,D3DDECLUSAGE_COLOR,0},D3DDECL_END()};
+  IDirect3DVertexDeclaration9* declaration=nullptr;CHECK(SUCCEEDED(d->CreateVertexDeclaration(elements,&declaration)));d->SetVertexDeclaration(declaration);
+  IDirect3DVertexBuffer9* vertices=nullptr;IDirect3DIndexBuffer9* indices=nullptr;
+  CHECK(SUCCEEDED(d->CreateVertexBuffer(6*36,0,0,D3DPOOL_MANAGED,&vertices,nullptr)));CHECK(SUCCEEDED(d->CreateIndexBuffer(6*2,0,D3DFMT_INDEX16,D3DPOOL_MANAGED,&indices,nullptr)));
+  V3 points[6]={{1590,29800,3120},{1600,29800,3120},{1590,29810,3120},{1620,29800,3120},{1630,29800,3120},{1620,29810,3120}};
+  void* raw=nullptr;CHECK(SUCCEEDED(vertices->Lock(0,0,&raw,0)));memset(raw,0,216);for(int i=0;i<6;i++)memcpy((char*)raw+i*36,&points[i],12);vertices->Unlock();
+  CHECK(SUCCEEDED(indices->Lock(0,0,&raw,0)));for(unsigned short i=0;i<6;i++)((unsigned short*)raw)[i]=i;indices->Unlock();d->SetStreamSource(0,vertices,0,36);d->SetIndices(indices);
+  D3DXMATRIX translation,projection;D3DXMatrixTranslation(&translation,-1595,-29798,-3284);D3DXMatrixPerspectiveFovLH(&projection,1,1,1,10000);d->SetVertexShaderConstantF(5,(float*)&translation,4);d->SetVertexShaderConstantF(0,(float*)&projection,4);
+  CaptureFluidWorldGeometry(d,D3DPT_TRIANGLELIST,0,0,6,0,2,vertices,0,36);
+  CHECK(fluidWorldCameraFrame==renderFrameSerial&&Length(fluidCameraWorld-V3{1595,29798,3284})<.001f);CHECK(fluidWorldReferences.size()==2);
+  d->SetVertexShader(gameVS);CHECK(!layout->cameraValid);CaptureFluidCamera(d);CHECK(Length(fluidCameraWorld-V3{1595,29798,3284})<.001f);
+  ++renderFrameSerial;CaptureFluidCamera(d);CHECK(fluidWorldCameraFrame!=renderFrameSerial);
+  ResetFluidCollision();d->SetStreamSource(0,nullptr,0,0);d->SetIndices(nullptr);d->SetVertexDeclaration(nullptr);d->SetVertexShader(nullptr);
+  vertices->Release();indices->Release();declaration->Release();bspShader->Release();gameVS->Release();d->Release();d9->Release();DestroyWindow(window);
+  printf("PASS D3D BSP origin and calibration-geometry capture; generic zero CameraPosition cannot overwrite or refresh origin\n");return true;
+ }
  float bone[12]={1,0,0,0,0,1,0,0,0,0,1,0};float local[16]={1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
  float view[16]={1.f/130,0,0,0,0,0,1.f/200,0,0,1.f/97.5f,0,0,-.55f,-.5f,.5f,1};
  d->SetVertexShaderConstantF(layout->boneRegister,bone,3);d->SetVertexShaderConstantF(layout->localRegister,local,4);d->SetVertexShaderConstantF(layout->viewRegister,view,4);
+ if(spaceDiagnosticTest){
+  float before[1024],after[1024];CHECK(SUCCEEDED(d->GetVertexShaderConstantF(0,before,256)));
+  for(unsigned i=0;i<100;i++)FluidSpaceDiagnostics(d,249804,4472);
+  CHECK(fluidSpaceRecords==1&&fluidSpaceSampleCount==1&&fluidSpaceFile);
+  CHECK(SUCCEEDED(d->GetVertexShaderConstantF(0,after,256)));CHECK(!memcmp(before,after,sizeof(before)));
+  ReleaseFluidSpaceDiagnostics();CHECK(!fluidSpaceFile&&fluidSpaceSampleCount==0);
+  gameVS->Release();d->Release();d9->Release();DestroyWindow(window);
+  printf("PASS diagnostic samples captured game shader once across 100 draws; constant bank unchanged; resources released\n");return true;
+ }
  float l[16],v[16],b[12];CHECK(TeachingMatrices(d,l,v,b));CHECK(!memcmp(local,l,sizeof(l))&&!memcmp(view,v,sizeof(v))&&!memcmp(bone,b,sizeof(b)));
  V3 tip,dir;CHECK(TeachingEmitter(bone,tip,dir));
  CHECK(Dot(dir,Unit(TeachingRing(r14RingCount-6)-TeachingRing(r14CrownRing)))>.8f);
@@ -124,15 +156,18 @@ static bool RenderTest(bool late=false,bool closeup=false,bool pool=false,bool f
  CHECK(EnsureTeachingShaders(d));
  IDirect3DVertexBuffer9* source=nullptr;d->CreateVertexBuffer(64,0,D3DFVF_XYZ|D3DFVF_DIFFUSE,D3DPOOL_MANAGED,&source,nullptr);CHECK(source);
  d->SetFVF(D3DFVF_XYZ|D3DFVF_DIFFUSE);d->SetStreamSource(0,source,0,16);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_CW);d->SetRenderState(D3DRS_ZWRITEENABLE,TRUE);d->SetRenderState(D3DRS_COLORWRITEENABLE,15);
- if(!resting){teachingTimeline.Start();teachingFluid.Begin(tip);teachingFluidTime=0;
+ teaching::Fluid passivePreview;
+ if(passive){CHECK(LoadVolumeConfig());CHECK(passivePreview.BeginPassive(tip));CHECK(passivePreview.TriggerPassiveClear());for(int i=0;i<90;i++)passivePreview.Advance(1.f/60,tip,dir,{});CHECK(!passivePreview.surface.empty());}
+ if(!resting&&!passive){teachingTimeline.Start();teachingFluid.Begin(tip);teachingFluidTime=0;
  for(int frame=0;frame<=(first?444:late?954:870);frame++){
   teachingTimeline.Advance(1.f/120);float dt=(float)(teachingTimeline.time-teachingFluidTime);teachingFluidTime=teachingTimeline.time;
   teachingFluid.Advance(dt,tip,dir,{0,0,-98});
  }
  if(!teachingFluid.ready)printf("GPU error %s\n",teachingFluid.error.c_str()); CHECK(teachingFluid.Live()>0);}
  if(closeup&&!pool){
+  const auto& preview=passive?passivePreview.surface:teachingFluid.surface;
   V3 lo{1e9f,1e9f,1e9f},hi{-1e9f,-1e9f,-1e9f};
-  for(const auto& particle:teachingFluid.surface)if(particle.live>0){V3 p=particle.p;lo.x=min(lo.x,p.x);lo.z=min(lo.z,p.z);hi.x=max(hi.x,p.x);hi.z=max(hi.z,p.z);}
+  for(const auto& particle:preview)if(particle.live>0){V3 p=particle.p;lo.x=min(lo.x,p.x);lo.z=min(lo.z,p.z);hi.x=max(hi.x,p.x);hi.z=max(hi.z,p.z);}
   float half=max(first?1.5f:8.f,max((hi.x-lo.x)*.65f,(hi.z-lo.z)*.9f));
   view[0]=1.f/half;view[9]=1.f/(half*.75f);view[12]=-(lo.x+hi.x)*.5f/half;view[13]=-(lo.z+hi.z)*.5f/(half*.75f);
   d->SetVertexShaderConstantF(layout->viewRegister,view,4);
@@ -149,7 +184,10 @@ d->Clear(0,nullptr,D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER,D3DCOLOR_XRGB(26,36,46),1,0)
  d->SetStreamSource(0,source,0,16);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_CW);
  d->SetRenderState(D3DRS_ALPHABLENDENABLE,FALSE);d->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_ONE);d->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_ZERO);
  RECT originalScissor{17,23,911,678};d->SetScissorRect(&originalScissor);d->SetRenderState(D3DRS_SCISSORTESTENABLE,FALSE);
- ++renderFrameSerial;DrawTeachingFluid(d);if(FAILED(teachingLastDraw))printf("SURFACE %s\n",fluidSurface.error.c_str()); CHECK(resting||(teachingDraws>0&&SUCCEEDED(teachingLastDraw)));
+ if(passive){teachingTimeline.Cancel();teachingFluid.Clear();throbMode=1;throbSizePulse=.7f;}
+ ++renderFrameSerial;DrawTeachingFluid(d);
+ if(passive){for(int frame=0;frame<90;frame++){Sleep(16);++renderFrameSerial;DrawTeachingFluid(d);}CHECK(teachingFluid.passiveMode&&teachingFluid.Live()>0&&!teachingTimeline.active);for(const auto& s:teachingFluid.streams)CHECK(s.nodes.empty()&&!s.live);CHECK(!teachingFluid.mesh.indices.empty());}
+ if(FAILED(teachingLastDraw))printf("SURFACE %s\n",fluidSurface.error.c_str()); CHECK(resting||(teachingDraws>0&&SUCCEEDED(teachingLastDraw)));
  IDirect3DVertexShader9* check=nullptr;d->GetVertexShader(&check);CHECK(check==gameVS);check->Release();
  IDirect3DVertexBuffer9* checkBuffer=nullptr;UINT offset=0,stride=0;d->GetStreamSource(0,&checkBuffer,&offset,&stride);CHECK(checkBuffer==source&&offset==0&&stride==16);checkBuffer->Release();
  DWORD cull=0,write=0;d->GetRenderState(D3DRS_CULLMODE,&cull);d->GetRenderState(D3DRS_ZWRITEENABLE,&write);CHECK(cull==D3DCULL_CW&&write==TRUE); DWORD blend=0,src=0,dst=0;d->GetRenderState(D3DRS_ALPHABLENDENABLE,&blend);d->GetRenderState(D3DRS_SRCBLEND,&src);d->GetRenderState(D3DRS_DESTBLEND,&dst);CHECK(blend==FALSE&&src==D3DBLEND_ONE&&dst==D3DBLEND_ZERO);RECT restoredScissor{};DWORD scissors=1;d->GetScissorRect(&restoredScissor);d->GetRenderState(D3DRS_SCISSORTESTENABLE,&scissors);CHECK(scissors==FALSE&&!memcmp(&originalScissor,&restoredScissor,sizeof(RECT)));
@@ -187,7 +225,7 @@ d->Clear(0,nullptr,D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER,D3DCOLOR_XRGB(26,36,46),1,0)
   printf("PASS 90 camera orbit/pre-view translation/rotation frames: simulation equals camera-independent reference, pipeline matrices restored\n");
  }
 
- d->EndScene();IDirect3DSurface9* back=nullptr;d->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&back);CHECK(back);CHECK(SUCCEEDED(D3DXSaveSurfaceToFileA(resting?"anatomy-rest.png":first?"teaching-fluid-first.png":pool?"teaching-fluid-pool.png":closeup?"teaching-fluid-close.png":late?"teaching-fluid-late.png":"teaching-fluid.png",D3DXIFF_PNG,back,nullptr,nullptr)));back->Release();
+ d->EndScene();IDirect3DSurface9* back=nullptr;d->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&back);CHECK(back);CHECK(SUCCEEDED(D3DXSaveSurfaceToFileA(resting?"anatomy-rest.png":passive?"teaching-fluid-passive.png":first?"teaching-fluid-first.png":pool?"teaching-fluid-pool.png":closeup?"teaching-fluid-close.png":late?"teaching-fluid-late.png":"teaching-fluid.png",D3DXIFF_PNG,back,nullptr,nullptr)));back->Release();
  if(surfaceBenchmark){
   IDirect3DQuery9* fence=nullptr;CHECK(SUCCEEDED(d->CreateQuery(D3DQUERYTYPE_EVENT,&fence)));LARGE_INTEGER frequency;QueryPerformanceFrequency(&frequency);std::vector<double> timings,gpuTimes;IDirect3DQuery9 *beginStamp=nullptr,*endStamp=nullptr,*gpuFrequency=nullptr;CHECK(SUCCEEDED(d->CreateQuery(D3DQUERYTYPE_TIMESTAMP,&beginStamp)));CHECK(SUCCEEDED(d->CreateQuery(D3DQUERYTYPE_TIMESTAMP,&endStamp)));CHECK(SUCCEEDED(d->CreateQuery(D3DQUERYTYPE_TIMESTAMPFREQ,&gpuFrequency)));gpuFrequency->Issue(D3DISSUE_END);
   for(int frame=0;frame<65;frame++){LARGE_INTEGER begin,end;QueryPerformanceCounter(&begin);d->Clear(0,nullptr,D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER,0,1,0);CHECK(SUCCEEDED(d->BeginScene()));beginStamp->Issue(D3DISSUE_END);CHECK(SUCCEEDED(fluidSurface.Draw(d,teachingFluid.mesh,view)));endStamp->Issue(D3DISSUE_END);CHECK(SUCCEEDED(d->EndScene()));CHECK(SUCCEEDED(fence->Issue(D3DISSUE_END)));HRESULT status;while((status=fence->GetData(nullptr,0,D3DGETDATA_FLUSH))==S_FALSE)Sleep(0);CHECK(SUCCEEDED(status));QueryPerformanceCounter(&end);if(frame>=5){timings.push_back(1000.*(end.QuadPart-begin.QuadPart)/frequency.QuadPart);UINT64 a=0,b=0,f=0;CHECK(beginStamp->GetData(&a,sizeof(a),0)==S_OK&&endStamp->GetData(&b,sizeof(b),0)==S_OK&&gpuFrequency->GetData(&f,sizeof(f),0)==S_OK&&f>0);gpuTimes.push_back(1000.*(b-a)/f);}}
@@ -201,17 +239,18 @@ d->Clear(0,nullptr,D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER,D3DCOLOR_XRGB(26,36,46),1,0)
  printf("PASS real shader reflection, transformed emitter, D3D draw, pipeline restoration, duplicate-pass suppression, device reset/recreation; teaching-fluid.png\n");return true;
 }
 
+
 static bool VoiceCueTest(){
- teaching::PatientAudio audio;audio.count[0]=13;audio.count[1]=11;audio.Begin();int fired[2]={};float previous=0;
+ teaching::PatientAudio audio;audio.count[0]=13;audio.count[1]=7;audio.Begin();int fired[2]={};float previous=0;
  for(int frame=1;frame<=600;frame++){float current=frame/30.f;for(int phase=0;phase<2;phase++)if(audio.Crossing(phase,previous,current)){++fired[phase];audio.fired[phase]=true;CHECK(fabsf(current-teaching::PatientAudio::Cue(phase))<.0001f);}previous=current;}
  CHECK(fired[0]==1&&fired[1]==1);CHECK(teaching::PatientAudio::Cue(0)==2.5f&&teaching::PatientAudio::Cue(1)==7.f);
  CHECK(!audio.Crossing(0,2.49f,2.51f));audio.Begin();CHECK(audio.Crossing(0,2.49f,2.51f));CHECK(audio.Crossing(1,6.99f,7.01f));
- bool seen1[13]{},seen2[11]{};for(int i=0;i<5000;i++){seen1[audio.Select(0)]=true;seen2[audio.Select(1)]=true;}for(bool v:seen1)CHECK(v);for(bool v:seen2)CHECK(v);
- printf("PASS patient audio phase triggers at 2.5s/7.0s once each; random selection covers 13/11 clips\n");return true;
+ bool seen1[13]{},seen2[7]{};for(int i=0;i<5000;i++){seen1[audio.Select(0)]=true;seen2[audio.Select(1)]=true;}for(bool v:seen1)CHECK(v);for(bool v:seen2)CHECK(v);
+ printf("PASS patient audio phase triggers at 2.5s/7.0s once each; random selection covers 13/7 clips\n");return true;
 }
-static bool AudioAssetTest(const char* folder,int expected){
+static bool AudioAssetTest(const char* folder){
  WIN32_FIND_DATAA f{};char pattern[MAX_PATH];sprintf_s(pattern,"%s\\*.wav",folder);HANDLE h=FindFirstFileA(pattern,&f);CHECK(h!=INVALID_HANDLE_VALUE);int count=0;
- do{if(!(f.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)){char path[MAX_PATH];sprintf_s(path,"%s\\%s",folder,f.cFileName);CHECK(teaching::PatientAudio::ValidPcmWav(path));++count;}}while(FindNextFileA(h,&f));FindClose(h);CHECK(count==expected);printf("PASS all%d study WAVs are supported PCM; pool count=%d\n",count,count);return true;
+ do{if(!(f.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)){char path[MAX_PATH];sprintf_s(path,"%s\\%s",folder,f.cFileName);CHECK(teaching::PatientAudio::ValidPcmWav(path));++count;}}while(FindNextFileA(h,&f));FindClose(h);CHECK(count==13);printf("PASS all13 installed study WAVs are supported PCM; phase1 count=%d\n",count);return true;
 }
 static bool MotionTest(){
  WNDCLASSA wc{};wc.lpfnWndProc=Proc;wc.hInstance=GetModuleHandle(nullptr);wc.lpszClassName="ThreadMotion";RegisterClassA(&wc);
@@ -238,11 +277,32 @@ static bool MotionTest(){
  }
  render.Release();ReleaseTeaching();d->Release();d9->Release();DestroyWindow(window);printf("PASS moving-outlet sequence, %u rendered frames at30FPS\n",frame);return true;
 }
+#include "world_space_test.h"
+static bool MenuReturnTest(){
+ ResetStudyControls();InitMesh();settingsLoaded=true;PrepareMenuTankSurface();
+ std::vector<unsigned char> old(menuTankPacked,menuTankPacked+sizeof(menuTankPacked));
+ CHECK(graftBuffer);tankCameraSceneTick=GetTickCount();sliderUI[0]=85;ApplyControlMapping();shapeDirty=true;
+ UpdateActiveAnatomySurface();
+ CHECK(memcmp(old.data(),menuTankPacked,sizeof(menuTankPacked))!=0);
+ CHECK(!shapeDirty&&menuTankUploadPending);
+ float saved=sliderUI[0];SelectAnatomyScene(false);CHECK(!TankCameraSceneActive()&&!graftBuffer);
+ teachingTimeline.Start();fluidBodyPaletteCount[0]=75;fluidGroundCells.push_back({0,0,{},{0,0,1},0});
+ SelectAnatomyScene(true);CHECK(TankCameraSceneActive()&&!teachingTimeline.active);
+ CHECK(fluidBodyPaletteCount[0]==0&&fluidGroundCells.empty()&&sliderUI[0]==saved);
+ teachingTimeline.Start();SelectAnatomyScene(true);CHECK(teachingTimeline.active);
+ UpdateActiveAnatomySurface();CHECK(menuTankSurfaceReady&&r14Ready);
+ SelectAnatomyScene(false);CHECK(!TankCameraSceneActive()&&!menuTankSurfaceReady);
+ printf("PASS returning to tank updates visible mesh even with a retained gameplay buffer\n");return true;
+}
 int main(int argc,char** argv){
+ if(argc>1&&strcmp(argv[1],"--world-origin-gpu")==0){worldOriginGpuTest=true;return RenderTest()?0:1;}
+ if(argc>1&&strcmp(argv[1],"--world-space")==0)return WorldSpaceTest()?0:1;
+ if(argc>1&&strcmp(argv[1],"--menu-return")==0)return MenuReturnTest()?0:1;
+ if(argc>1&&strcmp(argv[1],"--space-diagnostic")==0){spaceDiagnosticTest=true;return RenderTest()?0:1;}
  if(argc>1&&strcmp(argv[1],"--camera-motion-first")==0){cameraMotionTest=true;return RenderTest(false,true,false,true)?0:1;}
  if(argc>1&&strcmp(argv[1],"--camera-motion")==0){cameraMotionTest=true;return RenderTest()?0:1;}
  if(argc>1&&strcmp(argv[1],"--voice-cues")==0)return VoiceCueTest()?0:1;
- if(argc>2&&strcmp(argv[1],"--audio-assets")==0)return AudioAssetTest(argv[2],argc>3?atoi(argv[3]):13)?0:1;
+ if(argc>2&&strcmp(argv[1],"--audio-assets")==0)return AudioAssetTest(argv[2])?0:1;
  if(argc>1&&strcmp(argv[1],"--motion")==0)return MotionTest()?0:1;
  if(argc>1&&strcmp(argv[1],"--bench-surface")==0){surfaceBenchmark=true;return RenderTest(true)?0:1;}
  if(argc>1&&strcmp(argv[1],"--idle-animation")==0)return IdleAnimationTest()?0:1;
@@ -254,7 +314,9 @@ int main(int argc,char** argv){
  if(argc>1&&strcmp(argv[1],"--render")==0)return RenderTest()?0:1;
  if(argc>1&&strcmp(argv[1],"--render-late")==0)return RenderTest(true)?0:1;
 
+
  if(argc>1&&strcmp(argv[1],"--render-close")==0)return RenderTest(true,true)?0:1;
+ if(argc>1&&strcmp(argv[1],"--render-passive")==0)return RenderTest(false,true,false,false,false,true)?0:1;
  if(!PulseTests())return 1;if(!IntegrationTests())return 2;return 0;
 }
 

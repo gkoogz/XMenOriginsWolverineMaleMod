@@ -62,6 +62,44 @@ static bool Variations(){
  for(int i=0;i<4;i++){CHECK(fabsf(fixed.pulseVolume[i]-c.volume)<1e-5f&&fabsf(fixed.pulseDuration[i]-c.feed)<1e-5f&&fabsf(fixed.angleGain[i]-1)<1e-5f);}CHECK(fixed.pulseChannelCount==4);
  printf("PASS per-pump volume/duration/angle variance is seeded and repeatable; overlapping pumps share a continuous feed channel\n");return true;
 }
+static bool PulseTaper(){
+ volumeFluid::config={};auto& c=volumeFluid::config;c.flowVariation=0;c.pulseVolumeVariation=0;c.pulseDurationVariation=0;c.angleVariation=0;c.gravity=0;c.viscosity=0;c.breakup=0;c.lifetime=15;
+ teaching::Fluid symmetric; c.pulseTaper=0;CHECK(symmetric.Begin({}));CHECK(fabs(symmetric.Cumulative(.5)-.5)<.002);CHECK(fabsf(symmetric.Rate(.2f)-symmetric.Rate(.8f))<.002f);
+ teaching::Fluid f;c.pulseTaper=.55f;CHECK(f.Begin({}));CHECK(f.Cumulative(1)==1&&f.Cumulative(.5)>.57);CHECK(f.Rate(.15f)>f.Rate(.75f)*1.7f);
+ double early=0,late=0;int earlyN=0,lateN=0;
+ for(int frame=0;frame<int(8.04*120);frame++)f.Advance(1.f/120,{0,0,50},{1,0,0},{});
+ const auto& s=f.streams[0];for(size_t i=0;i<s.links.size()&&i+1<s.nodes.size();i++){
+  double x=(s.nodes[i+1].born-teaching::Fluid::EventTime(2))/f.pulseDuration[0];if(x<.1||x>.92)continue;
+  double radius=sqrt(s.links[i].volume/(3.141592653589793*max(.002f,s.links[i].initial)));
+  if(x>=.12&&x<=.32){early+=radius;++earlyN;}if(x>=.68&&x<=.88){late+=radius;++lateN;}
+ }
+ CHECK(earlyN>=8&&lateN>=8);early/=earlyN;late/=lateN;CHECK(early>late*1.18);
+ c.flowVariation=.3f;teaching::Fluid textured;CHECK(textured.Begin({}));for(int frame=0;frame<int(8.04*120);frame++)textured.Advance(1.f/120,{0,0,50},{1,0,0},{});
+ double texturedEarly=0,texturedLate=0;int texturedEarlyN=0,texturedLateN=0;const auto& ts=textured.streams[0];for(size_t i=0;i<ts.links.size()&&i+1<ts.nodes.size();i++){
+  double x=(ts.nodes[i+1].born-teaching::Fluid::EventTime(2))/textured.pulseDuration[0];double radius=sqrt(ts.links[i].volume/(3.141592653589793*max(.002f,ts.links[i].initial)));
+  if(x>=.12&&x<=.32){texturedEarly+=radius;++texturedEarlyN;}if(x>=.68&&x<=.88){texturedLate+=radius;++texturedLateN;}
+ }
+ CHECK(texturedEarlyN>=8&&texturedLateN>=8);texturedEarly/=texturedEarlyN;texturedLate/=texturedLateN;CHECK(texturedEarly>texturedLate*1.08);
+ printf("PASS normalized pump volume with a faster attack, thick onset and smooth taper: cumulative(0.5)=%.3f rate %.3f->%.3f radius %.3f->%.3f texture-default radius %.3f->%.3f (%d/%d samples)\n",f.Cumulative(.5),f.Rate(.15f),f.Rate(.75f),early,late,texturedEarly,texturedLate,earlyN,lateN);
+ return true;
+}
+static bool PassiveClear(){
+ teaching::PassiveThrobGate gate;CHECK(!gate.Update(0.f)&&!gate.Update(.3f)&&gate.Update(.6f)&&!gate.Update(.9f));CHECK(!gate.Update(.2f)&&gate.Update(.6f));
+ volumeFluid::config={};CHECK(fabsf(volumeFluid::config.dropVolume-.42f)<1e-6f&&fabsf(volumeFluid::config.dropDuration-1.75f)<1e-6f&&fabsf(volumeFluid::config.dropHold-1.45f)<1e-6f&&fabsf(volumeFluid::config.dropLength-5.7f)<1e-6f);
+ teaching::Fluid f;f.SetVariationSeed(0xabcdef01u);CHECK(f.BeginPassive({0,0,50})&&f.passiveMode);CHECK(f.TriggerPassiveClear());
+ int peakLive=0;const int totalFrames=14*60;
+ for(int frame=0;frame<totalFrames;frame++){
+  if(frame%180==0&&frame>0){gate.Update(.2f);CHECK(gate.Update(.6f)&&f.TriggerPassiveClear());}
+  f.Advance(1.f/60,{0,0,50},{1,0,0},{});CHECK(f.ready&&f.passiveMode);
+  int live=0;for(const auto& strand:f.clear)if(strand.live)++live;peakLive=max(peakLive,live);
+  for(const auto& stream:f.streams)CHECK(stream.nodes.empty()&&!stream.live);
+ }
+ CHECK(peakLive<=3&&peakLive>=2);for(int e=0;e<4;e++)CHECK(f.emitted[e]==0&&f.delivered[e]==0);
+ CHECK(f.emittedVolume>4.8*f.settings.dropVolume&&f.emittedVolume<5.2*f.settings.dropVolume);
+ CHECK(f.TriggerPassiveClear()); // Expired slots are recycled during a long idle session.
+ f.Clear();CHECK(!f.ready&&!f.passiveMode&&f.Live()==0);
+ printf("PASS passive pulse edge gate, clear-only emissions, larger/longer shared preliminary strand, bounded 8-slot pool (peak concurrent=%d)\n",peakLive);return true;
+}
 static teaching::ViscousThread Make(){teaching::ViscousThread s;s.live=true;for(int i=0;i<30;i++){s.nodes.push_back({{float(i),0,50},{float(i)-14.5f,2,0},0});if(i){s.links.push_back({1,1,1,false,(unsigned)(i-1)});s.volume+=1;}}return s;}
 static V3 Momentum(const teaching::ViscousThread& s){V3 p{};for(size_t i=0;i<s.links.size();i++)p=p+(s.nodes[i].v+s.nodes[i+1].v)*(s.links[i].volume*.5f);return p;}
 static float Energy(const teaching::ViscousThread& s){float e=0;for(size_t i=0;i<s.links.size();i++)e+=s.links[i].volume*(Dot(s.nodes[i].v,s.nodes[i].v)+Dot(s.nodes[i+1].v,s.nodes[i+1].v))*.25f;return e;}
@@ -72,4 +110,4 @@ static bool Material(){
  volumeFluid::config={};teaching::Fluid a,bf;CHECK(a.Begin({0,0,50})&&bf.Begin({0,0,50}));for(int i=0;i<270;i++)a.Advance(1.f/30,{0,0,50},{1,0,0},{});for(int i=0;i<1080;i++)bf.Advance(1.f/120,{0,0,50},{1,0,0},{});CHECK(a.streams[0].nodes.size()==bf.streams[0].nodes.size());float error=0;for(size_t i=0;i<a.streams[0].nodes.size();i++)error=max(error,Length(a.streams[0].nodes[i].p-bf.streams[0].nodes[i].p));CHECK(error<.001f);printf("PASS 30/120 Hz fixed-step agreement maxError=%.8f\n",error);
  return true;
 }
-int main(int argc,char**argv){setvbuf(stdout,nullptr,_IONBF,0);if(argc>1&&strcmp(argv[1],"material")==0)return Material()?0:1;if(argc>1&&strcmp(argv[1],"variance")==0)return Variations()?0:1;return Sequence(argc>1?atoi(argv[1]):60,argc>2?atoi(argv[2]):0,argc>3)?0:1;}
+int main(int argc,char**argv){setvbuf(stdout,nullptr,_IONBF,0);if(argc>1&&strcmp(argv[1],"material")==0)return Material()?0:1;if(argc>1&&strcmp(argv[1],"variance")==0)return Variations()?0:1;if(argc>1&&strcmp(argv[1],"taper")==0)return PulseTaper()?0:1;if(argc>1&&strcmp(argv[1],"passive")==0)return PassiveClear()?0:1;return Sequence(argc>1?atoi(argv[1]):60,argc>2?atoi(argv[2]):0,argc>3)?0:1;}

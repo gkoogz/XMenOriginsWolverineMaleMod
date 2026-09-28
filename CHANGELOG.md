@@ -1,4 +1,12 @@
-﻿# Release 1.6.0 — 2026-09-26
+# 1.7.0 — 2026-09-28
+
+- Bundle the approved menu anatomy, body retarget, pelvic weld, necklace contact, camera package and blend textures.
+- Keep gameplay fluid and floor marks in world coordinates using verified baked-geometry camera origin and PhysX floor scale.
+- Reset scene-owned resources when returning from gameplay to the main menu.
+- Include body contacts, temporary splats, current fluid defaults and saved menu camera poses.
+- Preserve existing settings and private audio; add WStart installation and exact rollback coverage.
+
+ï»¿# Release 1.6.0 — 2026-09-26
 
 Each main pulse now samples an independent volume and feed duration for every teaching sequence. A deterministic seed within the run keeps the pose and emission variation aligned; each new run gets a fresh seed. Feed windows that overlap are grouped into a shared continuous thread, with smooth ramped flow through the handoff. Per-throb angle intensity is varied independently. The default duration variation guarantees one extended pump when the configured range can cross the 1.5-second pulse spacing. All controls are editable in `Binaries/TeachingFluid.ini`; setting a variation to zero disables it.
 

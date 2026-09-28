@@ -1,20 +1,26 @@
 #include "fluid_surface.h"
+#include "fluid_stains.h"
 static volumeFluid::Surface fluidSurface;
+static volumeFluid::StainSurface fluidStains;
 #pragma once
-// Included after the final R14 surface. Fluid is simulated after pelvis skinning
-// in character component space. Root travel/terrain collision are not yet solved.
+// Included after the final R14 surface. Fluid uses the actor's translated-world
+// transform and live camera origin, exact skinned triangles, and PhysX scene hits.
 static IDirect3DVertexShader9* teachingVS=nullptr;
 static IDirect3DPixelShader9* teachingPS=nullptr;
 static LONG teachingDrawSerial=-2;
 static DWORD teachingSceneTick=0;
 static double teachingFluidTime=0;
+static DWORD passiveFluidLastTick=0;
+static DWORD passiveRetryAt=0;
+static teaching::PassiveThrobGate passiveThrobGate;
 static unsigned teachingDraws=0;
 static HRESULT teachingLastDraw=S_FALSE;
+static V3 teachingActorOrigin{};static bool teachingActorOriginValid;
 static LARGE_INTEGER fluidProfileFrequency{};static double fluidProfileSum=0,fluidProfilePeak=0;static unsigned fluidProfileFrames=0;
 static void LogFluidProfile(){if(fluidProfileFrames)Log("Fluid2 CPU update+mesh+draw submission: mean=%.3fms max=%.3fms frames=%u (not GPU/game frame time)",fluidProfileSum/fluidProfileFrames,fluidProfilePeak,fluidProfileFrames);fluidProfileSum=fluidProfilePeak=0;fluidProfileFrames=0;}
-static void CancelTeaching(){teachingAudio.End(true);LogFluidProfile();teachingTimeline.Cancel();teachingFluid.Clear();teachingFluidTime=0;}
+static void CancelTeaching(){teachingAudio.End(true);LogFluidProfile();teachingTimeline.Cancel();teachingFluid.Clear();teachingFluidTime=0;passiveFluidLastTick=passiveRetryAt=0;passiveThrobGate.Reset();teachingActorOriginValid=false;}
 static void ReleaseTeaching(){
- CancelTeaching();fluidSurface.Release();teachingSceneTick=0;teachingDrawSerial=-2;
+ CancelTeaching();fluidSurface.Release();fluidStains.Release();teachingSceneTick=0;teachingDrawSerial=-2;
  if(teachingVS){teachingVS->Release();teachingVS=nullptr;}
  if(teachingPS){teachingPS->Release();teachingPS=nullptr;}
 }
@@ -35,9 +41,15 @@ static bool TeachingEmitter(const float* bone,V3& tip,V3& direction){
 static bool TeachingMatrices(IDirect3DDevice9* d,float* local,float* view,float* bone){
  ShaderLayout* layout=GetShaderLayout(d);
  if(!layout||!layout->valid||!layout->viewValid)return false;
+ // Gameplay section 7 places the pelvis in palette slot 0. The WStart title
+ // anatomy is retargeted to section 4, where the matching pelvis is slot 30.
+ // Read the same animated transform that drives the visible title anatomy so
+ // its emitter and collision samples remain attached in the tank scene.
+ UINT pelvisOffset=TankCameraSceneActive()?90u:0u;
+ if(layout->boneCount<pelvisOffset+3u)return false;
  return SUCCEEDED(d->GetVertexShaderConstantF(layout->localRegister,local,4))
   &&SUCCEEDED(d->GetVertexShaderConstantF(layout->viewRegister,view,4))
-  &&SUCCEEDED(d->GetVertexShaderConstantF(layout->boneRegister,bone,3));
+  &&SUCCEEDED(d->GetVertexShaderConstantF(layout->boneRegister+pelvisOffset,bone,3));
 }
 static bool EnsureTeachingShaders(IDirect3DDevice9* d){
  if(teachingVS&&teachingPS)return true;
@@ -56,7 +68,7 @@ static bool LoadVolumeConfig(){
  char path[MAX_PATH];SiblingPath(path,"TeachingFluid.ini");volumeFluid::Settings cfg;
  auto read=[&](const char* name,float& value,float lo,float hi){char b[80];GetPrivateProfileStringA("Fluid",name,"",b,sizeof(b),path);if(!*b)return true;char* end=nullptr;float v=strtof(b,&end);while(end&&*end==' ')++end;if(!end||*end||!std::isfinite(v)||v<lo||v>hi){Log("Fluid configuration rejected: %s=%s range %.4g..%.4g",name,b,lo,hi);return false;}value=v;return true;};
  float capacity=(float)cfg.capacity,pressure=(float)cfg.iterations,visc=(float)cfg.viscIterations,plane=0;
- if(!read("Volume",cfg.volume,.01f,4000)||!read("Duration",cfg.feed,.15f,10)||!read("PulseVolumeVariation",cfg.pulseVolumeVariation,0,.75f)||!read("PulseDurationVariation",cfg.pulseDurationVariation,0,.9f)||!read("AngleVariation",cfg.angleVariation,0,1)||!read("Viscosity",cfg.viscosity,0,100)||!read("SurfaceTension",cfg.tension,0,100)||!read("NozzleRadius",cfg.nozzle,.15f,4)||!read("Spacing",cfg.spacing,.15f,.8f)||!read("FlowVariation",cfg.flowVariation,0,.7f)||!read("Lifetime",cfg.lifetime,1,15)||!read("DropVolume",cfg.dropVolume,.005f,20)||!read("DropDuration",cfg.dropDuration,.3f,5)||!read("DropHold",cfg.dropHold,.1f,5)||!read("DropLength",cfg.dropLength,.5f,15)||!read("Capacity",capacity,1024,65536)||!read("PressureIterations",pressure,2,12)||!read("ViscosityIterations",visc,2,32)||!read("CatchPlane",plane,0,1)||!read("CatchDepth",cfg.catchDepth,5,150))return false;
+ if(!read("Volume",cfg.volume,.01f,4000)||!read("Duration",cfg.feed,.15f,10)||!read("PulseVolumeVariation",cfg.pulseVolumeVariation,0,.75f)||!read("PulseDurationVariation",cfg.pulseDurationVariation,0,.9f)||!read("AngleVariation",cfg.angleVariation,0,1)||!read("PulseTaper",cfg.pulseTaper,0,1)||!read("Viscosity",cfg.viscosity,0,100)||!read("SurfaceTension",cfg.tension,0,100)||!read("NozzleRadius",cfg.nozzle,.15f,4)||!read("Spacing",cfg.spacing,.15f,.8f)||!read("FlowVariation",cfg.flowVariation,0,.7f)||!read("Lifetime",cfg.lifetime,1,15)||!read("DropVolume",cfg.dropVolume,.005f,20)||!read("DropDuration",cfg.dropDuration,.3f,5)||!read("DropHold",cfg.dropHold,.1f,5)||!read("DropLength",cfg.dropLength,.5f,15)||!read("Capacity",capacity,1024,65536)||!read("PressureIterations",pressure,2,12)||!read("ViscosityIterations",visc,2,32)||!read("CatchPlane",plane,0,1)||!read("CatchDepth",cfg.catchDepth,5,150))return false;
  float sides=(float)cfg.meshSides;
  if(!read("ThreadSpacing",cfg.threadSpacing,.25f,2)||!read("Breakup",cfg.breakup,0,4)||!read("MeshSides",sides,8,20))return false;cfg.meshSides=(int)sides;
  cfg.capacity=(int)capacity;cfg.iterations=(int)pressure;cfg.viscIterations=(int)visc;cfg.catchPlane=plane>.5f;
@@ -64,36 +76,80 @@ static bool LoadVolumeConfig(){
 }
 static void DrawTeachingFluid(IDirect3DDevice9* d){
  if(teachingDrawSerial==renderFrameSerial)return;DWORD color=0;d->GetRenderState(D3DRS_COLORWRITEENABLE,&color);if(!(color&7))return;
- ShaderLayout* layout=GetShaderLayout(d);if(!layout||!layout->valid||!layout->viewValid)return;teachingSceneTick=GetTickCount();teachingDrawSerial=renderFrameSerial;
- if(!teachingTimeline.active)return;
- float local[16],view[16],bone[12];if(!TeachingMatrices(d,local,view,bone))return;V3 tip,dir;if(!TeachingEmitter(bone,tip,dir)){CancelTeaching();return;}
+ ShaderLayout* layout=GetShaderLayout(d);if(!layout||!layout->valid||!layout->viewValid)return;
+ float local[16],view[16],bone[12];if(!TeachingMatrices(d,local,view,bone))return;
+ // A rejected title compositor pass must not consume this frame's only fluid
+ // draw. Commit the serial and scene heartbeat only after all matrices exist.
+ DWORD now=GetTickCount();teachingSceneTick=now;teachingDrawSerial=renderFrameSerial;
+ // Never switch a live world simulation into component coordinates or combine
+ // a previous camera frame with today's actor matrix. A missing source pauses
+ // this draw; title mode intentionally stays in its stationary component frame.
+ if(anatomyScene==0&&fluidWorldCameraFrame!=renderFrameSerial){
+  teachingFluidTime=teachingTimeline.time;passiveFluidLastTick=now;teachingActorOriginValid=false;return;
+ }
  // UE3 LocalToWorld includes pre-view translation. It is render data, not a
  // persistent physics frame: feeding it into the solver makes camera movement
  // stretch the trail or trip the teleport guard. Bones are component-space.
  D3DXMATRIX localMatrix,viewMatrix,componentClip;
  memcpy(&localMatrix,local,64);memcpy(&viewMatrix,view,64);
  D3DXMatrixMultiply(&componentClip,&localMatrix,&viewMatrix);
+ CaptureFluidBodySection(d,2);if(teachingTimeline.active||throbMode||!fluidStains.marks.empty())PrepareFluidCollision();else volumeFluid::collisionSweep=nullptr;float simulationClip[16];V3 simulationOrigin,simulationAxis;FluidSimulationTransform({0,0,0},{1,0,0},simulationOrigin,simulationAxis,simulationClip);
+ if(!teachingTimeline.active&&!throbMode){if(teachingFluid.passiveMode)teachingFluid.Clear();passiveFluidLastTick=passiveRetryAt=0;passiveThrobGate.Reset();fluidStains.Draw(d,simulationClip,now);return;}
+ V3 tip,dir;if(!TeachingEmitter(bone,tip,dir)){CancelTeaching();fluidStains.Draw(d,simulationClip,now);return;}
+ FluidSimulationTransform(tip,dir,tip,dir,simulationClip);
+ SetFluidCollisionEmitter(tip);
+ if(!teachingTimeline.active){
+  if(!teachingFluid.ready||!teachingFluid.passiveMode){
+   if(passiveRetryAt&&(LONG)(now-passiveRetryAt)<0)return;
+   if(teachingFluid.ready)teachingFluid.Clear();
+   teachingFluid.SetVariationSeed(now);
+   if(!LoadVolumeConfig()||!teachingFluid.BeginPassive(tip)||!fluidSurface.Initialize(d)){
+    Log("Cannot start passive clear fluid: %s / %s",teachingFluid.error.c_str(),fluidSurface.error.c_str());
+    teachingFluid.Clear();passiveFluidLastTick=0;passiveRetryAt=now+1000;passiveThrobGate.Reset();return;
+   }
+   teachingFluid.lastDir=dir;passiveFluidLastTick=now;passiveRetryAt=0;
+  }
+  teachingFluid.settings.catchPlane=false;
+  if(passiveThrobGate.Update(throbSizePulse)&&!teachingFluid.TriggerPassiveClear())Log("Passive clear-strand pool is full; skipped one throb.");
+  float dt=passiveFluidLastTick?(float)min(100UL,now-passiveFluidLastTick)*.001f:0.f;passiveFluidLastTick=now;
+  LARGE_INTEGER begin,end;if(!fluidProfileFrequency.QuadPart)QueryPerformanceFrequency(&fluidProfileFrequency);QueryPerformanceCounter(&begin);
+  V3 actorVelocity{};if(dt>0&&teachingActorOriginValid)actorVelocity=(simulationOrigin-teachingActorOrigin)/dt;teachingActorOrigin=simulationOrigin;teachingActorOriginValid=true;
+  if(dt>0)teachingFluid.Advance(dt,tip,dir,actorVelocity);fluidStains.Add(teachingFluid.impacts,now);
+  if(!teachingFluid.ready){passiveThrobGate.Reset();passiveFluidLastTick=0;fluidStains.Draw(d,simulationClip,now);return;}
+  if(!teachingFluid.Live()){fluidStains.Draw(d,simulationClip,now);return;}
+  teachingLastDraw=fluidSurface.Draw(d,teachingFluid.mesh,simulationClip,TankCameraSceneActive());
+  fluidStains.Draw(d,simulationClip,now);
+  QueryPerformanceCounter(&end);double elapsed=1000.*(end.QuadPart-begin.QuadPart)/fluidProfileFrequency.QuadPart;fluidProfileSum+=elapsed;fluidProfilePeak=max(fluidProfilePeak,elapsed);if(++fluidProfileFrames>=120)LogFluidProfile();
+  if(SUCCEEDED(teachingLastDraw))++teachingDraws;else {Log("Passive fluid render failed: %s hr=%08X",fluidSurface.error.c_str(),(unsigned)teachingLastDraw);teachingFluid.Clear();passiveThrobGate.Reset();passiveFluidLastTick=0;}
+  return;
+ }
  if(!teachingFluid.ready){if(!teachingFluid.Begin(tip)){Log("Fluid unavailable: %s",teachingFluid.error.c_str());CancelTeaching();return;}teachingFluid.lastDir=dir;teachingLastTick=GetTickCount();}
- // Conservative moving collision proxies sampled from the actual shaft rings.
- for(int i=0;i<8;i++){UINT ring=2+(r14CrownRing-4)*i/7;V3 center=TransformPoint(bone,TeachingRing(ring));float radius=1e9f;for(UINT j=0;j<r14SegmentCount;j++){V3 p=TransformPoint(bone,r14Positions[r14NewStart+ring*r14SegmentCount+j]);radius=min(radius,Length(p-center));}teachingFluid.collision[i]={center.x,center.y,center.z,radius*.86f};}
+ teachingFluid.settings.catchPlane=false;
  float dt=(float)(teachingTimeline.time-teachingFluidTime);teachingFluidTime=teachingTimeline.time;
  LARGE_INTEGER begin,end;if(!fluidProfileFrequency.QuadPart)QueryPerformanceFrequency(&fluidProfileFrequency);QueryPerformanceCounter(&begin);
- teachingFluid.Advance(dt,tip,dir,{0,0,-98});if(!teachingFluid.ready){Log("Fluid stopped: %s",teachingFluid.error.c_str());CancelTeaching();return;}
- if(!teachingFluid.Live())return;
- teachingLastDraw=fluidSurface.Draw(d,teachingFluid.mesh,(const float*)&componentClip);
+ V3 actorVelocity{};if(dt>0&&teachingActorOriginValid)actorVelocity=(simulationOrigin-teachingActorOrigin)/dt;teachingActorOrigin=simulationOrigin;teachingActorOriginValid=true;
+ teachingFluid.Advance(dt,tip,dir,actorVelocity);if(!teachingFluid.ready){Log("Fluid stopped: %s",teachingFluid.error.c_str());CancelTeaching();fluidStains.Draw(d,simulationClip,now);return;}
+ fluidStains.Add(teachingFluid.impacts,now);
+ if(!teachingFluid.Live()){fluidStains.Draw(d,simulationClip,now);return;}
+ teachingLastDraw=fluidSurface.Draw(d,teachingFluid.mesh,simulationClip,TankCameraSceneActive());
+ fluidStains.Draw(d,simulationClip,now);
  QueryPerformanceCounter(&end);double elapsed=1000.*(end.QuadPart-begin.QuadPart)/fluidProfileFrequency.QuadPart;fluidProfileSum+=elapsed;fluidProfilePeak=max(fluidProfilePeak,elapsed);if(++fluidProfileFrames>=120)LogFluidProfile();
  if(SUCCEEDED(teachingLastDraw))++teachingDraws;else {Log("Fluid render failed: %s hr=%08X",fluidSurface.error.c_str(),(unsigned)teachingLastDraw);CancelTeaching();}
 }
 static void TeachingInput(IDirect3DDevice9* d){
  DWORD now=GetTickCount(),pid=0;GetWindowThreadProcessId(GetForegroundWindow(),&pid);bool focused=pid==GetCurrentProcessId();bool down=(GetAsyncKeyState(teachingKey)&0x8000)!=0;static bool oldDown=false;bool edge=down&&!oldDown;oldDown=down;
- if(!focused){if(teachingTimeline.active)CancelTeaching();teachingLastTick=now;return;}
-  if(edge){if(teachingTimeline.active)CancelTeaching();else if(teachingSceneTick&&now-teachingSceneTick<250&&r14Ready){
-  teachingFluid.SetVariationSeed(now);if(LoadVolumeConfig()&&teachingFluid.Prepare()&&fluidSurface.Initialize(d)){teachingTimeline.Start();teachingAudio.Begin();teachingFluid.Clear();teachingFluidTime=0;}else Log("Cannot start fluid: %s / %s",teachingFluid.error.c_str(),fluidSurface.error.c_str());
+ if(!focused){if(teachingTimeline.active||teachingFluid.passiveMode)CancelTeaching();passiveThrobGate.Reset();passiveFluidLastTick=0;teachingLastTick=now;return;}
+ bool tankReady=TankCameraSceneActive()&&menuTankSurfaceReady&&r14Ready;
+ bool gameplayReady=teachingSceneTick&&now-teachingSceneTick<250&&r14Ready;
+ if(edge){Log("J sequence input: tankReady=%d gameplayReady=%d r14=%d tankSurface=%d sceneAge=%lu",tankReady?1:0,gameplayReady?1:0,r14Ready?1:0,menuTankSurfaceReady?1:0,teachingSceneTick?DWORD(now-teachingSceneTick):0xFFFFFFFFu);if(teachingTimeline.active)CancelTeaching();else if(tankReady||gameplayReady){
+  teachingFluid.SetVariationSeed(now);if(LoadVolumeConfig()&&teachingFluid.Prepare()&&fluidSurface.Initialize(d)){teachingTimeline.Start();teachingAudio.Begin();teachingFluid.Clear();teachingActorOriginValid=false;teachingFluidTime=0;passiveFluidLastTick=0;passiveThrobGate.Reset();}else Log("Cannot start fluid: %s / %s",teachingFluid.error.c_str(),fluidSurface.error.c_str());
   now=GetTickCount();teachingLastTick=now;teachingSceneTick=now;
  }}
  float dt=teachingLastTick?(now-teachingLastTick)*.001f:0.f;teachingLastTick=now;
- if(teachingTimeline.active&&(dt>.25f||!teachingSceneTick||now-teachingSceneTick>1000)){CancelTeaching();return;}
- double audioFrom=teachingTimeline.time;teachingTimeline.Advance(dt);teachingAudio.Advance((float)audioFrom,(float)teachingTimeline.time);if(!teachingTimeline.active){teachingAudio.End(false);LogFluidProfile();teachingFluid.Clear();}
+ bool liveTank=TankCameraSceneActive();
+ bool staleGameplay=!teachingSceneTick||now-teachingSceneTick>1000;
+ if(teachingTimeline.active&&(dt>.25f||(!liveTank&&staleGameplay))){CancelTeaching();return;}
+ double audioFrom=teachingTimeline.time;teachingTimeline.Advance(dt);teachingAudio.Advance((float)audioFrom,(float)teachingTimeline.time);if(!teachingTimeline.active){teachingAudio.End(false);LogFluidProfile();if(!teachingFluid.passiveMode)teachingFluid.Clear();}
 }
 
 
