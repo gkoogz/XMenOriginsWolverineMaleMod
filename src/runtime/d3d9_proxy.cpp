@@ -365,7 +365,7 @@ static void StepRootSuspension(float dt,float gait,float side){
   if(fabsf(shaftSpring.pitch)>limit)shaftSpring.pitchVelocity-=copysignf((fabsf(shaftSpring.pitch)-limit)*90.f*dt,shaftSpring.pitch);
   if(fabsf(shaftSpring.yaw)>.65f)shaftSpring.yawVelocity-=copysignf((fabsf(shaftSpring.yaw)-.65f)*90.f*dt,shaftSpring.yaw);
 }
-static V3 ShaftRoot(){return {12.65f,0.f,84.3f};}
+static V3 ShaftRoot(){return {9.0f,0.f,84.3f};}
 static float OverallShapeScale(){return sliderValues[0]/sliderSpecs[0].def;}
 static float ShaftWidthScale(){return OverallShapeScale()*(sliderValues[2]/sliderSpecs[2].def);}
 static float BallShapeScale(){return OverallShapeScale()*(sliderValues[3]/sliderSpecs[3].def);}
@@ -770,9 +770,10 @@ static void ApplyShaftPoseAngle(float value[3],UINT i){
   if(bw<.05f&&membership>.02f)active=1.f+(pelvicAngleFollow[i]-1.f)*preparedPelvicRampBlend;
   if(active<=.001f)return;
   float delta=sliderValues[4]*3.1415926535f/180.f*active;
-  float c=cosf(delta),s=sinf(delta),x=value[0]-12.65f,z=value[2]-84.3f;
-  value[0]=12.65f+c*x+s*z;
-  value[2]=84.3f-s*x+c*z;
+  V3 root=ShaftRoot();
+  float c=cosf(delta),s=sinf(delta),x=value[0]-root.x,z=value[2]-root.z;
+  value[0]=root.x+c*x+s*z;
+  value[2]=root.z-s*x+c*z;
 }
 static void FlareAttachment(float value[3],UINT i){
   // The duplicated body-side seam is the final ten graft vertices and has no
@@ -792,7 +793,7 @@ static void FlareAttachment(float value[3],UINT i){
   float influence=Smoother01(min(1.f,membership*2.5f))*collar;
   if(influence<=.001f)return;
   float angle=sliderValues[4]*3.1415926535f/180.f,sa=sinf(angle),ca=cosf(angle);
-  float dx=value[0]-12.65f,dz=value[2]-84.3f;
+  V3 root=ShaftRoot();float dx=value[0]-root.x,dz=value[2]-root.z;
   // Match the shaft-local frame used by the centerline solver: X is axial;
   // Y and local Z are the true cross-section.  The former basis scaled X at
   // zero angle and was the source of the longitudinal buttress-like ridges.
@@ -805,8 +806,8 @@ static void FlareAttachment(float value[3],UINT i){
   float growthExtra=.035f*collarGrowth*(1.f-.82f*dorsal);
   float scale=1.f+(.042f+growthExtra)*influence;
   radial*=scale;value[1]*=scale;
-  value[0]=12.65f+ca*axial+sa*radial;
-  value[2]=84.3f-sa*axial+ca*radial;
+  value[0]=root.x+ca*axial+sa*radial;
+  value[2]=root.z-sa*axial+ca*radial;
 }
 static float ClosestRestShaftFlex(V3 point){
   float bestDistance=1e30f,bestT=0.f;
@@ -1327,7 +1328,7 @@ static void ApplyFloppyCurve(float value[3],UINT i,float pitch,float yaw){
   // cross-section is rotated with the local tangent.  This preserves length
   // and diameter instead of stretching vertices around one common pivot.
   float a=sliderValues[4]*3.1415926535f/180.f,ca=cosf(a),sa=sinf(a);
-  float dx=value[0]-12.65f,dz=value[2]-84.3f;
+  V3 root=ShaftRoot();float dx=value[0]-root.x,dz=value[2]-root.z;
   float axial=ca*dx-sa*dz,radial=sa*dx+ca*dz,lateral=value[1];
   float q=bend*t,sq=sinf(q),cq=cosf(q),inv=1.f/bend;
   float ny=yaw*inv,nz=-pitch*inv,ky=pitch*inv,kz=yaw*inv;
@@ -1335,7 +1336,7 @@ static void ApplyFloppyCurve(float value[3],UINT i,float pitch,float yaw){
   float dot=ky*lateral+kz*radial,crossX=ky*radial-kz*lateral;
   float rx=crossX*sq,ry=lateral*cq+ky*dot*(1.f-cq),rz=radial*cq+kz*dot*(1.f-cq);
   float lx=centerX+rx,ly=ny*transverse+ry,lz=nz*transverse+rz;
-  float tx=12.65f+ca*lx+sa*lz,ty=ly,tz=84.3f-sa*lx+ca*lz;
+  float tx=root.x+ca*lx+sa*lz,ty=ly,tz=root.z-sa*lx+ca*lz;
   value[0]+=(tx-value[0])*active;value[1]+=(ty-value[1])*active;value[2]+=(tz-value[2])*active;
 }
 static V3 RotateFromTo(V3 value,V3 from,V3 to){from=Unit(from);to=Unit(to);V3 axis=Cross(from,to);float s=Length(axis),c=max(-1.f,min(1.f,Dot(from,to)));if(s<1e-5f)return c>0?value:value*-1.f;return value*c+Cross(axis,value)+axis*(Dot(axis,value)*(1.f-c)/(s*s));}
