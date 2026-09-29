@@ -171,8 +171,10 @@ static bool FluidCollisionSweep(V3 from,V3 to,float radius,volumeFluid::FluidImp
 }
 
 static void FluidAppendSection(const unsigned char* packed,UINT vertexCount,const unsigned short* indices,UINT triangleCount,const unsigned char* gameplayBones,const float* palette,UINT paletteCount,unsigned char section,bool world,bool buildTopology){
- unsigned base=(unsigned)fluidCollisionVertices.size();fluidCollisionVertices.reserve(base+vertexCount);
- for(UINT i=0;i<vertexCount;i++){const unsigned char* p=packed+i*32;const unsigned char* bones=gameplayBones?gameplayBones+i*4:nullptr;V3 v=FluidSkinVertex(p,bones,palette,paletteCount);if(world)v=FluidMatrixPoint(fluidCollisionLocal,v)+fluidCameraWorld;fluidCollisionVertices.push_back(v);}
+ unsigned base=(unsigned)fluidCollisionVertices.size();fluidCollisionVertices.resize(base+vertexCount);
+ // Section inputs are immutable here. Batch independent skinning into fixed
+ // output slots; topology, BVH refit and collision queries stay on the caller.
+ GeometryFor(vertexCount,[&](unsigned i){const unsigned char* p=packed+i*32;const unsigned char* bones=gameplayBones?gameplayBones+i*4:nullptr;V3 v=FluidSkinVertex(p,bones,palette,paletteCount);if(world)v=FluidMatrixPoint(fluidCollisionLocal,v)+fluidCameraWorld;fluidCollisionVertices[base+i]=v;});
  if(buildTopology)for(UINT i=0;i<triangleCount;i++)fluidCollisionTriangles.push_back({base+indices[i*3],base+indices[i*3+1],base+indices[i*3+2],section,i});
 }
 static void PrepareFluidCollision(){PerfScope perf(9);

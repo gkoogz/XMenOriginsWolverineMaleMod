@@ -9,8 +9,10 @@ static bool CheckUnified(){
  return true;
 }
 static void Snapshot(const char* label){
- using namespace UnifiedCollar;char path[MAX_PATH];FILE* f=nullptr;sprintf_s(path,"../../captures/runtime-tests/%s.bin",label);fopen_s(&f,path,"wb");if(!f)return;
- for(unsigned i=0;i<ucCount;i++){V3 p=Point(solved,i),q=Point(before,i);float w=(float)mask[i];fwrite(&p,12,1,f);fwrite(&q,12,1,f);fwrite(&w,4,1,f);}fclose(f);
+ using namespace UnifiedCollar;char path[MAX_PATH];FILE* f=nullptr;const char* captureDir=getenv("SURFACE_AUDIT_CAPTURE_DIR");sprintf_s(path,"%s/%s.bin",captureDir?captureDir:"../../captures/runtime-tests",label);fopen_s(&f,path,"wb");if(!f)return;
+ for(unsigned i=0;i<ucCount;i++){V3 p=Point(solved,i),q=Point(before,i);float w=(float)mask[i];fwrite(&p,12,1,f);fwrite(&q,12,1,f);fwrite(&w,4,1,f);}
+ if(captureDir){fwrite(nrPacked,sizeof(nrPacked),1,f);fwrite(rsPacked,sizeof(rsPacked),1,f);fwrite(r14Packed,sizeof(r14Packed),1,f);fwrite(shaftNodes,sizeof(shaftNodes),1,f);fwrite(ballNodes,sizeof(ballNodes),1,f);}
+ fclose(f);
 }
 static bool Run(){
  using namespace UnifiedCollar;unsigned cases=0;char label[100];

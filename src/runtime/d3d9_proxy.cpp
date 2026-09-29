@@ -1588,7 +1588,7 @@ static void ResolveSuspendedSkinContact(){
 // Shared final-pose junction: preserve the body weld and lobe extremes while
 // fairing the mixed shaft/pouch rows as one connected surface. The sparse
 // constrained biharmonic operator uses fixed topological correspondence.
-static void FinishScrotalJunction(){
+static void FinishScrotalJunction(){PerfScope perf(15);
   if(!constraintSolverReady)return;
   static V3 input[graftNormalGroupCount],result[graftNormalGroupCount],next[graftNormalGroupCount];
   static V3 normals[graftNormalGroupCount],faceNormals[graftTriangleIndexCount/3];
@@ -1619,14 +1619,18 @@ static void FinishScrotalJunction(){
       else faceNormals[t]=Unit(n);
     }
     if(pass>=24){
+      bool anyRisk=false;
       // Only high-curvature fans receive additional normal-direction fairing.
       // An old folded triangle may rotate through 90 degrees while unfolding;
       // do not confuse that rotation with a newly inverted surface.
       for(UINT p=0;p<neckPairCount;p++){
         UINT a=neckFacePairs[p*2],b=neckFacePairs[p*2+1];float amount=Smoother01((.5f-Dot(faceNormals[a],faceNormals[b]))/.5f);
-        if(amount<=0.f)continue;
+        if(amount<=0.f)continue;anyRisk=true;
         for(UINT c=0;c<3;c++){UINT ga=faces[a*3+c],gb=faces[b*3+c];risk[ga]=max(risk[ga],amount);risk[gb]=max(risk[gb],amount);}
       }
+      // A zero risk field produces an identity update. With unchanged
+      // positions it remains zero in every remaining curvature pass.
+      if(!anyRisk)break;
     }
     for(UINT k=0;k<neckActiveCount;k++){
       UINT g=neckActive[k],begin=neckNeighborOffsets[g],end=neckNeighborOffsets[g+1];if(begin==end){next[g]=result[g];continue;}

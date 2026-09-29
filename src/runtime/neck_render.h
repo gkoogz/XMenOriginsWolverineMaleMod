@@ -74,20 +74,30 @@ static void UpdateNeckRender(){PerfScope perf(13);
  }
  static V3 source[rsCount];
  static __m128 sourceXYZ[rsCount];
+ #ifndef NO_CLINICAL_NECK
  static __m128 referenceXYZ[rsCount];
+ #endif
  for(unsigned i=0;i<rsCount;i++){
   memcpy(&source[i],rsPacked+i*32,12);
   sourceXYZ[i]=_mm_set_ps(0.f,source[i].z,source[i].y,source[i].x);
+ #ifndef NO_CLINICAL_NECK
   V3 ref=clinicalReference[i];referenceXYZ[i]=_mm_set_ps(0.f,ref.z,ref.y,ref.x);
+ #endif
  }
  GeometryFor(nrCount,[&](unsigned i){
-  if(nrDirect[i]!=65535){memcpy(nrPacked+i*32,rsPacked+nrDirect[i]*32,32);nrPositions[i]=source[nrDirect[i]];clinicalNeckReference[i]=clinicalReference[nrDirect[i]];return;}
+  if(nrDirect[i]!=65535){memcpy(nrPacked+i*32,rsPacked+nrDirect[i]*32,32);nrPositions[i]=source[nrDirect[i]];
+ #ifndef NO_CLINICAL_NECK
+ clinicalNeckReference[i]=clinicalReference[nrDirect[i]];
+ #endif
+ return;}
   // Evaluate XYZ together, retaining the exact weight accumulation order.
   __m128 sum=_mm_setzero_ps();
   for(unsigned j=nrRows[i];j<nrRows[i+1];j++)sum=_mm_add_ps(sum,_mm_mul_ps(sourceXYZ[nrSources[j]],_mm_set1_ps(nrWeights[j])));
   float xyz[4];_mm_storeu_ps(xyz,sum);V3 p{xyz[0],xyz[1],xyz[2]};
+ #ifndef NO_CLINICAL_NECK
   __m128 reference=_mm_setzero_ps();for(unsigned j=nrRows[i];j<nrRows[i+1];j++)reference=_mm_add_ps(reference,_mm_mul_ps(referenceXYZ[nrSources[j]],_mm_set1_ps(nrWeights[j])));
   _mm_storeu_ps(xyz,reference);clinicalNeckReference[i]={xyz[0],xyz[1],xyz[2]};
+ #endif
   nrPositions[i]=p;memcpy(nrPacked+i*32,&p,12);
  });
 #ifndef NO_CLINICAL_NECK
@@ -100,7 +110,14 @@ static void UpdateNeckRender(){PerfScope perf(13);
   if(nrDirect[nrIndices[k]]==65535||nrDirect[nrIndices[k+1]]==65535||nrDirect[nrIndices[k+2]]==65535)changedFaces.push_back(k);
  }uvReady=true;}
  memset(nrNormals,0,sizeof(nrNormals));memset(nrTangents,0,sizeof(nrTangents));
+ // Retained vertices copy their complete lighting basis from rsPacked.
+ // Only faces incident to inserted vertices contribute to a basis we write.
+ // Keep original triangle order so their accumulated floats remain exact.
+ #ifdef NO_CLINICAL_NECK
+ for(unsigned k:changedFaces){
+ #else
  for(unsigned k=0;k<nrIndexCount;k+=3){
+ #endif
   unsigned a=nrIndices[k],b=nrIndices[k+1],c=nrIndices[k+2];V3 e=nrPositions[b]-nrPositions[a],g=nrPositions[c]-nrPositions[a],n=Cross(g,e);
   nrNormals[a]=nrNormals[a]+n;nrNormals[b]=nrNormals[b]+n;nrNormals[c]=nrNormals[c]+n;
   const float* d=uv[k/3];if(fabsf(d[4])>1e-10f){V3 t=(e*d[3]-g*d[1])/d[4];nrTangents[a]=nrTangents[a]+t;nrTangents[b]=nrTangents[b]+t;nrTangents[c]=nrTangents[c]+t;}

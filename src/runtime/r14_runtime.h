@@ -265,12 +265,13 @@ static void UpdateR14(const unsigned char* source){PerfScope perf(5);
     const float* d=uv[k/3];float dv1=d[1],dv2=d[3],det=d[4];
     if(fabsf(det)>1e-10f){V3 t=(e1*dv2-e2*dv1)/det;r14Tangents[a]=r14Tangents[a]+t;r14Tangents[b]=r14Tangents[b]+t;r14Tangents[c]=r14Tangents[c]+t;}
   }
+  const V3 normalColumns[3]={Cross(columns[1],columns[2]),Cross(columns[2],columns[0]),Cross(columns[0],columns[1])};
   for(UINT i=0;i<r14Count;i++){
-    V3 n=Unit(r14Normals[i]);
+    V3 n;
     if(firmLobeMask[i]<=1e-6f&&undersideBlendMoved[i]<=1e-6f&&(i>=r14NewStart||(interLobeWebMask[i]<=1e-4f&&obliqueLobeMask[i]<=1e-4f))&&rapheSmoothFull[i]<=1e-4f&&(r14CustomNormals[i*3]!=0.f||r14CustomNormals[i*3+1]!=0.f||r14CustomNormals[i*3+2]!=0.f)){
       V3 custom{r14CustomNormals[i*3],r14CustomNormals[i*3+1],r14CustomNormals[i*3+2]};
-      n=Unit(Cross(columns[1],columns[2])*custom.x+Cross(columns[2],columns[0])*custom.y+Cross(columns[0],columns[1])*custom.z);
-    }
+      n=Unit(normalColumns[0]*custom.x+normalColumns[1]*custom.y+normalColumns[2]*custom.z);
+    }else n=Unit(r14Normals[i]);
     V3 t=r14Tangents[i]-n*Dot(n,r14Tangents[i]);
     if(Length(t)<1e-6f)t=Cross(fabsf(n.z)<.9f?V3{0,0,1}:V3{0,1,0},n);
     t=Unit(t);unsigned char* v=r14Packed+i*32;memcpy(v,&r14Positions[i],12);

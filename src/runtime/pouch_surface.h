@@ -33,9 +33,13 @@ static __m128 CPLevel4(CPPoints4 p,V3 radii){
   __m128 x=_mm_div_ps(_mm_div_ps(p.x,CPSplat(radii.x)),taper),y=_mm_div_ps(_mm_div_ps(p.y,CPSplat(radii.y)),taper);
   return _mm_sub_ps(_mm_sqrt_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(x,x),_mm_mul_ps(y,y)),_mm_mul_ps(z,z))),CPSplat(1.f));
 }
-static void CPKeepSkinOutside(){
+template<bool packedFair=false> static void CPKeepSkinOutside(__m128* fairPositions=nullptr){
  GeometryFor((cpActiveCount+3)/4,[&](unsigned group){unsigned k=group*4;
-  V3 p[4];for(unsigned lane=0;lane<4;lane++)p[lane]=rsPositions[cpActive[min(k+lane,cpActiveCount-1)]];
+  V3 p[4];for(unsigned lane=0;lane<4;lane++){
+   unsigned id=cpActive[min(k+lane,cpActiveCount-1)];
+   if constexpr(packedFair){float xyz[4];_mm_storeu_ps(xyz,fairPositions[id]);p[lane]={xyz[0],xyz[1],xyz[2]};}
+   else p[lane]=rsPositions[id];
+  }
   CPPoints4 points{_mm_set_ps(p[3].x,p[2].x,p[1].x,p[0].x),_mm_set_ps(p[3].y,p[2].y,p[1].y,p[0].y),_mm_set_ps(p[3].z,p[2].z,p[1].z,p[0].z)};
   for(int side=0;side<2;side++){
    V3 c=cpCenters[side];
@@ -54,7 +58,11 @@ static void CPKeepSkinOutside(){
    points={CPSelect(inside,x,points.x),CPSelect(inside,y,points.y),CPSelect(inside,z,points.z)};
   }
   float x[4],y[4],z[4];_mm_storeu_ps(x,points.x);_mm_storeu_ps(y,points.y);_mm_storeu_ps(z,points.z);
-  for(unsigned lane=0;lane<4&&k+lane<cpActiveCount;lane++)rsPositions[cpActive[k+lane]]={x[lane],y[lane],z[lane]};
+  for(unsigned lane=0;lane<4&&k+lane<cpActiveCount;lane++){
+   unsigned id=cpActive[k+lane];
+   if constexpr(packedFair)fairPositions[id]=_mm_set_ps(0.f,z[lane],y[lane],x[lane]);
+   else rsPositions[id]={x[lane],y[lane],z[lane]};
+  }
  });
 }
 static void ApplyPouchSurface(){PerfScope perf(11);
@@ -140,12 +148,12 @@ static void ApplyPouchSurface(){PerfScope perf(11);
    next[k]=_mm_add_ps(positions[id],_mm_mul_ps(_mm_sub_ps(_mm_div_ps(mean,counts[k]),positions[id]),amounts[k]));
   }
   for(unsigned k=0;k<cpFairCount;k++)positions[cpFair[k]]=next[k];
-  if(pass%5==4){
-   for(unsigned k=0;k<cpFairCount;k++){unsigned id=cpFair[k];float p[4];_mm_storeu_ps(p,positions[id]);rsPositions[id]={p[0],p[1],p[2]};}
-   CPKeepSkinOutside();
-   for(unsigned k=0;k<cpActiveCount;k++){unsigned id=cpActive[k];const V3& p=rsPositions[id];positions[id]=_mm_set_ps(0.f,p.z,p.y,p.x);}
-  }
+  // Project directly in the Jacobi workspace: the same coordinates and
+  // contact equations, without a V3 round trip after each five passes.
+  if(pass%5==4)CPKeepSkinOutside<true>(positions);
  }
+ for(unsigned k=0;k<cpFairCount;k++){unsigned id=cpFair[k];float p[4];_mm_storeu_ps(p,positions[id]);rsPositions[id]={p[0],p[1],p[2]};}
+ for(unsigned k=0;k<cpActiveCount;k++){unsigned id=cpActive[k];float p[4];_mm_storeu_ps(p,positions[id]);rsPositions[id]={p[0],p[1],p[2]};}
  // The collider and visible lower skin share the same pressure transform.
  CPKeepSkinOutside();
  for(unsigned i=0;i<r14Count;i++)r14Positions[i]=rsPositions[i];
