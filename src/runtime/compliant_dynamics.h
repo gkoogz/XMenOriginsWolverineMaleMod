@@ -197,12 +197,19 @@ static void PDApplySuspension(int s,V3 arm,V3 n,const V3 gradient[shaftNodeCount
 // The surrounding suspension tissue carries shear as well as tension.
 // Two compliant transverse strains prevent an unphysical free orbit about
 // a zero-bending-stiffness tether. They share the rod's reaction Jacobian.
-static void PDSuspensionShear(int s,float lambda[2],float dt){
+struct PDSuspensionData {float rest,hard,compliance,shearCompliance,ratio;};
+static PDSuspensionData PDPrepareSuspension(int s){
+ float rest=max(2.45f,Length(constraintBallRest[s]+CPRestSlack(s)-RestBallAnchor(s)));
+ float stiff=max(0.f,min(1.f,physUI[4]/100.f));
+ return {rest,rest*1.12f+CPRadii(s).y*.15f,.000053f*expf(-3.f*stiff),
+  .000022f*expf((.5f-physUI[4]/100.f)*3.f),.10f+.60f*(1.f-max(0.f,min(1.f,physUI[6]/100.f)))};
+}
+static void PDSuspensionShear(int s,float lambda[2],float dt,const PDSuspensionData& data){
  int id=pdBody0+s;V3 target=PDMaterialTarget(s),axis=Unit(target-BallAnchor(s));
  V3 directions[2]={Unit(Cross({0,1,0},axis)),{}};directions[1]=Cross(axis,directions[0]);
  // Let contacting lobes settle laterally without fighting a tight rest frame.
  // A modestly firmer neck web checks large swings without a travel barrier.
- float compliance=.000022f*expf((.5f-physUI[4]/100.f)*3.f);
+ float compliance=data.shearCompliance;
  for(int k=0;k<2;k++){
   V3 arm=cpBasis[s][2]*(CPRadii(s).z*.23f),n=directions[k],gradient[shaftNodeCount];target=PDMaterialTarget(s);
   float value=Dot(pdPosition[id]+arm-target,n),w=PDSuspensionMass(s,arm,n,gradient,true),alpha=compliance/(dt*dt);
@@ -212,19 +219,17 @@ static void PDSuspensionShear(int s,float lambda[2],float dt){
   PDApplySuspension(s,arm,n,gradient,dl);
  }
 }
-static void PDSuspension(int s,float& lambda,float& stop,float dt){
+static void PDSuspension(int s,float& lambda,float& stop,float dt,const PDSuspensionData& data){
  int id=pdBody0+s;V3 arm=cpBasis[s][2]*(CPRadii(s).z*.23f),anchor=BallAnchor(s),delta=pdPosition[id]+arm-anchor;
  float distance=Length(delta);if(distance<1e-7f)return;
  V3 n=delta/distance,gradient[shaftNodeCount];float w=PDSuspensionMass(s,arm,n,gradient);
- float rest=max(2.45f,Length(constraintBallRest[s]+CPRestSlack(s)-RestBallAnchor(s))),stiff=max(0.f,min(1.f,physUI[4]/100.f));
- float compliance=.000053f*expf(-3.f*stiff),alpha=compliance/(dt*dt);
- float ratio=.10f+.60f*(1.f-max(0.f,min(1.f,physUI[6]/100.f)));
+ float rest=data.rest,compliance=data.compliance,alpha=compliance/(dt*dt),ratio=data.ratio;
  float gamma=2.f*ratio*sqrtf(compliance/max(w,1e-8f))/dt;
  float rate=Dot(n,pdPosition[id]+arm-PDPreviousPoint(id,arm)-(anchor-pdPreviousAnchor[s]));
  float next=min(0.f,lambda+(-(distance-rest)-alpha*lambda-gamma*rate)/((1+gamma)*w+alpha));
  PDApplySuspension(s,arm,n,gradient,next-lambda);lambda=next;
  arm=cpBasis[s][2]*(CPRadii(s).z*.23f);delta=pdPosition[id]+arm-BallAnchor(s);distance=Length(delta);n=Unit(delta);
- w=PDSuspensionMass(s,arm,n,gradient);float hard=CPTetherLimit(s),nextStop=min(0.f,stop-(distance-hard)/max(w,1e-8f));
+ w=PDSuspensionMass(s,arm,n,gradient);float hard=data.hard,nextStop=min(0.f,stop-(distance-hard)/max(w,1e-8f));
  PDApplySuspension(s,arm,n,gradient,nextStop-stop);stop=nextStop;
 }
 static V3 PDClosest(V3 p,V3 a,V3 b,float& t){V3 e=b-a;t=max(0.f,min(1.f,Dot(p-a,e)/max(1e-8f,Dot(e,e))));return a+e*t;}
@@ -232,18 +237,18 @@ static V3 PDClosest(V3 p,V3 a,V3 b,float& t){V3 e=b-a;t=max(0.f,min(1.f,Dot(p-a,
 // Bound the contents below the proximal attachment in character space.
 // Keeping down vertical avoids driving them into the pelvis when the shaft
 // points down and its rotated ventral direction points backwards.
-static void PDVentralFrame(const V3* positions,V3& center,V3& down){
- float u=.12f*(shaftNodeCount-1);int span=int(u);float q=u-span,q2=q*q,q3=q2*q;
- float weights[4]={-.5f*(q3-2*q2+q),2*q3-3*q2+1-.5f*(q3-q2),-2*q3+3*q2+.5f*(q3-2*q2+q),.5f*(q3-q2)};
- center={};for(int k=0;k<4;k++)center=center+positions[span-1+k]*weights[k];
- down={0,0,-1};
+static float PDVentralHeight(const V3* positions){
+ constexpr float u=.12f*(shaftNodeCount-1);constexpr int span=int(u);
+ constexpr float q=u-span,q2=q*q,q3=q2*q;
+ return positions[span-1].z*(-.5f*(q3-2*q2+q))+
+  positions[span].z*(2*q3-3*q2+1-.5f*(q3-q2))+
+  positions[span+1].z*(-2*q3+3*q2+.5f*(q3-2*q2+q))+
+  positions[span+2].z*(.5f*(q3-q2));
 }
-static void PDKeepPouchVentral(V3 correction[2]){
- V3 center{},down{};PDVentralFrame(pdPosition,center,down);
- for(int s=0;s<2;s++){
-  float missing=logicalShaftBodyRadius*.10f-Dot(pdPosition[pdBody0+s]-center,down);
-  if(missing<=0.f)continue;
-  V3 shift=down*missing;pdPosition[pdBody0+s]=pdPosition[pdBody0+s]+shift;correction[s]=correction[s]+shift;
+static void PDKeepPouchVentral(float correction[2]){
+ float ceiling=PDVentralHeight(pdPosition)-logicalShaftBodyRadius*.10f;
+ for(int s=0;s<2;s++)if(pdPosition[pdBody0+s].z>ceiling){
+  correction[s]+=ceiling-pdPosition[pdBody0+s].z;pdPosition[pdBody0+s].z=ceiling;
  }
 }
 static V3 PDSkinSupport(int s,V3 n){
@@ -254,17 +259,17 @@ static V3 PDSkinSupport(int s,V3 n){
  return CPTransform(CPSupportLocal(CPTranspose(n,s),outer),s);
 }
 static void PDRecoverPouchVentral(){
- V3 center{},down{};PDVentralFrame(pdPosition,center,down);
+ float height=PDVentralHeight(pdPosition);
  for(int s=0;s<2;s++){
-  int id=pdBody0+s;float depth=Dot(pdPosition[id]-center,down);
+  int id=pdBody0+s;float depth=height-pdPosition[id].z;
   if(depth>=0.f)continue;
   // Recover an existing invalid state outside the shaft before recording
   // history. Merely putting its centre on the underside leaves the whole
   // ovoid inside the rod, making contact separation supply a large impulse.
-  float clearance=logicalShaftBodyRadius+Dot(PDSkinSupport(s,down*-1.f),down*-1.f)+.05f;
+  float clearance=logicalShaftBodyRadius+PDSkinSupport(s,{0,0,1}).z+.05f;
   V3 target=PDMaterialTarget(s)-cpBasis[s][2]*(CPRadii(s).z*.23f);
-  float targetDepth=Dot(target-center,down);
-  pdPosition[id]=target+down*max(0.f,clearance-targetDepth);
+  target.z=min(target.z,height-clearance);
+  pdPosition[id]=target;
   pdVelocity[id]={};cpOmega[s]={};
  }
 }
@@ -377,7 +382,8 @@ static void StepConstraintSolver(float dt,float gait,float side){
  }
  V3 root=ShaftRoot(),direction=LiveRootDirection();float segment=constraintRestLength/(shaftNodeCount-1);
  pdPosition[0]=root;pdPosition[1]=root+direction*segment;
- float lengthLambda[shaftNodeCount]{},tetherLambda[2]{},stopLambda[2]{},shearLambda[2][2]{};V3 bendLambda[shaftNodeCount]{},ventralCorrection[2]{};
+ float lengthLambda[shaftNodeCount]{},tetherLambda[2]{},stopLambda[2]{},shearLambda[2][2]{};V3 bendLambda[shaftNodeCount]{};float ventralCorrection[2]{};
+ PDSuspensionData suspensionData[2]={PDPrepareSuspension(0),PDPrepareSuspension(1)};
  PDConstraint pair,thigh[2][2],pelvis[2],rodContact[2][shaftNodeCount],rodThigh[shaftNodeCount][2];
  float stiffness=max(0.f,min(1.f,physUI[0]/100.f));float bendCompliance=ModeValue(.00000001f,.00008f,.0015f)*expf((.5f-stiffness)*3.f);
  // These depend on this substep's rest inputs and masses, not the evolving
@@ -392,7 +398,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
   // flexural compliance increases continuously toward the free end.
   for(int i=1;i<shaftNodeCount-1;i++)PDBendPrepared(i,bendData[i],bendLambda[i]);
   for(int i=0;i<shaftNodeCount;i++)shaftNodes[i]=pdPosition[i];PDSync();
-  for(int s=0;s<2;s++){PDSuspensionShear(s,shearLambda[s],dt);PDSuspension(s,tetherLambda[s],stopLambda[s],dt);}
+  for(int s=0;s<2;s++){PDSuspensionShear(s,shearLambda[s],dt,suspensionData[s]);PDSuspension(s,tetherLambda[s],stopLambda[s],dt,suspensionData[s]);}
   for(int s=0;s<2;s++){
    for(int j=0;j<2;j++)PDBodyCapsule(thigh[s][j],s,pdThigh[j*2],pdThigh[j*2+1],pdOldThigh[j*2],pdOldThigh[j*2+1],7.2f,dt);
    PDBodyCapsule(pelvis[s],s,{3.f,0.f,70.f},{5.4f,0.f,86.f},{3.f,0.f,70.f},{5.4f,0.f,86.f},6.4f,dt);
@@ -409,26 +415,23 @@ static void StepConstraintSolver(float dt,float gait,float side){
  pdVelocityPass=false;
  // Exclude underside recovery from reconstructed velocity. A lobe that was
  // already above the shaft must recover without gaining a launch impulse.
- for(int s=0;s<2;s++)pdOldPosition[pdBody0+s]=pdOldPosition[pdBody0+s]+ventralCorrection[s];
+ for(int s=0;s<2;s++)pdOldPosition[pdBody0+s].z+=ventralCorrection[s];
  // One velocity update from the accepted positions and corrected history.
  for(int i=0;i<pdCount;i++)pdVelocity[i]=(pdPosition[i]-pdOldPosition[i])/dt;
  for(int s=0;s<2;s++){
   V3 spin{};for(int j=0;j<3;j++)spin=spin+Cross(pdOldBasis[s][j],cpBasis[s][j]);cpOmega[s]=spin*(.5f/dt);
  }
  PDSolveContactVelocities(dt);
- V3 ventralCenter{},ventralDown{},oldCenter{},oldDown{};
- PDVentralFrame(pdPosition,ventralCenter,ventralDown);PDVentralFrame(pdOldPosition,oldCenter,oldDown);
- for(int s=0;s<2;s++)if(Dot(ventralCorrection[s],ventralCorrection[s])>1e-12f){
-  V3 guideVelocity=(ventralCenter-oldCenter)/dt;
-  float outward=Dot(pdVelocity[pdBody0+s]-guideVelocity,ventralDown);
-  if(outward<0.f)pdVelocity[pdBody0+s]=pdVelocity[pdBody0+s]-ventralDown*outward;
+ if(ventralCorrection[0]<0.f||ventralCorrection[1]<0.f){
+  float guideVelocity=(PDVentralHeight(pdPosition)-PDVentralHeight(pdOldPosition))/dt;
+  for(int s=0;s<2;s++)if(ventralCorrection[s]<0.f)pdVelocity[pdBody0+s].z=min(pdVelocity[pdBody0+s].z,guideVelocity);
  }
  for(int i=0;i<shaftNodeCount;i++){shaftNodes[i]=pdPosition[i];shaftPrevious[i]=pdPosition[i]-pdVelocity[i]*dt;}
  PDSync();
  for(int s=0;s<2;s++){
   pdPreviousAnchor[s]=BallAnchor(s);pdPreviousMaterial[s]=PDMaterialTarget(s);ballPrevious[s]=ballNodes[s]-pdVelocity[pdBody0+s]*dt;V3 oldNeck=neckNodes[s],oldNut=nutNodes[s];
-  neckNodes[s]=BallAnchor(s)+(ballNodes[s]-BallAnchor(s))*.43f;nutNodes[s]=pdPosition[pdBody0+s];neckPrevious[s]=oldNeck;nutPrevious[s]=oldNut;
-  pdMaxTetherRatio=max(pdMaxTetherRatio,Length(ballNodes[s]-BallAnchor(s))/CPTetherLimit(s));
+  neckNodes[s]=pdPreviousAnchor[s]+(ballNodes[s]-pdPreviousAnchor[s])*.43f;nutNodes[s]=pdPosition[pdBody0+s];neckPrevious[s]=oldNeck;nutPrevious[s]=oldNut;
+  pdMaxTetherRatio=max(pdMaxTetherRatio,Length(ballNodes[s]-pdPreviousAnchor[s])/suspensionData[s].hard);
   // Force-derived bounded yielding, shared by collision and skin transforms.
   pdPairForce=pair.normal/(dt*dt);
   float load=0.f;int contact=1;for(int j=1;j<shaftNodeCount-2;j++)if(rodContact[s][j].normal>load){load=rodContact[s][j].normal;contact=j;}
