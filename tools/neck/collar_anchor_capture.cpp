@@ -7,6 +7,10 @@ static void Capture(const char* path){
   if(!file){fprintf(stderr,"cannot open %s\n",path);exit(2);}
   fwrite(nrPacked,32,nrCount,file);
   fwrite(shaftNodes,sizeof(shaftNodes),1,file);
+  void* body=nullptr;
+  if(FAILED(graftBuffer->Lock(0,0,&body,0))){fclose(file);exit(3);}
+  fwrite(body,32,50915,file);
+  graftBuffer->Unlock();
   fclose(file);
   printf("%s root=(%.3f,%.3f,%.3f) middle=(%.3f,%.3f,%.3f) tip=(%.3f,%.3f,%.3f)\n",
          path,shaftNodes[0].x,shaftNodes[0].y,shaftNodes[0].z,
