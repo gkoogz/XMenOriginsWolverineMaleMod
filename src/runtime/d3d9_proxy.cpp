@@ -750,7 +750,7 @@ static void ApplyPelvisCollar(float value[3],float distance,float growth,bool gr
     // Lift the local minimum primarily in dorsal radius and secondarily in
     // forward projection.  This enlarges the collar/ramp, not the shaft body.
     float upperRadial=1.f+.360f*growth*support;
-    value[0]+=.50f*growth*support;
+    value[0]+=.25f*growth*support;
     value[1]*=1.f+.070f*growth*support;
     value[2]=84.3f+(value[2]-84.3f)*upperRadial;
   }
@@ -1362,9 +1362,10 @@ static void ApplyConstraintCurve(float value[3],UINT i){
   // t=.278, so the former .14 transition made solver influence jump straight
   // from zero to one.  A longer C2 ramp distributes deformation through the
   // proximal rings and cannot manufacture a hinge at the ball junction.
-  // Spread constraint influence well beyond the sparse first shaft rings so
-  // the root, semi, and floppy states share one continuous bend gradient.
-  float t=max(0.f,min(1.f,phys_flex_coordinate[i]));active*=Smoother01(t/.78f);
+  // Let the proximal shaft follow the solver sooner, so the visible fixed
+  // collar does not read as a long rigid cone ahead of the moving shaft.
+  // Keep a C2 fade through the shared root rather than adding a new hinge.
+  float t=max(0.f,min(1.f,phys_flex_coordinate[i]));active*=Smoother01(t/.48f);
   // Keep the authored head offsets during semi/floppy transport, rather than
   // collapsing the lip back onto a series of centerline cross-sections.
   float distal=physicsState>0?Smoother01((phys_flex_coordinate[i]-.67f)/.10f):0.f;

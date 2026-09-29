@@ -16,7 +16,7 @@ static void BuildPreparedShape(unsigned char* controlled,UINT graftFirstVertex,V
   // Recruit extra pelvis only beyond the neutral diameter; retain its exact
   // original shape below that threshold and ease into the large-size ramp.
   preparedPelvicRampBlend=Smoother01((collarGrowth-.15f)/1.0f);
-  preparedPelvicSeamLift=.46f+(1.08f+.22f*preparedPelvicRampBlend)*collarGrowth;
+  preparedPelvicSeamLift=.46f+(.75f+.10f*preparedPelvicRampBlend)*collarGrowth;
   preparedPelvicLateralGrowth=(.14f+.41f*preparedPelvicRampBlend)*collarGrowth;
   for(UINT i=0;i<pelvisControlCount;i++){
     float value[3]={pelvisControlBasePositions[i*3],pelvisControlBasePositions[i*3+1],pelvisControlBasePositions[i*3+2]};

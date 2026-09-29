@@ -63,7 +63,7 @@ static void Build(V3 root,V3 axis,V3 up,float radius,float length){
  float growth=Smoother01((radius-2.9f)/4.72f);
  for(unsigned i=0;i<ucCount;i++){
   V3 p=Point(before,i),q=p-root;float s=Dot(q,axis),y=q.y,z=Dot(q,up),rho=sqrtf(y*y+z*z),upper=(z/max(rho,1e-8f)+1)*.5f;
-  float reach=5+growth*(5+5*upper);
+  float reach=5+growth*(2.5f+2.5f*upper);
   double w=Smoother01((s+reach)/3)*(1-Smoother01((s/length-.12f)/.26f));
   w*=1-Smoother01((rho-(radius*1.55f+2))/3);
   float ventralReach=4+4*Smoother01((radius-2.7f)/1.1f);
