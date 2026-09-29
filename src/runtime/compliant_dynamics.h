@@ -228,12 +228,45 @@ static void PDSuspension(int s,float& lambda,float& stop,float dt){
  PDApplySuspension(s,arm,n,gradient,nextStop-stop);stop=nextStop;
 }
 static V3 PDClosest(V3 p,V3 a,V3 b,float& t){V3 e=b-a;t=max(0.f,min(1.f,Dot(p-a,e)/max(1e-8f,Dot(e,e))));return a+e*t;}
+// Symmetric shaft contact also admits a perched solution above the rod.
+// Bound the contents below the proximal attachment in character space.
+// Keeping down vertical avoids driving them into the pelvis when the shaft
+// points down and its rotated ventral direction points backwards.
+static void PDVentralFrame(const V3* positions,V3& center,V3& down){
+ float u=.12f*(shaftNodeCount-1);int span=int(u);float q=u-span,q2=q*q,q3=q2*q;
+ float weights[4]={-.5f*(q3-2*q2+q),2*q3-3*q2+1-.5f*(q3-q2),-2*q3+3*q2+.5f*(q3-2*q2+q),.5f*(q3-q2)};
+ center={};for(int k=0;k<4;k++)center=center+positions[span-1+k]*weights[k];
+ down={0,0,-1};
+}
+static void PDKeepPouchVentral(V3 correction[2]){
+ V3 center{},down{};PDVentralFrame(pdPosition,center,down);
+ for(int s=0;s<2;s++){
+  float missing=logicalShaftBodyRadius*.10f-Dot(pdPosition[pdBody0+s]-center,down);
+  if(missing<=0.f)continue;
+  V3 shift=down*missing;pdPosition[pdBody0+s]=pdPosition[pdBody0+s]+shift;correction[s]=correction[s]+shift;
+ }
+}
 static V3 PDSkinSupport(int s,V3 n){
  V3 r=CPRadii(s),scale=CPDiv(r,s?V3{5.724f,4.86f,7.81f}:V3{5.724f,4.86f,7.93f});
  // Match the enclosing skin used by ApplyPouchSurface, not an enlarged
  // sphere or the smaller internal support alone.
  V3 outer=r+CPMul({.80f,.95f,.65f},scale);
  return CPTransform(CPSupportLocal(CPTranspose(n,s),outer),s);
+}
+static void PDRecoverPouchVentral(){
+ V3 center{},down{};PDVentralFrame(pdPosition,center,down);
+ for(int s=0;s<2;s++){
+  int id=pdBody0+s;float depth=Dot(pdPosition[id]-center,down);
+  if(depth>=0.f)continue;
+  // Recover an existing invalid state outside the shaft before recording
+  // history. Merely putting its centre on the underside leaves the whole
+  // ovoid inside the rod, making contact separation supply a large impulse.
+  float clearance=logicalShaftBodyRadius+Dot(PDSkinSupport(s,down*-1.f),down*-1.f)+.05f;
+  V3 target=PDMaterialTarget(s)-cpBasis[s][2]*(CPRadii(s).z*.23f);
+  float targetDepth=Dot(target-center,down);
+  pdPosition[id]=target+down*max(0.f,clearance-targetDepth);
+  pdVelocity[id]={};cpOmega[s]={};
+ }
 }
 static float pdBroadRadius[2];
 static bool PDCapsuleMayContact(const PDConstraint& c,int s,V3 a,V3 b,float radius){
@@ -326,6 +359,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
  float shaftMass=.75f+physValues[1]*.0125f,bodyMass=.75f+physValues[5]*.0125f;
  for(int i=0;i<shaftNodeCount;i++){pdPosition[i]=shaftNodes[i];pdInvMass[i]=i<2?0.f:1.f/shaftMass;}
  for(int s=0;s<2;s++){if(!initialized)pdPosition[pdBody0+s]=CPCenter(s);pdInvMass[pdBody0+s]=1.f/bodyMass;pdInvInertia[s]=5.f/(bodyMass*Dot(CPRadii(s),CPRadii(s)));for(int j=0;j<3;j++)pdOldBasis[s][j]=cpBasis[s][j];}
+ PDRecoverPouchVentral();
  memcpy(pdOldPosition,pdPosition,sizeof(pdPosition));
  float shaftDrag=.9f+(100.f-physUI[2])*.018f,bodyDrag=1.f+(100.f-physUI[6])*.025f;
  for(int i=2;i<pdCount;i++){
@@ -343,7 +377,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
  }
  V3 root=ShaftRoot(),direction=LiveRootDirection();float segment=constraintRestLength/(shaftNodeCount-1);
  pdPosition[0]=root;pdPosition[1]=root+direction*segment;
- float lengthLambda[shaftNodeCount]{},tetherLambda[2]{},stopLambda[2]{},shearLambda[2][2]{};V3 bendLambda[shaftNodeCount]{};
+ float lengthLambda[shaftNodeCount]{},tetherLambda[2]{},stopLambda[2]{},shearLambda[2][2]{};V3 bendLambda[shaftNodeCount]{},ventralCorrection[2]{};
  PDConstraint pair,thigh[2][2],pelvis[2],rodContact[2][shaftNodeCount],rodThigh[shaftNodeCount][2];
  float stiffness=max(0.f,min(1.f,physUI[0]/100.f));float bendCompliance=ModeValue(.00000001f,.00008f,.0015f)*expf((.5f-stiffness)*3.f);
  // These depend on this substep's rest inputs and masses, not the evolving
@@ -370,15 +404,25 @@ static void StepConstraintSolver(float dt,float gait,float side){
    PDContact(rodThigh[i][j],i,{},-1,{},q,old,n,gap,.000002f,dt);
   }
   PDPair(pair,dt);
+  PDKeepPouchVentral(ventralCorrection);
  }
  pdVelocityPass=false;
- // One velocity update from accepted positions. No velocity-generating
- // hard projections or displacement caps are layered on afterwards.
+ // Exclude underside recovery from reconstructed velocity. A lobe that was
+ // already above the shaft must recover without gaining a launch impulse.
+ for(int s=0;s<2;s++)pdOldPosition[pdBody0+s]=pdOldPosition[pdBody0+s]+ventralCorrection[s];
+ // One velocity update from the accepted positions and corrected history.
  for(int i=0;i<pdCount;i++)pdVelocity[i]=(pdPosition[i]-pdOldPosition[i])/dt;
  for(int s=0;s<2;s++){
   V3 spin{};for(int j=0;j<3;j++)spin=spin+Cross(pdOldBasis[s][j],cpBasis[s][j]);cpOmega[s]=spin*(.5f/dt);
  }
  PDSolveContactVelocities(dt);
+ V3 ventralCenter{},ventralDown{},oldCenter{},oldDown{};
+ PDVentralFrame(pdPosition,ventralCenter,ventralDown);PDVentralFrame(pdOldPosition,oldCenter,oldDown);
+ for(int s=0;s<2;s++)if(Dot(ventralCorrection[s],ventralCorrection[s])>1e-12f){
+  V3 guideVelocity=(ventralCenter-oldCenter)/dt;
+  float outward=Dot(pdVelocity[pdBody0+s]-guideVelocity,ventralDown);
+  if(outward<0.f)pdVelocity[pdBody0+s]=pdVelocity[pdBody0+s]-ventralDown*outward;
+ }
  for(int i=0;i<shaftNodeCount;i++){shaftNodes[i]=pdPosition[i];shaftPrevious[i]=pdPosition[i]-pdVelocity[i]*dt;}
  PDSync();
  for(int s=0;s<2;s++){
