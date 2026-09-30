@@ -1,0 +1,11 @@
+# 2.0 Beta packaging
+
+The initial DLL-only upload was incomplete and has been replaced with the established full release format. Runtime source and binary are unchanged by the packaging correction. All published 1.9 asset hashes were verified before reuse, and installed Natural/WGame/WStart packages and body textures match those assets exactly.
+
+Included: current d3d9.dll, three WBX deltas, two PNG and two DDS state-specific whole-body skin textures, two menu blend textures, shared normal/specular DDS maps, 22 public default idle WAV clips, camera/fluid defaults, checksum manifest, installer, install/upgrade/uninstall/rollback launchers, current runtime source, build commands and regression tools. Excluded: complete game packages, private recordings, user settings/backups, raw logs, capture banks, unrelated previous releases and obsolete 1.9 runtime source.
+
+Install.ps1 checks all payload/audio checksums and supported game-package input hashes before replacing files. Backups and installed hashes are recorded under a version-specific directory. Rollback verifies original backup hashes and the installed state before restoration. Custom fluid/shape/camera settings are preserved. Newly created camera defaults remain after rollback by design.
+
+The full 1.9 ZIP measured 182.16 MiB (191 MB decimal). Approximate compressed contributors: game deltas 32.15 MiB; two skin DDS files 39.71 MiB; four PNG files 45.23 MiB; DLL 15.30 MiB; normal/specular DDS 9.39 MiB. The remainder includes public audio, source/data and fixtures. Each skin DDS occupies 85.33 MiB uncompressed and includes precomputed mipmaps. PNGs are runtime fallbacks, so carrying both has download cost but preserves existing loading behavior. Texture consolidation/resolution changes are not part of this runtime-preserving release correction.
+
+Installer validation: clean stock-package installation and exact approved-patched-package upgrade, reconstructed output hashes, every installed payload hash, prior-file restoration, removal of newly created payloads, and existing fluid/camera settings preservation. Stock fixtures were recovered locally by reversing the released XOR deltas against hash-verified installed packages and then verified against all three original manifest hashes. No stock fixtures or full game packages are distributed.
