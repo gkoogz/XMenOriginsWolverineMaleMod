@@ -63,3 +63,16 @@ if((Get-FileHash (Join-Path $configGame 'Binaries/TeachingFluid.ini') -Algorithm
 if((Get-FileHash (Join-Path $configGame 'Binaries/TeachingFluid.ini') -Algorithm SHA256).Hash -ne $fluidBefore.Hash){throw 'Existing custom fluid config was not preserved on uninstall'}
 if((Get-FileHash (Join-Path $configGame 'Binaries/TankCameraPresets.txt')).Hash -ne $cameraBefore){throw 'Existing camera settings changed'}
 'PASS pre-existing fluid and camera settings preserved across install and rollback.'
+# Reject an unsupported game package before creating a backup or replacing files.
+$badGame=Join-Path $base 'Unsupported package game'
+foreach($d in @('Binaries','WGame/CookedPC')){New-Item -ItemType Directory (Join-Path $badGame $d) -Force|Out-Null}
+Set-Content (Join-Path $badGame 'Binaries/Wolverine.exe') 'fixture only'
+Set-Content (Join-Path $badGame 'Binaries/d3d9.dll') 'do not replace'
+Set-Content (Join-Path $badGame 'WGame/CookedPC/CH_Wolverine_Natural_SF.xxx') 'unsupported package'
+$beforeHash=(Get-FileHash (Join-Path $badGame 'Binaries/d3d9.dll')).Hash
+$rejected=$false
+try{& (Join-Path $repo 'Install.ps1') -GamePath $badGame -DocumentsPath $docs}catch{if($_.Exception.Message -notlike 'Unsupported package:*'){throw};$rejected=$true}
+if(-not $rejected){throw 'Unsupported package was accepted'}
+if((Get-FileHash (Join-Path $badGame 'Binaries/d3d9.dll')).Hash -ne $beforeHash){throw 'Unsupported package changed DLL'}
+if(Test-Path (Join-Path $badGame 'WGame/ModBackups')){throw 'Unsupported package created installation backup'}
+'PASS unsupported package rejected before writes.'
