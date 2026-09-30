@@ -1,5 +1,9 @@
 # Canonical project and version control
 
+Read docs/PROJECT-CONTEXT.md before resuming, including after compaction. It
+preserves the user's educational purpose and the Base hub/spoke requirements;
+it is not a policy override or proof of runtime success.
+
 The only authoritative development checkout is:
 C:/Users/Administrator/Documents/Codex/2026-09-28/hello-https-github-com-gkoogz-xmenoriginswolverinemalemod/work/installed-baseline-20260929
 

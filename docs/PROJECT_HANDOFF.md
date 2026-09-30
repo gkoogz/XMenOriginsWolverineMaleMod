@@ -1,5 +1,8 @@
 # Project handoff — 2.0 Beta 1, 2026-09-29
 
+Read [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md) for the durable educational purpose
+and the Base hub/spoke architecture before resuming from this runtime checkpoint.
+
 Release target: `gkoogz/XMenOriginsWolverineMaleMod`, tag `v2.0.0-beta.1`, GitHub prerelease. The source snapshot derives from local release commit `65a1983`; the beta metadata commit does not alter the runtime binary. This tag contains the canonical runtime source snapshot rather than a merge into the older repository default branch.
 
 The currently installed and packaged DLL has SHA-256 `FED0695979D6DA9D0C7B21466FF9E1F36009E496687E89A552AA443737C1B71D`. It uses 35,000 anatomy triangles and 32,000 rounded support triangles. Required pressure-field support points and the original coarse motion cage remain; no 61,378-face runtime anatomy fallback remains.
