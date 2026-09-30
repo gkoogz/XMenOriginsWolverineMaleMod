@@ -5,3 +5,7 @@
 *.dll
 /backups/
 *.log
+
+/payload/
+/releases/*.zip
+
