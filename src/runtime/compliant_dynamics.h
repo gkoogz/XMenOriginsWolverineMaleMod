@@ -312,12 +312,14 @@ static void PDBodyCapsule(PDConstraint& c,int s,V3 a,V3 b,V3 oldA,V3 oldB,float 
  PDContact(c,id,arm,-1,{},q,oldA+(oldB-oldA)*t,n,gap,.000002f,dt);
 }
 static void PDRodBody(PDConstraint& c,int s,int j,float dt){
- float radius=logicalShaftBodyRadius*(.88f+.12f*min(1.f,float(j)/4.f));
+ // The measured radius is a mean barrel radius, not the ventral/raphe extent.
+ // Cover the authored bulge (up to 1.35x in posed captures) with modest slack.
+ float radius=logicalShaftBodyRadius*(1.20f+.20f*min(1.f,float(j)/4.f));
  if(!PDCapsuleMayContact(c,s,pdPosition[j],pdPosition[j+1],radius))return;
  int id=pdBody0+s;float t;V3 q{},arm{},n=PDContactNormal(c,s,pdPosition[j],pdPosition[j+1],arm,q,t);
  float gap=Dot(pdPosition[id]+arm-q,n)-radius;
  PDRecord(c,id,arm,-1,{},n,{},j,t);
- float w0=pdInvMass[j]*(1-t)*(1-t),w1=pdInvMass[j+1]*t*t,body=PDEffectiveMass(id,arm,n),alpha=.000001f/(dt*dt);
+ float w0=pdInvMass[j]*(1-t)*(1-t),w1=pdInvMass[j+1]*t*t,body=PDEffectiveMass(id,arm,n),alpha=.0000001f/(dt*dt);
  float next=max(0.f,c.normal-(gap+alpha*c.normal)/(body+w0+w1+alpha)),dl=next-c.normal;c.normal=next;
  PDAnchorContact(c,id,arm,-1,{},{},{},j,t);
  PDApply(id,arm,n*dl);pdPosition[j]=pdPosition[j]-n*(dl*pdInvMass[j]*(1-t));pdPosition[j+1]=pdPosition[j+1]-n*(dl*pdInvMass[j+1]*t);
@@ -363,7 +365,9 @@ static void StepConstraintSolver(float dt,float gait,float side){
  if(!pdReady){for(int i=0;i<pdCount;i++)pdVelocity[i]={};for(int s=0;s<2;s++)pdPreviousAnchor[s]=BallAnchor(s);for(int s=0;s<2;s++)pdPreviousMaterial[s]=PDMaterialTarget(s);pdReady=true;}
  float shaftMass=.75f+physValues[1]*.0125f,bodyMass=.75f+physValues[5]*.0125f;
  for(int i=0;i<shaftNodeCount;i++){pdPosition[i]=shaftNodes[i];pdInvMass[i]=i<2?0.f:1.f/shaftMass;}
- for(int s=0;s<2;s++){if(!initialized)pdPosition[pdBody0+s]=CPCenter(s);pdInvMass[pdBody0+s]=1.f/bodyMass;pdInvInertia[s]=5.f/(bodyMass*Dot(CPRadii(s),CPRadii(s)));for(int j=0;j<3;j++)pdOldBasis[s][j]=cpBasis[s][j];}
+ // Include the attached neck tissue in angular inertia: contact impulses
+ // should move the suspended contents more readily than roll them over.
+ for(int s=0;s<2;s++){if(!initialized)pdPosition[pdBody0+s]=CPCenter(s);pdInvMass[pdBody0+s]=1.f/bodyMass;pdInvInertia[s]=1.5f/(bodyMass*Dot(CPRadii(s),CPRadii(s)));for(int j=0;j<3;j++)pdOldBasis[s][j]=cpBasis[s][j];}
  PDRecoverPouchVentral();
  memcpy(pdOldPosition,pdPosition,sizeof(pdPosition));
  float shaftDrag=.9f+(100.f-physUI[2])*.018f,bodyDrag=1.f+(100.f-physUI[6])*.025f;
@@ -378,7 +382,9 @@ static void StepConstraintSolver(float dt,float gait,float side){
   V3 up=cpBasis[s][2],forward=Unit(Cross({0,1,0},up));
   float twist=atan2f(Dot(up,Cross(cpBasis[s][0],forward)),Dot(cpBasis[s][0],forward));
   float torsion=20.f*expf((physUI[4]/100.f-.5f)*2.f);
-  V3 torque=Cross(up,CPDesiredUp(s))*10.f+up*(twist*torsion);cpOmega[s]=(cpOmega[s]+torque*dt)*expf(-11.f*dt);PDRotateBody(s,cpOmega[s]*dt);
+  // Reinforce upright support through the existing orientation spring only.
+  // Stronger restoring torque and damping resist inversion without new work.
+  V3 torque=Cross(up,CPDesiredUp(s))*20000.f+up*(twist*torsion);cpOmega[s]=(cpOmega[s]+torque*dt)*expf(-120.f*dt);PDRotateBody(s,cpOmega[s]*dt);
  }
  V3 root=ShaftRoot(),direction=LiveRootDirection();float segment=constraintRestLength/(shaftNodeCount-1);
  pdPosition[0]=root;pdPosition[1]=root+direction*segment;

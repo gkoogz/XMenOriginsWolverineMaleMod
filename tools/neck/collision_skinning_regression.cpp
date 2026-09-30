@@ -24,6 +24,36 @@ static bool Run(){
   CHECK(expected.size()==fluidCollisionVertices.size());CHECK(memcmp(expected.data(),fluidCollisionVertices.data(),expected.size()*sizeof(V3))==0);
   CHECK(triangles.size()==fluidCollisionTriangles.size());for(unsigned i=0;i<triangles.size();i++){const auto&a=triangles[i];const auto&b=fluidCollisionTriangles[i];CHECK(a.a==b.a&&a.b==b.b&&a.c==b.c&&a.section==b.section&&a.source==b.source);}
  }
+ // Compact topology is the only anatomy collider. Cached triangle/barycentric
+ // anchors must still resolve after deformation and a BVH refit.
+ ResetFluidCollision();
+ FluidAppendSection(nrPacked,nrCount,nrIndices,nrIndexCount/3,nullptr,nullptr,0,2,false,true);
+ CHECK(fluidCollisionTriangles.size()==35000&&nrIndexCount/3==35000);
+ fluidTriangleOrder.resize(fluidCollisionTriangles.size());
+ for(unsigned i=0;i<fluidTriangleOrder.size();i++)fluidTriangleOrder[i]=i;
+ FluidBuildBvh(0,(unsigned)fluidTriangleOrder.size());FluidRefitBvh(0);
+ for(unsigned i=0;i<fluidCollisionTriangles.size();i++){
+  const auto& t=fluidCollisionTriangles[i];CHECK(t.source==i&&t.section==2);
+  CHECK(t.a<nrCount&&t.b<nrCount&&t.c<nrCount);
+ }
+ for(unsigned frame=0;frame<12;frame++){
+  UpdateConstraintSolver(1.f/60.f,.1f,sinf(frame*.3f)*.2f);ApplyShape();
+  fluidCollisionVertices.clear();
+  FluidAppendSection(nrPacked,nrCount,nrIndices,nrIndexCount/3,nullptr,nullptr,0,2,false,false);
+  FluidRefitBvh(0);
+  for(unsigned i=0;i<35000;i+=173){
+   const auto& t=fluidCollisionTriangles[i];V3 p,n;
+   CHECK(FluidResolveBodyAnchor(i,.2f,.3f,p,n));
+   V3 a,b,c;memcpy(&a,nrPacked+t.a*32,12);memcpy(&b,nrPacked+t.b*32,12);memcpy(&c,nrPacked+t.c*32,12);
+   CHECK(Length(p-(a*.5f+b*.2f+c*.3f))<1e-5f);
+   if(Length(Cross(b-a,c-a))>1e-5f){
+    volumeFluid::FluidImpact hit{};float best=1.f;
+    CHECK(FluidBodySweep(p+n*.02f,p-n*.02f,0,hit,best,false));
+    CHECK(hit.triangle<fluidCollisionTriangles.size());
+   }
+  }
+ }
+ printf("PASS compact 35,000-triangle collider: valid source IDs, 12 BVH refits, 2,436 moving barycentric anchors and body sweeps\n");
  double serial=0,batched=0;
  for(unsigned i=0;i<120;i++){
   bool first=i%2==0;

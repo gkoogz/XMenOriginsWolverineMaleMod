@@ -28,7 +28,6 @@ struct RSPreparedFrame {
 };
 #include "pouch_surface.h"
 #include "raphe_tube_surface.h"
-#include "clinical_collar.h"
 static void ApplyRoundedShape(unsigned char* body){PerfScope perf(7);
   memcpy(rsBefore,r14Positions,sizeof(rsBefore));memset(rsStep,0,sizeof(rsStep));memset(rsBodyStep,0,sizeof(rsBodyStep));
   V3 live=Unit(shaftNodes[5]-shaftNodes[1]);float attachment=Smoother01((live.x+.15f)/.5f)*Smoother01((live.z+.05f)/.50f)*ModeValue(1.f,1.f,0.f);
@@ -92,9 +91,6 @@ static void ApplyRoundedShape(unsigned char* body){PerfScope perf(7);
   for(unsigned k=0;k<rsFineCount;k++)rsPositions[r14Count+k]=fineBase[k]+fineStep[k]*fineFraction;
   ApplyPouchSurface();
   ApplyRapheTubeSkin(body);
-#ifndef NO_CLINICAL_COLLAR
-  ApplyClinicalCollar(body);
-#endif
   memcpy(rsPacked,r14Packed,sizeof(r14Packed));
   static bool attributesReady=false;
   if(!attributesReady)for(unsigned k=0;k<rsFineCount;k++){

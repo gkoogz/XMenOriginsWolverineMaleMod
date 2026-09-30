@@ -1,11 +1,13 @@
-# Installed fast baseline — 2026-09-29
+# Compact runtime release — 2026-09-29
 
-This is the canonical source snapshot for the DLL installed at `C:\Games\X-Men Origins Wolverine\Binaries\d3d9.dll` after the conservative physics contact precheck. The installed DLL SHA-256 is `5B43DC725ACFF13788684D6A1361206053E359489A0AE23A0FB519CF6E64628F`.
+Local release tag: `release-2026-09-29-compact-runtime`. See [release notes](releases/2026-09-29-compact-runtime.md).
 
-Build from this directory with `build.cmd`. It enables `NO_CLINICAL_COLLAR` and `NO_CLINICAL_NECK`; the older sculpt and neck filter are deliberately absent from the live pipeline. It retains the newer unified collar, the full physics constraint count and 240 Hz step, and the complete render mesh. A clean build succeeds on the configured Windows toolchain. The PE file may differ byte-for-byte from the installed DLL because the linker embeds build metadata and the output filename differs from the earlier build.
+The installed anatomy render skin and fluid collider share **35,000 triangles / 17,528 vertices**, reduced from 61,378 triangles. The rounded supporting surface has 32,000 triangles. Bindings, joined collar seams, safety metadata and fluid references are compacted together. No full-resolution anatomy fallback or runtime decimator remains.
 
-The source includes generated geometry/data headers and the resource binary. The original asset-authoring scripts are spread across earlier work directories and have not yet been consolidated here. This snapshot reproduces the runtime build, but does not yet regenerate every authored asset from source meshes.
+The release includes the prior surface/worker-pool optimizations, corrected collar lighting winding, stronger upright support and a shaft contact envelope covering the rendered ventral bulge. The established 240 Hz physics step and 24 coupled constraint iterations remain. The disabled clinical pipeline and its stale tables are removed.
 
-`tools/harmonization/audit-gameplay-base.bin` is the captured reference buffer for offline tests. The `tools/neck` tests compile with the existing DirectX SDK and Visual C++ command files. `build_unified_fast.cmd` exercises 48 static controls and motion/pulse cases; `build_j_sequence_fast.cmd` exercises the J timeline and simulated hitches. `physics_step_profile.cpp` is the diagnostic for fixed-step CPU cost. Generated executables and object files are ignored by Git.
+Build from this directory with `build.cmd` using the configured Visual C++ and DirectX SDK. The source includes generated geometry headers and the resource binary. `tools/remesh` documents the offline reduction inputs and rebaking process; it does not regenerate every original authored asset from source meshes. Linker metadata can make a rebuilt DLL differ byte-for-byte without a source change.
 
-Performance measurements and optimization priorities are in the audit report next to this project’s `outputs` directory. CPU times are not GPU or whole-game frame times.
+The `tools/neck` tests compile from that directory using their command files. They cover static/moving/pulsing geometry, the J timeline and hitches, collision skinning, fluid budgets, upright support and perched recovery. Offline pose banks in `captures` and some earlier review inputs in `outputs` are local fixtures, not runtime dependencies or distributed game assets.
+
+Detailed reduction and shading audits live in `tools/remesh`; hanging-contact results and actual before/after mesh renders are in the task's `outputs/hanging-contact-review-20260929` folder. CPU-stage measurements are not whole-game FPS. The user's persistent discoloration report remains unconfirmed after the shading repair; see release limitations.
