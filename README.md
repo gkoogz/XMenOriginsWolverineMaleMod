@@ -1,6 +1,6 @@
-# Compact runtime release — 2026-09-29
+# Wolverine Anatomy Tool 2.0 Beta 1
 
-Local release tag: `release-2026-09-29-compact-runtime`. See [release notes](releases/2026-09-29-compact-runtime.md).
+Prerelease tag: `v2.0.0-beta.1`. See [beta release notes](releases/2.0.0-beta.1.md) and [project handoff](docs/PROJECT_HANDOFF.md). The preceding local snapshot is tagged `release-2026-09-29-compact-runtime`.
 
 The installed anatomy render skin and fluid collider share **35,000 triangles / 17,528 vertices**, reduced from 61,378 triangles. The rounded supporting surface has 32,000 triangles. Bindings, joined collar seams, safety metadata and fluid references are compacted together. No full-resolution anatomy fallback or runtime decimator remains.
 
