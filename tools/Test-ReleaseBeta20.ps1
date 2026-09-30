@@ -30,7 +30,7 @@ function Get-Process {
 }
 & (Join-Path $repo 'Install.ps1') -GamePath $game -DocumentsPath $docs
 $m=Get-Content (Join-Path $repo 'manifest.json') -Raw|ConvertFrom-Json
-foreach($name in @('d3d9.dll','R14-skin-natural.png','R14-skin-erect.png','MenuTank-skin-blend33.png','MenuTank-skin-blend67.png','R14-skin-natural.dds','R14-skin-erect.dds','SharedBody-normal.dds','SharedBody-specular.dds')){if((Get-FileHash (Join-Path $game ('Binaries/'+$name))).Hash -ne $m.payload.$name){throw 'Payload mismatch'}}
+foreach($name in @('d3d9.dll','MenuTank-skin-blend33.png','MenuTank-skin-blend67.png','R14-skin-natural.dds','R14-skin-erect.dds','SharedBody-normal.dds','SharedBody-specular.dds')){if((Get-FileHash (Join-Path $game ('Binaries/'+$name))).Hash -ne $m.payload.$name){throw 'Payload mismatch'}}
 if((Get-FileHash (Join-Path $game 'Binaries/TeachingFluid.ini')).Hash -ne $m.payload.'TeachingFluid.ini'){throw 'Default fluid config payload mismatch'}
 foreach($clip in $m.idleClips.PSObject.Properties){if((Get-FileHash (Join-Path $game ('Binaries/WolverineIdle/'+$clip.Name))).Hash -ne $clip.Value){throw "Idle clip mismatch: $($clip.Name)"}}
 if((Get-FileHash (Join-Path $game 'WGame/CookedPC/WGame.xxx')).Hash -ne $m.installedWGameSHA256){throw 'WGame mismatch'}

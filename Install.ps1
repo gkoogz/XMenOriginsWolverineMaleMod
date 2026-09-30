@@ -56,7 +56,7 @@ try{
   if((Hash $temp) -ne $spec[2]){throw 'Reconstructed package checksum mismatch.'}
   $changes+=@{Target=$target;Bytes=[IO.File]::ReadAllBytes($temp)}
  }
- foreach($name in @('d3d9.dll','R14-skin-natural.png','R14-skin-erect.png','MenuTank-skin-blend33.png','MenuTank-skin-blend67.png','R14-skin-natural.dds','R14-skin-erect.dds','SharedBody-normal.dds','SharedBody-specular.dds')){
+ foreach($name in @('d3d9.dll','MenuTank-skin-blend33.png','MenuTank-skin-blend67.png','R14-skin-natural.dds','R14-skin-erect.dds','SharedBody-normal.dds','SharedBody-specular.dds')){
   $changes+=@{Target=(Join-Path $GamePath ('Binaries\'+$name));Bytes=[IO.File]::ReadAllBytes((Join-Path $PSScriptRoot ('payload\'+$name)))}
  }
  foreach($p in $manifest.idleClips.PSObject.Properties){
