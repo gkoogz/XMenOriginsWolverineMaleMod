@@ -75,16 +75,16 @@ integration and installed garment appearance are separate gates.
   inputs and missing APIs; explicit diagnostics are isolated.
 - A complete canonical x86 DLL build passed against the clean pinned Base commit `2062b2d795f5544ea181f126cab32537b8ce7c00`.
 
-This work has not been installed into Wolverine. Compilation and offline
-geometry/worker checks do not establish observed game rendering, gameplay
-frame rate, all collision poses or release readiness. The existing released
-runtime/game files remain unchanged until separately verified installation.
+The verified candidate was installed separately with Wolverine closed; see the
+installed checkpoint below. Compilation and offline geometry/worker checks do
+not establish observed game rendering, gameplay frame rate, all collision poses
+or release readiness. The published release payload remains unchanged.
 
 ## Build and installation handoff (October 3, 2026)
 
-The uncommitted canonical adapter candidate is based on source HEAD
-`f57fccf88ed537779fdf90fe3e4ec4803ee1f7b2`; the integration owner must record its
-final source commit after review. `build.cmd` completed successfully. Candidate
+The canonical adapter candidate was committed as
+`9d65ac73c4361408a68080d91cb3feafcf9d620d`; its documentation checkpoint is
+`01d36d45e6766438c5d5a09657da26c0c597f7cc`. `build.cmd` completed successfully. Candidate
 `build/d3d9.dll` is 30,617,600 bytes, SHA-256
 `A4216DADEF0F34B944B6082F4FF7DEA84FDE45235D6C656C25D484EF070BAAFB`.
 The build does not install it.
@@ -103,8 +103,8 @@ git diff --check
 
 For the separately authorized installed runtime update, the integration owner
 must first verify Wolverine is closed. Read and record the existing
-`C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll` hash; it currently remains
-`FED0695979D6DA9D0C7B21466FF9E1F36009E496687E89A552AA443737C1B71D`.
+`C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll` hash; the corrected installed adoption currently hashes
+`653D2362822C8F95DB52AB4FF8ACE4554AE325DDA52A71174FCB8306D81D415D`.
 Create a uniquely named backup under this checkout's ignored `build/` directory
 using `Copy-Item -LiteralPath`, and verify the backup matches that exact hash
 before copying the candidate DLL. Replace only that named DLL and compare the
@@ -118,6 +118,37 @@ Preferences remain untouched on both operations. This candidate is a source
 adoption and separately reviewed runtime update, not an alteration of the
 published release payload or installer manifest.
 
-## Installed adoption checkpoint
+## Initial installed adoption checkpoint
 
-Source 9d65ac7 was installed with Wolverine closed on October 3, 2026. The installed DLL hash matches the verified candidate A4216DADEF0F34B944B6082F4FF7DEA84FDE45235D6C656C25D484EF070BAAFB. The previous FED0695979D6DA9D0C7B21466FF9E1F36009E496687E89A552AA443737C1B71D DLL is preserved in uild/installed-backup-20261003-135827/d3d9.dll, with a local receipt. Both settings files were hash-checked unchanged. No game launch or observed garment gameplay is claimed. The published beta payload is unchanged.
+Source 9d65ac7 was installed with Wolverine closed on October 3, 2026. The installed DLL hash matches the verified candidate A4216DADEF0F34B944B6082F4FF7DEA84FDE45235D6C656C25D484EF070BAAFB. The previous FED0695979D6DA9D0C7B21466FF9E1F36009E496687E89A552AA443737C1B71D DLL is preserved in build/installed-backup-20261003-135827/d3d9.dll, with a local receipt. Both settings files were hash-checked unchanged. No game launch or observed garment gameplay is claimed. The published beta payload is unchanged.
+
+## Shape-preserving contact repair installed (October 3, 2026)
+
+Source `7005449a19ccd7095786196abf51e98b1a462dbb` pins clean Base `c49eea156ab3b6e989f22c52a128123850470dae`.
+The shared repair constrains capsule projections, preserves fabric sections and
+material spacing, and sews actual fabric surfaces. The adapter consumes the
+refined 4,068-vertex/7,764-triangle output dynamically; no legacy cloth capacity
+is assumed. Shared proof comprises all 15 CTest gates, 96 actual source states
+and 41 measured Geralt control/articulated binding states, including contact,
+strain and sewing gates. See Base docs/GARMENT-CONTACT-REPAIR.md and its
+provenance/garments.json. Serialized source contact work averages 57.675ms;
+Wolverine continues to run garment generation on the asynchronous latest-request
+worker. That cost is not a gameplay frame-rate claim.
+
+The clean production x86 DLL build, immutable worker lifecycle, production
+mixed-donor pose, strict dependency resolver and actual production hidden
+offscreen HAL D3D9 draw all passed. The native draw verifies four material
+outputs, final vertex coverage and complete binding/constants/state restoration.
+The candidate and installed DLL are 30,655,488 bytes, SHA-256
+`653D2362822C8F95DB52AB4FF8ACE4554AE325DDA52A71174FCB8306D81D415D`.
+
+Only C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll was replaced, with the
+game closed and the prior known SHA verified. The exact prior
+`A4216DADEF0F34B944B6082F4FF7DEA84FDE45235D6C656C25D484EF070BAAFB`
+DLL is backed up in
+`build/installed-backup-contact-20261003-164051/d3d9.dll`. Its local receipt
+records source/Base pins and all 48 protected settings/audio hashes; every
+protected file remained unchanged. No audio playback/settings, game launch or
+observed Wolverine garment appearance is claimed. The public beta payload is
+unchanged. Rollback with Wolverine closed by copying this exact verified A421
+backup to the installed DLL path; leave preferences and audio untouched.
