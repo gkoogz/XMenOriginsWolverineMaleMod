@@ -152,3 +152,28 @@ protected file remained unchanged. No audio playback/settings, game launch or
 observed Wolverine garment appearance is claimed. The public beta payload is
 unchanged. Rollback with Wolverine closed by copying this exact verified A421
 backup to the installed DLL path; leave preferences and audio untouched.
+
+## Moving sewn-end repair adoption (October 3, 2026)
+
+The adapter now pins clean Base
+`99ff741ea95f18ed84526c35a6c3f38a37d857b6`. A captured Witcher moving contact
+case showed that translation alone could not sew a ribbon endpoint to its
+contact-fitted hem without consuming the required clearance. The shared repair
+orients that intact endpoint using measured hem/capsule directions, preserves
+material width and thickness, and validates adjacent triangles before accepting
+a stitch. Numerical anatomy, clinical timing, measured donors and audio remain
+unchanged. See Base `docs/GARMENT-CONTACT-REPAIR.md` for the captured-case and
+coordinate-covariance proof; captured data remains private.
+
+The clean canonical production x86 build, immutable worker, actual native donor
+pose, hidden offscreen production HAL D3D9 render, shader compilation and strict
+dependency resolver gates all passed against this pin. Base records all 15
+shared tests, 96 source states, 41 measured Geralt cases and the captured moving
+case as passing offline. These results do not establish observed Wolverine
+garment appearance, every collision pose or whole-game performance.
+
+Candidate `build/d3d9.dll` is 30,661,120 bytes, SHA-256
+`4F4900A5E70CE9BB127B46C3D7FE57EF74FFEACE8A5AE704D3DA1EFF6E2BA9A3`.
+The build does not install itself. The separate DLL-only installation and exact
+backup/settings preservation are recorded in PROJECT_HANDOFF.md after verifying
+the game is closed. Published beta packages and installer manifests are unchanged.
