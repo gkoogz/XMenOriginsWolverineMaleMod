@@ -373,7 +373,9 @@ static void StepConstraintSolver(float dt,float gait,float side){
  float shaftDrag=.9f+(100.f-physUI[2])*.018f,bodyDrag=1.f+(100.f-physUI[6])*.025f;
  for(int i=2;i<pdCount;i++){
   float response=i<pdBody0?(.65f+physValues[3]*.009f):(.65f+physValues[7]*.009f),gravity=i<pdBody0?ModeValue(5.f,42.f,110.f):72.f;
-  V3 acceleration{0.f,side*86.f*response,gait*86.f*response-gravity};float drag=i<pdBody0?shaftDrag:bodyDrag;
+  V3 acceleration{0.f,side*86.f*response,gait*86.f*response-gravity};
+  if(surfaceGarmentEnabled){auto a=i<pdBody0?surfaceGarmentShaft:surfaceGarmentLobes[i-pdBody0];auto bounded=::malemod::surface::BoundGarmentAcceleration({a.x,a.y,a.z},gravity);acceleration=acceleration+V3{bounded.x,bounded.y,bounded.z};}
+  float drag=i<pdBody0?shaftDrag:bodyDrag;
   pdVelocity[i]=(pdVelocity[i]+acceleration*dt)*expf(-drag*dt);pdPosition[i]=pdPosition[i]+pdVelocity[i]*dt;
  }
  for(int s=0;s<2;s++){

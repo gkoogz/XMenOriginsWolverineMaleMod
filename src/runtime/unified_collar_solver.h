@@ -5,6 +5,7 @@
 // Keep this solver independent of the motion solver and packed skin weights.
 #include <Eigen/SparseCholesky>
 #include <Eigen/Geometry>
+#include <malemod/surface/pelvic_frame.hpp>
 namespace UnifiedCollar {
 using Sp=Eigen::SparseMatrix<double>;using Triplet=Eigen::Triplet<double>;using Mat=Eigen::Matrix<double,Eigen::Dynamic,3,Eigen::RowMajor>;
 static Sp P,A,fixedCoupling;
@@ -77,7 +78,7 @@ static void Build(V3 root,V3 axis,V3 up,float radius,float length){
  freeIDs.clear();fixedIDs.clear();freeOf.assign(masters.size(),-1);fixedOf.assign(masters.size(),-1);
  for(unsigned j=0;j<masters.size();j++)if(mask[masters[j]]>1e-4){freeOf[j]=(int)freeIDs.size();freeIDs.push_back(j);}else{fixedOf[j]=(int)fixedIDs.size();fixedIDs.push_back(j);}
  std::vector<bool> write(ucCount,false);for(unsigned j:freeIDs)write[masters[j]]=true;
- for(unsigned k=0;k<ucSeamCount;k++)write[ucSeamVertices[k*3]]=write[ucSeamVertices[k*3+1]]||write[ucSeamVertices[k*3+2]];
+ for(unsigned k=0;k<ucSeamCount;k++)write[ucSeamVertices[k*3]]=true;
  normalFaces.clear();packedIDs.clear();
  for(unsigned k=0;k<ucFaceCount;k++)if(write[ucFaces[k*3]]||write[ucFaces[k*3+1]]||write[ucFaces[k*3+2]])normalFaces.push_back(k);
  for(unsigned i=0;i<ucPackedCount;i++)if(write[ucMap[i]])packedIDs.push_back(i);
@@ -127,9 +128,13 @@ static Mat SolveXYZ(const Mat& rhs){
  }
  return factor.permutationPinv()*value;
 }
+static ::malemod::collar::RecruitmentFrame StablePelvicRecruitmentFrame(){
+ const auto root=ShaftRoot();const float angle=neutralShape[4]*3.1415926535f/180.f;
+ return ::malemod::collar::StableRecruitmentFrame({root.x,root.y,root.z},{cosf(angle),0.f,-sinf(angle)},{0,1,0});
+}
 static void Apply(unsigned char* body){
  PerfScope perf(14);
- Topology();Read(body);V3 root,axis;SampleShaftChain(0,root,axis);V3 up=Unit(Cross(axis,{0,1,0}));float radius=logicalShaftBodyRadius,length=0;V3 previous=root;
+ Topology();Read(body);const auto pelvic=StablePelvicRecruitmentFrame();V3 root{pelvic.root.x,pelvic.root.y,pelvic.root.z},axis{pelvic.axis.x,pelvic.axis.y,pelvic.axis.z},up{pelvic.up.x,pelvic.up.y,pelvic.up.z};float radius=logicalShaftBodyRadius,length=0;V3 previous=root;
  for(unsigned k=1;k<=100;k++){V3 point,tangent;SampleShaftChain(k*.01f,point,tangent);length+=Length(point-previous);previous=point;}length=max(.01f,length);
  bool controlChanged=cachedControls[7]!=hangUI||cachedControls[8]!=glansUI;
  for(unsigned j=0;j<7;j++)controlChanged|=cachedControls[j]!=sliderUI[j];

@@ -1,0 +1,12 @@
+// Exercise the production donor skin function with actual canonical native
+// buffers/remap tables and distinguishable per-section/per-bone transforms.
+// This does not create a graphics device or launch/install a game.
+#include "../src/runtime/d3d9_proxy.cpp"
+#include <iostream>
+int main(){using namespace JockstrapAdapter;renderFrameSerial=73;tankCameraSceneTick=0;for(unsigned i=0;i<nrCount;i++)memcpy(nrPacked+i*32+12,nrAttributes+i*20,20);for(unsigned section=0;section<3;section++){paletteFrame[section]=73;paletteCount[section]=75;for(unsigned bone=0;bone<75;bone++){auto* matrix=palettes[section]+bone*12;memset(matrix,0,48);matrix[0]=matrix[5]=matrix[10]=1;matrix[3]=float(section*100+bone);matrix[7]=float(section*7);}}
+ G::Vertex vertex;vertex.position={1,2,3};vertex.normal={0,0,1};vertex.uv={.25,.75};vertex.lineage.donors={G::Donor{G::Surface::Body,19558,.2},G::Donor{G::Surface::Body,42640,.3},G::Donor{G::Surface::Anatomy,5000,.5},G::Donor{}};RenderVertex result{};if(!Pose(vertex,result)){std::cerr<<"Production mixed native skin failed\n";return 1;}
+ double expectedX=1,expectedY=2,total=0;for(auto donor:vertex.lineage.donors){if(donor.weight<=0)continue;unsigned section;const unsigned char* packed;const unsigned char* bones;if(donor.surface==G::Surface::Anatomy){section=2;packed=nrPacked+donor.vertex*32;bones=packed+20;}else{section=donor.vertex>=41435?1:0;unsigned local=donor.vertex-(section?41435:17449);packed=sharedBodyBase[section]+local*32;bones=(section?fluidGameplayBones1:fluidGameplayBones0)+local*4;}for(unsigned k=0;k<4;k++){double weight=donor.weight*packed[24+k]/255.;expectedX+=weight*(section*100+bones[k]);expectedY+=weight*section*7;total+=weight;}}
+ // Native byte weights normalize after interpolation; the position term is
+ // separately normalized, as the authoritative shader skin weights require.
+ expectedX=(expectedX-1)/total+1;expectedY=(expectedY-2)/total+2;if(fabs(result.p[0]-expectedX)>2e-5||fabs(result.p[1]-expectedY)>2e-5||fabs(result.p[2]-3)>1e-6||fabs(result.n[2]-1)>1e-6){std::cerr<<"Wrong source donor section/skin blend\n";return 1;}
+ paletteFrame[1]=72;if(Pose(vertex,result)){std::cerr<<"Accepted stale body palette\n";return 1;}paletteFrame[1]=73;paletteCount[1]=1;if(Pose(vertex,result)){std::cerr<<"Accepted missing native bone\n";return 1;}std::cout<<"PASS production mixed actual native body/anatomy skin, gameplay remaps, normalized weights, stale frame and missing-bone guards\n";return 0;}

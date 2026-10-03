@@ -84,5 +84,6 @@ static void EvaluateAnatomy(unsigned char* fullBuffer,UINT graftFirstVertex){
   UpdateMenuRetargetBodyWeld(fullBuffer);
   UpdateNeckRender();
   UnifiedCollar::Apply(fullBuffer);
+  UpdateJockstrapSource(fullBuffer);
   if(tipCount){V3 tip=tipSum/(float)tipCount;float newLength=max(8.f,min(60.f,Length(tip-ShaftRoot())));constraintRestLength=(constraintRestLength*.1656f+newLength*.08f)/.2456f;}
 }
