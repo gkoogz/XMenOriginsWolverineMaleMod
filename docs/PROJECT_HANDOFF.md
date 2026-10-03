@@ -34,3 +34,32 @@ At the user's request, the install download excludes developer source/authoring 
 ## Shared garments, October 3, 2026
 
 See GARMENT-ADOPTION.md. Source `7005449a19ccd7095786196abf51e98b1a462dbb` adopts clean Base `c49eea156ab3b6e989f22c52a128123850470dae` and its shape-preserving capsule/strain/sewing repair. Garment output is dynamic (4,068 vertices/7,764 triangles); CPU work remains asynchronous. Shared 15 CTest gates, 96 source states and 41 measured Geralt binding states passed. This adapter's strict production x86 build, immutable worker, actual native donor pose, strict resolver and hidden offscreen production HAL D3D9 draw passed; the latter verifies four materials, final vertex coverage and full binding/constants/state restoration. Installed C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll is SHA-256 `653D2362822C8F95DB52AB4FF8ACE4554AE325DDA52A71174FCB8306D81D415D` (30,655,488 bytes). The game was closed and only the DLL was replaced; all 48 settings/audio files were hash-checked unchanged. Prior A421 DLL is preserved exactly in `build/installed-backup-contact-20261003-164051/d3d9.dll` with a private local receipt and rollback path. Earlier FED backup remains in `build/installed-backup-20261003-135827/d3d9.dll`. No live Wolverine garment appearance or gameplay performance is claimed. The published beta remains unchanged; unrelated voice documentation/private audio are preserved.
+
+## Moving sewn-end correction installed (October 3, 2026)
+
+Canonical source `16affd49da5a122df776969574ca62a984b59425` consumes clean Base
+`99ff741ea95f18ed84526c35a6c3f38a37d857b6`. The shared repair orients a moving
+stitched ribbon endpoint only when measured translation cannot preserve both
+physical sewing and the original capsule clearance; material width/thickness,
+source numerical anatomy and clinical/audio behavior remain unchanged. The
+strict canonical production x86 build, immutable worker, actual native donor
+pose, strict resolver, production shader compiler and hidden offscreen HAL D3D9
+render/restoration gates passed. Shared source/contact/captured-case results are
+recorded in Base provenance and GARMENT-CONTACT-REPAIR.md; no live Wolverine
+appearance or gameplay performance is claimed.
+
+The candidate and installed `C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll`
+are 30,661,120 bytes, SHA-256
+`4F4900A5E70CE9BB127B46C3D7FE57EF74FFEACE8A5AE704D3DA1EFF6E2BA9A3`.
+Wolverine was verified closed twice before replacing only this DLL. Previous
+`653D2362822C8F95DB52AB4FF8ACE4554AE325DDA52A71174FCB8306D81D415D`
+DLL is preserved exactly in
+`build/installed-backup-moving-stitch-20261003-173646/d3d9.dll`; its ignored
+receipt records the source/Base pins and all 48 current protected settings/audio
+hashes. Every protected file remained unchanged. No game launch, physical input,
+focus change or audio modification was performed. Published beta packages and
+installer manifests remain unchanged; unrelated voice documentation is preserved.
+
+Rollback with Wolverine closed: copy the verified DLL from that exact backup to
+`C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll`, then confirm the previous
+653D2362 hash. Preserve all preferences and audio.

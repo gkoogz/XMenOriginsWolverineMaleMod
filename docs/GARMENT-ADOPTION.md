@@ -177,3 +177,9 @@ Candidate `build/d3d9.dll` is 30,661,120 bytes, SHA-256
 The build does not install itself. The separate DLL-only installation and exact
 backup/settings preservation are recorded in PROJECT_HANDOFF.md after verifying
 the game is closed. Published beta packages and installer manifests are unchanged.
+
+Installed source `16affd49da5a122df776969574ca62a984b59425` matches this candidate
+hash. Wolverine was closed; only the DLL was replaced. All 48 current settings
+and audio hashes remained unchanged. The exact preceding 653D2362 DLL is in
+`build/installed-backup-moving-stitch-20261003-173646/d3d9.dll`, with a private
+receipt and rollback path. No live gameplay or garment appearance is claimed.
