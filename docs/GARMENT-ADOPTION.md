@@ -117,3 +117,7 @@ Binaries path, then confirm the installed hash is the recorded previous hash.
 Preferences remain untouched on both operations. This candidate is a source
 adoption and separately reviewed runtime update, not an alteration of the
 published release payload or installer manifest.
+
+## Installed adoption checkpoint
+
+Source 9d65ac7 was installed with Wolverine closed on October 3, 2026. The installed DLL hash matches the verified candidate A4216DADEF0F34B944B6082F4FF7DEA84FDE45235D6C656C25D484EF070BAAFB. The previous FED0695979D6DA9D0C7B21466FF9E1F36009E496687E89A552AA443737C1B71D DLL is preserved in uild/installed-backup-20261003-135827/d3d9.dll, with a local receipt. Both settings files were hash-checked unchanged. No game launch or observed garment gameplay is claimed. The published beta payload is unchanged.
