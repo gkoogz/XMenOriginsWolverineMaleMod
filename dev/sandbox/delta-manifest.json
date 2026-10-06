@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "purpose": "repository-only grey studio delta recipe",
+  "hashContract": "SHA256 after CRLF-to-LF canonicalization; binary runtime/stock hashes are raw SHA256",
+  "files": [
+    {
+      "path": "dev/sandbox/README.md",
+      "lfSHA256": "cfc927edeade34d812c2b7a7dbe45ec252c50991b1f78510486f90c0ae402791"
+    },
+    {
+      "path": "tools/iteration/Apply-PendingSandboxStage.ps1",
+      "lfSHA256": "ee3c748ee98fbeb8691cb358e40884336fb693e08e7ab4d6631da45911884535"
+    },
+    {
+      "path": "tools/iteration/author_native_layer.py",
+      "lfSHA256": "8ae85df659ad1355f5cc6b3c0b7f30f1c4425718b15c7c2956f2b4055b2c8dc3"
+    },
+    {
+      "path": "tools/iteration/Build-SandboxDependencies.ps1",
+      "lfSHA256": "33ecc59232df0763b161d7180c4e4d836659c1c917a4ae2e724cc54f30779b96"
+    },
+    {
+      "path": "tools/iteration/build_private_runtime.py",
+      "lfSHA256": "b9b44ece06edbaa9b76a5ae6835d1e7dc6f483d9d7d234d35ffde16437f6062f"
+    },
+    {
+      "path": "tools/iteration/Close-NativeSandbox.ps1",
+      "lfSHA256": "31289165cb9f1c54a1766bd02da2b1b9b0819241d3d2f5de00a2bd7397d5a8f0"
+    },
+    {
+      "path": "tools/iteration/Create-SandboxCheckpoint.ps1",
+      "lfSHA256": "b8dcf5a7467c9238d8a1e54265478668afef4a7af9ea6a1a8d331322a336e317"
+    },
+    {
+      "path": "tools/iteration/Get-NativeSandboxStatus.ps1",
+      "lfSHA256": "50895857521262205a47e5779cd10c1f2327f7cef11ae52a6d1ce5aa2749a0ff"
+    },
+    {
+      "path": "tools/iteration/Initialize-VanillaSandbox.ps1",
+      "lfSHA256": "cea9ad125f80c56ef8d4199ed6221d7bb36c2207b7add15c438632f2dee270d2"
+    },
+    {
+      "path": "tools/iteration/Install-PlayableSandboxShortcut.ps1",
+      "lfSHA256": "30f39285246fcda82766f82133f749047b347d377670ea4c790e7a48997c04b0"
+    },
+    {
+      "path": "tools/iteration/isolate_native_story.py",
+      "lfSHA256": "b0529aae210253fea13caf192a1b849659ad73ba0204b32f68b0c2f03918ae0b"
+    },
+    {
+      "path": "tools/iteration/launch_capability.cpp",
+      "lfSHA256": "d28ecbcef8e57d5bb9983dfdaabc8c7388fbb0ea4ae3e820dd0ff39e9ae0962d"
+    },
+    {
+      "path": "tools/iteration/native_package.py",
+      "lfSHA256": "dde77fa0312c46ef6cd6e9bac421a7ed2127da24635411c2914d4b1d17d9a8a6"
+    },
+    {
+      "path": "tools/iteration/Open-NativeSandbox.ps1",
+      "lfSHA256": "58d06f867a37484df837816da860a28efe7c3db028856d1ea0580fa243614909"
+    },
+    {
+      "path": "tools/iteration/pack_private_layer.py",
+      "lfSHA256": "335cf856a10f5f81a9da8ba0f7636bace609ce52902971cd7d85c0f7f29e2a98"
+    },
+    {
+      "path": "tools/iteration/Play-NativeSandbox.ps1",
+      "lfSHA256": "5ad3b8c66f39315df655f4083120f46249e2028a12a4f872cc1bb77f6ad64305"
+    },
+    {
+      "path": "tools/iteration/Prepare-NativeControls.ps1",
+      "lfSHA256": "93fa0d2e031c39d0af65ad812ef337aa365dd37c9a9ecad2af5768752cad6f1b"
+    },
+    {
+      "path": "tools/iteration/Prepare-NativeSandbox.ps1",
+      "lfSHA256": "9fb55b1d7f8cbefdf9caf77ff5a721737a3f4195f3f821f615047f74ac4958a0"
+    },
+    {
+      "path": "tools/iteration/Prepare-PlayableSandboxStorage.ps1",
+      "lfSHA256": "46645f118ee34105b8be58ea26601b67ddce9c0f56622a2b88021fbe19deade5"
+    },
+    {
+      "path": "tools/iteration/README.md",
+      "lfSHA256": "3e7f82799a4d8aa4baac5cd7ff140ce1a2554113fe5d08671653df3eb528b4d3"
+    },
+    {
+      "path": "tools/iteration/Reset-NativeSandbox.ps1",
+      "lfSHA256": "3b7473f18136930682ba52065a32a2362c422370248337c5d337614c444042e1"
+    },
+    {
+      "path": "tools/iteration/sealed_d3d9.hpp",
+      "lfSHA256": "271c78270cde1f76141e923cbbc3db3d2b2e9b7102667b2964a64941052940a9"
+    },
+    {
+      "path": "tools/iteration/seed_checkpoint.py",
+      "lfSHA256": "35071eb8ff0620e22675a5e4d8e8f153eeb73311e1c0e3861a75f882fbcdec80"
+    },
+    {
+      "path": "tools/iteration/Set-NativeSandboxInput.ps1",
+      "lfSHA256": "b2e7f0be9f736291b1fff4e979a08021e34d99fba269d288a1dd9cd31d8cead7"
+    },
+    {
+      "path": "tools/iteration/Start-NativeSandbox.ps1",
+      "lfSHA256": "8bc015ce9c63f1035b6f8b79f2b9c706e4935df482244ed644e1b25448c1ee94"
+    },
+    {
+      "path": "tools/iteration/Test-NativeSandbox.ps1",
+      "lfSHA256": "87ae6945e11a3aacf47f0c43ac9daee013206b88333606b0c3332fdcd0a3f26d"
+    },
+    {
+      "path": "tools/iteration/verify_recipe.py",
+      "lfSHA256": "c8f7af8ad0f3445f737add6df0927bbe926a168390541e9066183c0f5f25f2f2"
+    }
+  ],
+  "retailAssetsShipped": false,
+  "privateProfilesShipped": false,
+  "externalLzoCommit": "a0bfb468d42be831b126632fd8a0ae6b3614f981",
+  "runtimeSourceCommit": "16affd49da5a122df776969574ca62a984b59425",
+  "runtimeBaseCommit": "99ff741ea95f18ed84526c35a6c3f38a37d857b6"
+}

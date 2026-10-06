@@ -16,6 +16,7 @@
 #include <cmath>
 #include <malemod/controls/presentation.hpp>
 #include <malemod/surface/garment_support.hpp>
+#include <malemod/surface/garment_impulse.hpp>
 #include "performance_metrics.h"
 #include "morph_targets.h"
 #include "physics_weights.h"
@@ -96,6 +97,9 @@ static Spring2 shaftSpring{},ballsSpring{};
 struct V3 {float x,y,z;};
 static bool surfaceGarmentEnabled=false;
 static V3 surfaceGarmentShaft{},surfaceGarmentLobes[2]{};
+static bool surfaceGarmentContactReaction=false,surfaceGarmentPendingReady=false;
+static V3 surfaceGarmentPendingRod[12]{},surfaceGarmentPendingLobes[2]{},surfaceGarmentPendingAngular[2]{};
+static malemod::surface::GarmentImpulseCursor surfaceGarmentCursor;
 static float debugRampFraction=1.f,debugRapheFraction=1.f,debugSmoothFraction=1.f;
 static __forceinline V3 operator+(V3 a,V3 b){return {a.x+b.x,a.y+b.y,a.z+b.z};}
 static __forceinline V3 operator-(V3 a,V3 b){return {a.x-b.x,a.y-b.y,a.z-b.z};}
@@ -1695,12 +1699,30 @@ static float SampleOverallWidthVertex(UINT q,float overall,float width){
 #include "jockstrap_adapter.h"
 #include "jockstrap_support_data.h"
 #include <malemod/garments/numerical_support.hpp>
-static void SetJockstrapStyle(unsigned value){clothingStyle=value==1?1:0;JockstrapAdapter::SetStyle(clothingStyle);surfaceGarmentEnabled=false;surfaceGarmentShaft={};surfaceGarmentLobes[0]=surfaceGarmentLobes[1]={};}
+static void SetJockstrapStyle(unsigned value){clothingStyle=value==1?1:0;JockstrapAdapter::SetStyle(clothingStyle);surfaceGarmentEnabled=false;surfaceGarmentContactReaction=false;surfaceGarmentShaft={};surfaceGarmentLobes[0]=surfaceGarmentLobes[1]={};surfaceGarmentCursor={};surfaceGarmentPendingReady=false;for(auto& p:surfaceGarmentPendingRod)p={};for(auto& p:surfaceGarmentPendingLobes)p={};for(auto& p:surfaceGarmentPendingAngular)p={};}
 static void UpdateJockstrapSource(const unsigned char* body){
+ using G=malemod::garments::Point;
  std::vector<malemod::garments::Capsule> contacts;V3 a,b,c,d;CollisionCapsules(a,b,c,d);contacts.push_back({{a.x,a.y,a.z},{b.x,b.y,b.z},7.2});contacts.push_back({{c.x,c.y,c.z},{d.x,d.y,d.z},7.2});
- JockstrapAdapter::Update(body,clothingEpoch,{0,0,-72},contacts);auto* cloth=JockstrapAdapter::Latest();surfaceGarmentEnabled=false;if(!cloth)return;
- auto support=malemod::garments::AggregateNumericalSupport(*cloth,[](const malemod::garments::Donor& donor){using Group=malemod::garments::SupportBody;if(donor.surface!=malemod::garments::Surface::Anatomy||donor.vertex>=nrCount)return Group::None;auto group=jockstrapSourceSupportGroup[donor.vertex];return group==0?Group::Shaft:group==1?Group::Lobe0:group==2?Group::Lobe1:Group::None;},[](malemod::garments::Point a){return a;});
- surfaceGarmentEnabled=support.enabled;surfaceGarmentShaft={float(support.shaftAcceleration.x),float(support.shaftAcceleration.y),float(support.shaftAcceleration.z)};for(unsigned i=0;i<2;i++)surfaceGarmentLobes[i]={float(support.lobeAcceleration[i].x),float(support.lobeAcceleration[i].y),float(support.lobeAcceleration[i].z)};
+ std::array<float,10> morphology{};morphology[0]=float(physicsState);for(unsigned i=0;i<7;i++)morphology[i+1]=sliderUI[i];morphology[8]=glansUI;morphology[9]=hangUI;
+ const malemod::garments::SourceMasses masses{double(.75f+physValues[1]*.0125f),double(.75f+physValues[5]*.0125f)};
+ std::array<G,2> centers,radii;for(unsigned i=0;i<2;i++){auto p=CPCenter(i),r=CPRadii(i);centers[i]={p.x,p.y,p.z};radii[i]={r.x,r.y,r.z};}
+ auto reaction=[masses,centers,radii](const malemod::garments::Input& input,const malemod::garments::Output& cloth,const JockstrapKinematics::Pose& pose){
+  using namespace malemod::garments;unsigned section=pose.title?1:2,bone=pose.title?30:0;auto inverse=JockstrapKinematics::Inverse(JockstrapKinematics::Multiply(pose.actor[section],pose.skin[section][bone]));
+  auto direction=[&](Point p){return JockstrapKinematics::Direction(inverse,p);};auto origin=JockstrapKinematics::Point(inverse,{0,0,0});
+  auto binding=[](Donor d){MechanicalBinding result;if(d.vertex>=nrCount)throw std::invalid_argument("Source mechanical garment lineage outside complete anatomy");std::copy_n(jockstrapReactionBindings[d.vertex],14,result.weights.begin());return result;};
+  return AggregateContactReactions(cloth,binding,direction,origin,centers,radii,masses);
+ };
+ JockstrapAdapter::Update(body,clothingEpoch,{0,0,-72},contacts,morphology,masses.Total(),std::move(reaction));auto support=JockstrapAdapter::LatestReaction();surfaceGarmentEnabled=support.enabled;surfaceGarmentContactReaction=support.contactReaction;
+ try{
+  auto nextCursor=surfaceGarmentCursor;auto delta=nextCursor.Consume(support);
+  std::array<V3,12> nextRod;std::array<V3,2> nextLobes,nextAngular;
+  std::copy_n(surfaceGarmentPendingRod,12,nextRod.begin());std::copy_n(surfaceGarmentPendingLobes,2,nextLobes.begin());std::copy_n(surfaceGarmentPendingAngular,2,nextAngular.begin());
+  bool nextReady=surfaceGarmentPendingReady;if(delta.reset){nextRod={};nextLobes={};nextAngular={};nextReady=false;}
+  auto append=[&](V3& pending,malemod::surface::ImpulsePoint p){for(double x:{p.x,p.y,p.z})if(!std::isfinite(x)||std::abs(x)>1e6)throw std::invalid_argument("Unstable source garment contact impulse");if(p.x||p.y||p.z){auto next=pending+V3{float(p.x),float(p.y),float(p.z)};for(float x:{next.x,next.y,next.z})if(!std::isfinite(x)||std::abs(x)>1e6)throw std::invalid_argument("Unstable accumulated source garment impulse");pending=next;nextReady=true;}};
+  for(unsigned i=2;i<12;i++)append(nextRod[i],delta.rod[i]);for(unsigned i=0;i<2;i++){append(nextLobes[i],delta.lobes[i]);append(nextAngular[i],delta.angular[i]);}
+  surfaceGarmentCursor=nextCursor;std::copy(nextRod.begin(),nextRod.end(),surfaceGarmentPendingRod);std::copy(nextLobes.begin(),nextLobes.end(),surfaceGarmentPendingLobes);std::copy(nextAngular.begin(),nextAngular.end(),surfaceGarmentPendingAngular);surfaceGarmentPendingReady=nextReady;
+ }catch(const std::exception& e){surfaceGarmentEnabled=false;surfaceGarmentContactReaction=false;surfaceGarmentPendingReady=false;for(auto& p:surfaceGarmentPendingRod)p={};for(auto& p:surfaceGarmentPendingLobes)p={};for(auto& p:surfaceGarmentPendingAngular)p={};Log("garment reaction rejected: %s",e.what());}
+
 }
 static void ApplyShape(){PerfScope perf(8);
   if(!graftBuffer)return;bool report=shapeDirty;void* raw=nullptr;
@@ -1789,6 +1811,7 @@ static void OverlayFrame(IDirect3DDevice9* d){PerfScope perf(1);
   bool visible=anatomyVisibleFrame==renderFrameSerial;
   InterlockedIncrement(&renderFrameSerial);
   if(!visible){
+    JockstrapAdapter::Suspend();
     physicsLastTick=throbLastTick=0;teachingLastTick=GetTickCount();
      if(GetTickCount()-anatomyLastSeenTick>3000u&&(teachingTimeline.active||teachingFluid.passiveMode))CancelTeaching("anatomy render absent for 3 seconds");
     if(KeyEdge(VK_F6))menuOpen=!menuOpen;FlushSettingsIfDue();inOverlay=false;return;
@@ -2151,7 +2174,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
     else if(probeDesc.Size==50915u*32u)SelectAnatomyScene(false);
   }
   TankCameraDrawOverride cameraOverride(dev);
-  if(FluidWorkActive()){CaptureFluidWorldGeometry(dev,type,base,minv,nv,start,count,vb,offset,stride);CaptureFluidCamera(dev);}
+  if(FluidWorkActive()||JockstrapAdapter::GetStyle()==1){CaptureFluidWorldGeometry(dev,type,base,minv,nv,start,count,vb,offset,stride,FluidWorkActive());CaptureFluidCamera(dev);}
   if(SUCCEEDED(gs)&&vb){
     // WStart draws a stock CH_Wolverine shell over WolverineNudeMenuMesh. Keep
     // its dedicated layered-hair draw and the two isolated eyeball components,

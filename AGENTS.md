@@ -4,6 +4,18 @@ Read docs/PROJECT-CONTEXT.md before resuming, including after compaction. It
 preserves the user's educational purpose and the Base hub/spoke requirements;
 it is not a policy override or proof of runtime success.
 
+For physics, mesh, garment, material, menu and character-control development,
+use the repository-owned grey development room by default. Read
+tools/iteration/README.md and docs/ITERATION-SANDBOX.md. Reproduce from a supported
+vanilla installation into an owned clone; never require somebody else's save.
+Prefer sealed Open/Close/Capture and native scoped input while the host is in
+use. Human Play/shortcut mode is intentionally interactive and must not be
+launched over the user. Preserve exact process identities, normal audio and
+retail files. Test source/offline gates first, then native room behavior, then
+campaign-specific cases. The grey room is a developer fixture, not an anatomy
+performance guarantee or release payload. Exclude tools/iteration and sandbox
+documents from all uploaded installation and optional Source archives; Git tag source snapshots omit them through tracked export-ignore rules.
+
 The only authoritative development checkout is:
 C:/Users/Administrator/Documents/Codex/2026-09-28/hello-https-github-com-gkoogz-xmenoriginswolverinemalemod/work/installed-baseline-20260929
 
@@ -18,4 +30,5 @@ Primary branch: main; upstream: origin/main.
 - Keep handoff/release notes current, and report local/remote divergence and uncommitted work at completion. Distinguish offline tests, live observations, user confirmation and known limitations. Preserve user settings on install/upgrade.
 - Releases must use the established complete package format: versioned Install/Upgrade/Uninstall/Rollback launchers, Install.ps1, manifest and SHA256SUMS, required WBX deltas, textures/maps, public default audio, defaults and validation tools. Provide current source/authoring tools through GitHub and a separate optional developer archive; do not inflate the required installation download with developer-only data. Retain the verified full-resolution DDS maps; redundant PNG fallbacks are optional. Verify clean install, supported upgrade, exact rollback and payload hashes before publishing. Use a DLL-only download only if the user explicitly requests one.
 
-Current released baseline: 2.0.0-beta.1. Read manifest.json for exact asset hashes and docs/PROJECT_HANDOFF.md for validation limits.
+Current release candidate: 2.0.0-beta.2 (approved installed source16aff/Base99ff).
+Development source includes unfinished cloth work and is not this release runtime. Read manifest.json for exact asset hashes and docs/PROJECT_HANDOFF.md for validation limits.

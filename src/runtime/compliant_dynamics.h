@@ -368,13 +368,18 @@ static void StepConstraintSolver(float dt,float gait,float side){
  // Include the attached neck tissue in angular inertia: contact impulses
  // should move the suspended contents more readily than roll them over.
  for(int s=0;s<2;s++){if(!initialized)pdPosition[pdBody0+s]=CPCenter(s);pdInvMass[pdBody0+s]=1.f/bodyMass;pdInvInertia[s]=1.5f/(bodyMass*Dot(CPRadii(s),CPRadii(s)));for(int j=0;j<3;j++)pdOldBasis[s][j]=cpBasis[s][j];}
+ if(surfaceGarmentPendingReady){
+  for(int i=2;i<shaftNodeCount;i++)pdVelocity[i]=pdVelocity[i]+surfaceGarmentPendingRod[i]*pdInvMass[i];
+  for(int i=0;i<2;i++){pdVelocity[pdBody0+i]=pdVelocity[pdBody0+i]+surfaceGarmentPendingLobes[i]*pdInvMass[pdBody0+i];cpOmega[i]=cpOmega[i]+surfaceGarmentPendingAngular[i]*pdInvInertia[i];}
+  for(auto& p:surfaceGarmentPendingRod)p={};for(auto& p:surfaceGarmentPendingLobes)p={};for(auto& p:surfaceGarmentPendingAngular)p={};surfaceGarmentPendingReady=false;
+ }
  PDRecoverPouchVentral();
  memcpy(pdOldPosition,pdPosition,sizeof(pdPosition));
  float shaftDrag=.9f+(100.f-physUI[2])*.018f,bodyDrag=1.f+(100.f-physUI[6])*.025f;
  for(int i=2;i<pdCount;i++){
   float response=i<pdBody0?(.65f+physValues[3]*.009f):(.65f+physValues[7]*.009f),gravity=i<pdBody0?ModeValue(5.f,42.f,110.f):72.f;
   V3 acceleration{0.f,side*86.f*response,gait*86.f*response-gravity};
-  if(surfaceGarmentEnabled){auto a=i<pdBody0?surfaceGarmentShaft:surfaceGarmentLobes[i-pdBody0];auto bounded=::malemod::surface::BoundGarmentAcceleration({a.x,a.y,a.z},gravity);acceleration=acceleration+V3{bounded.x,bounded.y,bounded.z};}
+  if(surfaceGarmentEnabled&&!surfaceGarmentContactReaction){auto a=i<pdBody0?surfaceGarmentShaft:surfaceGarmentLobes[i-pdBody0];auto bounded=::malemod::surface::BoundGarmentAcceleration({a.x,a.y,a.z},gravity);acceleration=acceleration+V3{bounded.x,bounded.y,bounded.z};}
   float drag=i<pdBody0?shaftDrag:bodyDrag;
   pdVelocity[i]=(pdVelocity[i]+acceleration*dt)*expf(-drag*dt);pdPosition[i]=pdPosition[i]+pdVelocity[i]*dt;
  }

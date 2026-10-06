@@ -1,12 +1,13 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/gkoogz/MaleModBase.git",
-  "commit": "99ff741ea95f18ed84526c35a6c3f38a37d857b6",
+  "commit": "421a786b23a982c7bfb9c19888f0107c25bf488d",
   "modules": [
     "surface/pelvic_frame",
     "garments/jockstrap",
     "garments/numerical_support",
     "controls/presentation"
   ],
-  "legacySnapshot": "reference-only-immutable"
+  "legacySnapshot": "reference-only-immutable",
+  "developmentCheckpoint": true
 }

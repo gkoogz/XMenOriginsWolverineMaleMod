@@ -1,0 +1,205 @@
+{
+  "schema": 4,
+  "routeSteeringContractSHA256": "9976724faf93e28d668f92020f403d6584d6e701c9aafcbf255fc18909069be1",
+  "rootBoundary": {
+    "version": 1,
+    "vertices": 54,
+    "existingNativeIds": [
+      4607,
+      4608,
+      4609,
+      4612,
+      4613,
+      4621,
+      4622,
+      4625,
+      4626,
+      4888,
+      4889,
+      4891,
+      4893,
+      4913,
+      4914,
+      4916,
+      4918,
+      4928,
+      4930,
+      4932,
+      4934,
+      4937,
+      4939,
+      4941,
+      4943,
+      4949,
+      4947,
+      4966,
+      4967,
+      4969,
+      4971,
+      5185,
+      5182,
+      5179,
+      4832,
+      4833,
+      4834,
+      4836,
+      4774,
+      4775,
+      4776,
+      4779,
+      4780,
+      4786,
+      4787,
+      4789,
+      4675,
+      4676,
+      4677,
+      4680,
+      4681,
+      4687,
+      4688,
+      4690
+    ],
+    "physicalTrianglesChanged": false
+  },
+  "sourceCoordinates": {
+    "forward": "+X",
+    "lateral": "-Y",
+    "up": "+Z",
+    "unit": "measured uncalibrated native source model unit"
+  },
+  "nativeSourceSHA256": "c4075718353b229faafa3c2a6b558d3a07c74785336b0b0f703f20bbfa818f25",
+  "generatorSHA256": "d25cc28098466aef13e2a5c158ac8e4bce5e2fbad9c6eafb62c74fb69007f9d8",
+  "sharedGeneratorSHA256": "b9712e67bd1a629c6bb64bf54b2b0033b6a9d15110176d20ac52255778ac647b",
+  "headerSHA256": "3f1947ee25f3dc85bdc2f4ebb5f12a1877b1d948e7a1f3bc1cec46d41ac4e84d",
+  "anatomySemantics": {
+    "version": 1,
+    "sourceAssetSHA256": "435cb9b391e6bf1ee76a09524b075bfc356230920b30e523bac90448961b2f30",
+    "exporterSHA256": "5271c9ea84e376bde12743b792ac3938d2474c434368b508d0c97db8a500f0fc",
+    "regionHeaderSHA256": "7363e0d1b714dd569699bd6cb8965c2d5ffe8c1384b4aee46ee83c7c5c72f7af",
+    "counts": {
+      "shaft": 5448,
+      "glans": 2993,
+      "leftLobe": 3851,
+      "rightLobe": 3771
+    },
+    "fullAnatomyVertices": 17528,
+    "fullAnatomyTriangles": 35000
+  },
+  "nativeDrawIndicesChanged": false,
+  "contactTopologyChanged": false,
+  "routes": [
+    {
+      "routeSteering": {
+        "version": 2,
+        "anteriorHipFraction": 0.12,
+        "lowerGluteFraction": 0.06,
+        "measuredAnteriorShift": 1.5624009485818884,
+        "measuredCupDrop": 0.9449999994771908,
+        "coordinateUnits": "caller measured units"
+      },
+      "side": -1,
+      "waistSample": 1,
+      "startPosition": [
+        1.8179503299138509,
+        -13.808703357494053,
+        94.7499999959791
+      ],
+      "lateralMidpointForward": 0.27048578660442324,
+      "waypointVertexIds": [
+        19558,
+        21364,
+        23759,
+        23781,
+        45294
+      ],
+      "waypointPositions": [
+        [
+          0.5990312099456787,
+          -13.852645874023438,
+          95.02118682861328
+        ],
+        [
+          -9.91744613647461,
+          -12.125195503234863,
+          85.24952697753906
+        ],
+        [
+          -9.187500953674316,
+          -8.681219100952148,
+          76.54570770263672
+        ],
+        [
+          -4.998034477233887,
+          -2.156747341156006,
+          75.44361114501953
+        ],
+        [
+          0.4079771041870117,
+          -0.39903244376182556,
+          76.17782592773438
+        ]
+      ],
+      "samples": 22,
+      "edgeLength": 39.914445197598006,
+      "descendingMaximumForward": 0.5990312099456787,
+      "returnMaximumLateral": 8.681219100952148
+    },
+    {
+      "routeSteering": {
+        "version": 2,
+        "anteriorHipFraction": 0.12,
+        "lowerGluteFraction": 0.06,
+        "measuredAnteriorShift": 1.5623997487109615,
+        "measuredCupDrop": 0.9449999986876912,
+        "coordinateUnits": "caller measured units"
+      },
+      "side": 1,
+      "waistSample": 23,
+      "startPosition": [
+        1.817934508437543,
+        13.808582422701775,
+        94.74999999929966
+      ],
+      "lateralMidpointForward": 0.2709053792755802,
+      "waypointVertexIds": [
+        21301,
+        42801,
+        43668,
+        43696,
+        44259
+      ],
+      "waypointPositions": [
+        [
+          0.5995178818702698,
+          13.852534294128418,
+          95.0213394165039
+        ],
+        [
+          -9.915521621704102,
+          12.124191284179688,
+          85.2457504272461
+        ],
+        [
+          -9.184713363647461,
+          8.676366806030273,
+          76.54291534423828
+        ],
+        [
+          -4.978731155395508,
+          2.1887118816375732,
+          75.42774200439453
+        ],
+        [
+          0.40603286027908325,
+          0.5315680503845215,
+          76.1821517944336
+        ]
+      ],
+      "samples": 23,
+      "edgeLength": 39.856058106964625,
+      "descendingMaximumForward": 0.5995178818702698,
+      "returnMaximumLateral": 8.676366806030273
+    }
+  ]
+}

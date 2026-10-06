@@ -1,3 +1,37 @@
+## October5 packaging and release checkpoint
+
+The developer grey room recipe is tracked under tools/iteration with
+entrypoint dev/sandbox/README.md. Use it by default for native iterations;
+it is excluded from uploaded Install/optionalSource archives. The bootstrap
+copies stock inputs into an owned clone, rebuilds native layers/dependencies
+and generates a fresh local engine checkpoint. No profiles, retail packages,
+captures, private audio or compiled sandbox binaries are shipped. Read SANDBOX-REPRODUCTION.md for the fresh clean27-source native startup,
+complete-body visual review and human preflight proof. Retained stock bootstrap,
+fluid-world origin and later cloth/cadence remain explicit limits.
+
+Beta2 packages the exact approved installed4F4900A5 DLL, source16affd49 and
+Base99ff741. Its manifest pins runtime independently from main's development
+Base421a786. Exact clean release source rebuilt successfully; packaged observed
+binary remains untouched. Fresh install and supported-upgrade fixtures pass
+exact rollback, texture backup, settings/customfluid/camera and unsupported
+input rejection. Later source cloth/contact/impulse work is a DEVELOPMENT
+checkpoint, not deployed by Beta2. See releases/2.0.0-beta.2.md.
+
+Development checkpoint audit: complete dirty native source compiles against
+Base421a786. Production worker/reaction transport and hidden offscreen HAL render
+and state-restoration gates pass. The native pose test fails its measured strap
+origin/medial-return gate after the later route refinement; this failure is
+retained, not relabeled as passing cloth acceptance. Shared Base's source cloth
+synthetic failures and moving contact/cadence limitations remain documented.
+No new production runtime is built into the release from this development tree.
+
+The clean frozen release source also compiles, but the rebuilt binary is not
+byte-identical: several PE sections differ. This is compilation evidence only,
+not deterministic runtime reproduction. The release retains the independently
+verified installed4F49 bytes and their prior recorded source/install provenance.
+
+Historical handoff follows; older release/installed hashes are not current pins.
+
 # Project handoff — 2.0 Beta 1, 2026-09-29
 
 Read [PROJECT-CONTEXT.md](PROJECT-CONTEXT.md) for the durable educational purpose
@@ -30,6 +64,10 @@ Local ignored payload/ now contains all 36 manifest-verified released files. A f
 ## Compact installation packaging
 
 At the user's request, the install download excludes developer source/authoring fixtures (provided in a separate optional Source ZIP and GitHub) and the redundant natural/erect PNG fallbacks. Full-resolution DDS skin maps and all precomputed mipmaps remain byte-identical, as do the DLL, patches, menu PNG blends, normal/specular maps and public audio. No runtime source, mesh, physics, texture pixels or live installed files were changed. Existing fallback PNGs are preserved on upgrade. Complete clean install, supported upgrade, exact rollback, settings preservation and unsupported-input rejection fixtures passed with the smaller 34-file payload. The install archive uses lossless 7z compression and requires extraction with 7-Zip before running the existing launcher. Source remains in the canonical checkout; the published runtime beta tag is not rewritten for this packaging revision.
+
+## Wolverine voice-pool transcript (October 2, 2026)
+
+The two installed WAV pools have a filename-derived transcript and local match record in [VOICE-POOLS.md](VOICE-POOLS.md) and [wolverine-voice-pools.csv](wolverine-voice-pools.csv). The CSV lists all 24 clips with the recovered original MP3 filename, its recorded size, the installed WAV size, decoded duration and audio-envelope match evidence. The observed installed counts are Phase 1 = 13 and Phase 2 = 11; the older synthetic test expects 13/7. This documentation adds no audio binaries and changes no runtime or installation files.
 
 ## Shared garments, October 3, 2026
 

@@ -1,5 +1,19 @@
 # Educational context and cross-game architecture
 
+Latest clothing authorization: adopt the shared classic white jockstrap with
+matte elastic, red/blue stripes, a knitted scalable pouch and flat under-glute
+straps. The intact anatomy remains inside. Genuine persistent fabric dynamics
+(stretch, sag, inertia and measured contacts) must run in Base and both spokes.
+Native measured skin/actor transforms and active timing belong in this adapter;
+camera transforms and display transport are not physics. Preserve settings and
+audio, and keep offscreen verification separate from observed gameplay.
+
+Clothing is strictly additive: switching between Naked and Jockstrap preserves
+the complete anatomy mesh, morphology controls and running numerical anatomy
+physics. Fabric may naturally occlude it and apply bounded measured contact
+feedback; it must never replace the anatomy with a cloth shell, suppress its
+draw, freeze it or discard its source arrays.
+
 The user describes themselves as a speculative biologist and university
 medical-school educator teaching postgraduate students. This is an interactive
 adult anatomy teaching project, with deliberately exaggerated proportions for

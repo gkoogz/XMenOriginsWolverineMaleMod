@@ -27,7 +27,7 @@ static bool FluidBspCamera(const float* local,V3& camera){
   float expected=i%5==0?1.f:0.f;if(fabsf(local[i]-expected)>1e-5f)return false;
  }camera={-local[12],-local[13],-local[14]};return true;
 }
-static void CaptureFluidWorldGeometry(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count,IDirect3DVertexBuffer9* vb,UINT offset,UINT stride){
+static void CaptureFluidWorldGeometry(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count,IDirect3DVertexBuffer9* vb,UINT offset,UINT stride,bool collectReferences=true){
  if(TankCameraSceneActive()||type!=D3DPT_TRIANGLELIST||!vb||stride!=36)return;
  ShaderLayout* layout=GetShaderLayout(d);if(!layout||layout->boneCount||layout->localCount!=4||!layout->viewValid)return;
  float local[16],view[16];if(FAILED(d->GetVertexShaderConstantF(layout->localRegister,local,4))||FAILED(d->GetVertexShaderConstantF(layout->viewRegister,view,4)))return;
@@ -40,6 +40,7 @@ static void CaptureFluidWorldGeometry(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,
  decl->Release();V3 camera;if(!bsp||!FluidBspCamera(local,camera))return;
  fluidCameraWorld=camera;fluidCameraTick=GetTickCount();fluidWorldCameraFrame=renderFrameSerial;
  if(!fluidWorldOriginLogged){fluidWorldOriginLogged=true;Log("fluid absolute origin from baked BSP: camera=(%.3f %.3f %.3f)",camera.x,camera.y,camera.z);}
+ if(!collectReferences)return; // Cloth needs the observed origin, not terrain buffer readback.
  // A few rendered, upward-facing triangles verify the physics unit conversion.
  // Read at most one bounded buffer range per frame and 64 ranges per scene.
  if(fluidWorldReferences.size()>=24||fluidWorldReadCount>=64||fluidWorldReadFrame==renderFrameSerial||!count||count>100000||!nv||nv>100000)return;

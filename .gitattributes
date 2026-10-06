@@ -1,0 +1,7 @@
+# Clone contains developer rooms; git/tag release source archives omit them.
+tools/iteration export-ignore
+tools/iteration/** export-ignore
+dev/sandbox export-ignore
+dev/sandbox/** export-ignore
+docs/ITERATION-SANDBOX.md export-ignore
+docs/SANDBOX-REPRODUCTION.md export-ignore

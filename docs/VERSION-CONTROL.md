@@ -28,3 +28,10 @@ Large reusable release payloads are obtained from the full GitHub release, verif
 Future agents must follow AGENTS.md, keep docs/PROJECT_HANDOFF.md current and distinguish source, built DLL, installed DLL and published release. Before saying synchronized, confirm a clean working tree, equal local/upstream commit IDs and matching installed runtime hash. User settings are intentionally outside version control.
 Compact releases: download the -Install.7z for users; source/authoring files are separate and optional. Get-ReleasePayload.ps1 supports the current 7z payload and legacy ZIP input and verifies all manifest assets before copying. The two optional state PNG fallbacks are no longer required manifest assets; existing local copies are preserved.
 
+
+## October5 source and runtime separation
+
+Beta2 packages approved16affd49/Base99ff runtime; main preserves later source
+cloth work on Base421a786 as developmental. Do not replace the runtime with
+main merely because Git is clean. Rebuild/test and verify native acceptance
+first. Developer sandbox lives only in Git, excluded from uploaded releases.

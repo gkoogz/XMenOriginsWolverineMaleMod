@@ -183,3 +183,195 @@ hash. Wolverine was closed; only the DLL was replaced. All 48 current settings
 and audio hashes remained unchanged. The exact preceding 653D2362 DLL is in
 `build/installed-backup-moving-stitch-20261003-173646/d3d9.dll`, with a private
 receipt and rollback path. No live gameplay or garment appearance is claimed.
+
+## Persistent fabric integration candidate
+
+The shared feature now requires active elapsed time and measured world-space
+donors/contacts rather than a new fitted shell every frame. The adapter captures
+the existing native body/anatomy palettes with the same scene-frame tag. UE3
+LocalToWorld contains pre-view translation: the existing observed absolute
+world origin removes that camera shift before samples enter the solver. A
+missing matching origin/pose suspends input; no absolute origin is invented.
+The stationary title model uses its component frame. Color/full-resolution
+scene filters prevent shadow palettes from overwriting those samples.
+
+Original packed skin weights and gameplay section remaps remain authoritative.
+Interpolated donor samples are individually skinned before interpolation; an
+interpolated point multiplied by an interpolated matrix would introduce invalid
+cross-donor terms. The immutable worker delivery pairs the solved world mesh
+with its original native pose. Current display maps the solved residual back
+through that pose and the current native actor/skin matrices, preserving actual
+articulation and camera independence. This display transport is not physics.
+
+The latest-request worker preserves accumulated active elapsed time instead of
+losing overwritten intervals. Invisible/loading spans suspend its clock; epoch,
+style and large timing discontinuities reset it explicitly. Morphology controls
+revise the cached shared fitter, while animation does not. Native source units
+and the measured 72-unit gravity magnitude are retained. Shared support is
+converted back through the measured pelvis transform before anatomy coupling.
+
+Diagnostic production builds and offline native tests pass world/native donor
+math, actor rotation/translation, articulation, camera-shift cancellation, stale
+frame/origin rejection, retained elapsed time and hidden offscreen HAL rendering
+of all four material slices with complete graphics-state restoration. These
+checks do not certify observed Wolverine gameplay or whole-game performance.
+Installation and strict production pin adoption wait for the shared fabric
+material/contact gates and a clean feature commit; diagnostic DLLs are not
+installed. Existing audio, settings and published release payloads are preserved.
+
+Worker conversion now receives an owned snapshot of the completed packed anatomy
+and both body resources, paired with the exact recorded palette/actor/origin and
+control revision. No deferred conversion reads a mutable game buffer. The render
+thread copies native bytes; world sampling and contact topology construction run
+on the CPU worker. Contact-only anatomy faces reverse the recorded native draw
+winding, whose lighting normals use the opposite cross product. Body contact
+winding is normalized once against immutable stock normals; native draw indices
+remain intact. Tuple coefficient and inverse caches retain original donor math.
+
+Offline tests additionally overwrite live game buffers after snapshot capture,
+compare every deferred sample with the independent direct donor oracle, and
+cancel an in-flight conversion while superseding pending requests. Output keeps
+preparation and shared-update timings separate. These are ownership/math gates;
+shared actual-body fabric fit and steady throughput remain unaccepted, and no
+new diagnostic runtime has been installed.
+
+The measured diagnostic warm sampler covers 38,311 actual native vertices and
+12,011 distinct packed skin tuples. Dense validated native tuple slots,
+current-pose recomposition, unchanged linear inverse arithmetic and reused
+worker vector capacities reduced sampling to approximately 7.3 ms (0.83 ms
+lineage/topology, 6.46 ms world conversion) on this workstation. Every sampled
+position and normal matches the original uncached donor arithmetic under a
+changing affine pose; changed native bone/weight bytes explicitly rebind their
+slot. The worker reuse gate checks current epoch, controls, gravity, contacts
+and immutable caller ownership while retaining geometry capacity. This is sampler
+cost only. The current shared candidate still fails actual Geralt moving whole
+face clearance and takes hundreds of milliseconds per update; neither this
+result nor a successful adapter build establishes playable fabric dynamics.
+
+The updated native route starts at the measured lateral hip midpoint and follows
+actual connected body edges beneath the glute to a medial inner-thigh/pouch
+return. `tools/Generate-GarmentRoute.py --base <accepted Base checkout> --apply`
+parses this adapter's original native body buffers and calls the single Base
+`tools/garment_source_routes.py` character exporter. It does not maintain another
+route law. `docs/GARMENT-ROUTE.json` records native/generator/header hashes, exact
+coordinate axes, sparse source IDs and corridor measurements. Waist/opening
+recipes and the broad front pouch panel remain shared. Native gameplay fit and
+cloth throughput remain unaccepted; this diagnostic route is not installed.
+
+Clothing is additive. The actual gameplay hook draws the complete 17,528-vertex,
+35,000-triangle anatomy before the garment draw; the title route draws that
+same anatomy topology. Style changes reset garment delivery and old garment
+support feedback only. The hidden HAL native render gate executes both actual
+anatomy draw routes under Naked/Jockstrap/Naked/Jockstrap, checks full native
+vertex/index bindings and counts, and verifies anatomy buffers, morphology and
+physics controls/particle state survive each toggle. The existing four-material
+cloth draw follows separately and restores device state. This is executed
+native draw/lifecycle proof with offscreen fixture positions, not observed game
+appearance or a certification of cloth/anatomy collision dynamics.
+
+
+The single-sheet guide export now comes from the one Base semantic helper,
+using the preserved R14 ring/crown IDs and scrotal mechanical ownership through
+exact source lineage. The adapter embeds only stable native index sets:
+5,448 shaft, 2,993 glans and 3,851/3,771 lobe guides within the complete
+17,528 vertices and 35,000 triangles. These remain guides to the actual full
+surface, never replacement geometry. The source/header/helper hashes live in
+`docs/GARMENT-ROUTE.json`.
+
+Garment support lineage now retains all sixteen donor slots; the original
+packed native skin still has four bone influences per donor. The executed
+production pose gate exercises all sixteen mixed body/anatomy donors, compares
+independent per-donor skin interpolation, cached versus uncached positions and
+normals, and the complete weighted map under changing articulation. The same
+expanded lineage drives the later current-pose transport and camera-origin
+guards. Measured four-donor route recipes remain unchanged; recycled sample
+lineage clears every slot before applying a recipe.
+
+With this expanded support contract, removing a needless temporary lineage
+construction and matrix copy from cached sampling gave a warm diagnostic
+9.00 ms total (2.34 ms lineage/topology, 6.66 ms world conversion). This
+supersedes the earlier four-slot timing above. It is one workstation sampler
+measurement, not a throughput certification of the unfinished shared sheet
+solver. No new DLL has been installed and no new game appearance is claimed.
+
+
+`tools/Test-GarmentSourceSheet.cmd <evaluated surface.xyz> <owned report>`
+exercises the completed source model through this adapter's production packed
+buffer sampler, then the shared `simulate=false` fit. It validates the typed
+revision2 layout: exact 80 degree total upper seam, one connected rectangular
+material web, two smaller bottom seams and bounded four-corner strap ranges.
+Complete tissue/body/semantic arrays are supplied. Contact flags, actual
+coverage, degenerate-face and UV-area metrics, band attachment counts, fit and
+sampling times remain in its ignored report; failed gates stay failures.
+
+`tools/Run-GarmentSourceSheet.py --base <Base> --evaluator <recorded Win32
+source_runtime_cli.exe> --sheet-test <built native test> --out <new build
+directory> --extremes` evaluates Overall25/50/75/100 at defaults plus the
+1/100 rest-angle endpoints for states0/1/2 at Overall25 and100. The evaluator
+hash must match Base's recorded complete numerical runtime. This is offline
+initial material fit, not persistent dynamics or observed game rendering.
+Current sheet contact/walk repairs are still pending, so these new tests do not
+turn earlier radial-fit results into sheet certification.
+
+
+The complete native anatomy root has54 refined boundary points; its old
+13 coarse opening guides are superseded by schema3/rootBoundaryVersion1.
+The generated native opening retains all existing IDs with unchanged physical
+17528/35000 tissue topology. Sixteen evaluated complete-source cases
+(Overall25/50/75/100 default plus state0/1/2 at Overall25/100 and angle1/100)
+prove separate anatomy closure (52 classification cap faces) and complete body
+closure (64 classification cap faces), each with zero unmatched edges. This
+is a classification/export gate, not a passing sheet fit.
+
+Canonical contact orientation now reverses each complete original native body
+resource coherently from the overwhelming observed normal sign. Native stock
+normal bytes and all draw indices are unchanged. Four original interpolated
+normal outliers are recorded; flipping just those isolated faces independently
+would break manifold edge orientation. The actual packed/remapped donor oracle
+still passes, including all 16 support donors and native skin rebinds.
+
+The first combined-body source25 sheet test exposed a real shared closure
+requirement: the actual body opening has20 original boundary points while the
+anatomy opening refines those edges to54. Appending its virtual root cap without
+subdividing the coarse classification edges creates T junctions. Separate
+closure passing does not approve that combined classifier. The later shared
+classification-only subdivision repairs this condition; complete static and
+dynamic sheet/contact/performance gates remain pending as detailed below.
+
+After the classification-only coarse-to-fine root repair, the exact complete
+source static diagnostic in `build/garment-source-sheet-static16/receipt.json`
+passes only Overall 25 and 50 at full-floppy defaults. Both retain the full
+anatomy/body and pass contact, nondegenerate faces and the complete continuous
+hem checks (maximum static turns 45.27 and 27.53 degrees). The first fit costs
+about 2.2 seconds on this workstation. Overall 75/100 defaults and eleven of the
+twelve endpoint cases still fail material-walk convergence; the remaining
+state 2/Overall 100/angle 100 case fails the waist intersection. These are real
+failures, not accepted cloth dynamics or runtime performance.
+
+The source test accepts `--input-json` to retain its exact typed input before
+the shared fit, including all 16 lineage slots, complete native topology,
+semantic regions, frame, 48-point waist, 54-point opening and both measured
+routes. The Overall 75 reproduction is an identity source authoring pose with
+source gravity 72, not captured game motion. It is ignored diagnostic data;
+this source export must not be committed as a game capture.
+
+The native-only single-donor sampling path now explicitly supplies donor count 1
+for the complete reconstructed anatomy/body samples. Generic mixed garment
+lineage sampling keeps the 16-donor default. The independent native pose oracle
+still exercises all 16 nonzero mixed donors and changing original four-bone
+influences per donor. This reduces a retained warm sampler measurement to
+8.53 ms (2.36 ms topology/lineage and 6.16 ms world conversion). No vertices,
+normal donors, influences or contact faces are omitted. This is still not a
+whole-worker cloth throughput approval.
+
+
+The focused `--joined-cut-only` source test bypasses the cloth walk and calls
+Base's actual joined physical-surface cutter followed by all seven production
+BuildBand rows. State2/Overall100/restAngle100 now passes this independent gate:
+38,311 retained body/anatomy samples, 73,700 physical triangles after the
+coarse-to-fine body edge subdivision, and no appended classification cap faces.
+The 48 attachments at each transverse edge reconstruct the native source
+positions within 2.85e-14 source units. The body-only cut remains open at the
+expanded graft; the actual joined cut closes over the intact body and anatomy.
+This supersedes that case's former body-only waist-cut failure, not its pending
+sheet walk, contact dynamics, performance or gameplay status.
