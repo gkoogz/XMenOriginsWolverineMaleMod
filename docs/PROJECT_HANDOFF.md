@@ -1,3 +1,19 @@
+## October 6 playable garment candidate - native verification pending
+
+Development source pins Base f906fe76825e7221bb78f57f95a9900a604826ea.
+The shared fit/contact optimization preserves four measured Wolverine size
+meshes/layouts byte for byte over five frames. First fit is about 2.3-2.6 s;
+dynamic steps remain 40-62 ms and are not real-time acceptance. The worker no
+longer interprets valid coalesced active time as a character/material reset.
+The producer still excludes pauses, rewinds and explicit engine discontinuities.
+
+Production worker, cumulative reaction/coalesced1.1-second test and actual
+offscreen HAL additive-clothing/material/state-restoration gates passed.
+This is a development source checkpoint for a sealed native room build, not a
+retail install/release. Installed retail and human sandbox remain unchanged at
+this checkpoint. Native sustained cloth, collision/self-contact and full collar
+visual matrix still need acceptance. Base owns cloth; no spoke fork was created.
+
 ## October5 packaging and release checkpoint
 
 The developer grey room recipe is tracked under tools/iteration with

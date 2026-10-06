@@ -15,8 +15,9 @@ int main(){try{
  auto reaction=[&](const G::Input& in,const G::Output& out,const JockstrapKinematics::Pose& captured){Check(in.anatomy.size()==1152&&out.mesh.vertices.size()>0&&captured.serial==531,"Reaction callback lost full input/output/pose");S::Frame::GarmentSupport delta;delta.enabled=delta.contactReaction=true;delta.rodImpulseTotals[4]={0,double(++calls),0};delta.lobeAngularImpulseTotals[0]={double(calls),0,0};total+=calls;return delta;};
  worker.Submit(Fixture(12),pose,0,[&](G::Input&,const JockstrapKinematics::Pose&){entered.set_value();released.wait();},reaction);
  Check(entered.get_future().wait_for(std::chrono::seconds(2))==std::future_status::ready,"Worker failed to enter blocked preparation");
- for(unsigned i=1;i<=20;i++)worker.Submit(Fixture(12),pose,double(i)/200,{},reaction);
- release.set_value();auto last=Wait(worker,12,.1);Check(calls==2&&total==3,"Overwritten pending requests ran or completed reactions were lost");
+ for(unsigned i=1;i<=20;i++)worker.Submit(Fixture(12),pose,double(i)*1.1/20,{},reaction);
+ release.set_value();auto last=Wait(worker,12,1.1);Check(calls==2&&total==3,"Overwritten pending requests ran or completed reactions were lost");
+ Check(!last->clockReset&&!last->output->physics.reset&&last->output->physics.substeps==120,"Worker backlog recreated material or lost bounded active time");
  S::GarmentImpulseCursor consumer;auto first=consumer.Consume(last->reaction);Check(first.rod[4].y==total&&first.angular[0].x==total,"Latest publication dropped a completed reaction");
  Check(consumer.Consume(last->reaction).rod[4].y==0,"Retry replayed worker reaction");auto oldEpoch=last->reaction.contactEpoch;
  worker.Clear();worker.Submit(Fixture(12),pose,0,{},reaction);auto reset=Wait(worker,12,0);auto next=consumer.Consume(reset->reaction);Check(reset->reaction.contactEpoch!=oldEpoch&&next.reset&&next.rod[4].y==3,"Clear/restart replayed prior reaction totals");
