@@ -1,3 +1,16 @@
+## October 6 persistent dressing native candidate - isolated verification only
+
+Base5ac1639 pins corrected skin-normal waistband anchors, free elastic rows,
+finite-thickness clearance, unpublished reference-to-live dressing, conservative
+point-query neighborhoods and ordered contact indexing. Saved native-pose replay
+passes contact/material; cache output is byte-identical across 12 frames.
+CPU 79-108 ms per 1/120-second step is still too slow for acceptance.
+Adapter now calls InitializeDraped only in gameplay; unused nonfinite palette
+slots are allowed while every actually used bone remains checked. Invalid
+contact/material output is never rendered or applied as anatomical feedback.
+Title remote closure is unresolved and gameplay-only dressing defers that path.
+No human/retail install and no complete attachment or motion gate claim.
+
 ## October 6 reference-pose garment candidate - uninstalled
 
 Base674f89 adds SDK-free reference-pose physical material placement and bent
