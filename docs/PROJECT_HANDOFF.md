@@ -1,3 +1,14 @@
+## October 6 native root classification correction
+
+Candidate A reached gameplay but rejected cloth initialization: an animated fine
+root was off its coarse straight edge. Base 3511c34 uses the authored final
+unified seam edge ownership only to close the virtual classification volume.
+Wolverine supplies the original ucSeam parent mapping. Actual anatomy positions,
+body geometry and physical contact faces remain unchanged.
+Worker and HAL render tests pass. The existing native pose strap-route gate
+still fails; this remains an open fit issue. Candidate B needs native validation.
+Retail and human sandbox are unchanged.
+
 ## October 6 playable garment candidate - native verification pending
 
 Development source pins Base f906fe76825e7221bb78f57f95a9900a604826ea.

@@ -107,6 +107,12 @@ static void PrepareSnapshotInput(G::Input& target,const K::Pose& pose,const Geom
  ContourLineage(jockstrap_waist,target.waist,G::Surface::Body);ContourLineage(jockstrap_opening,target.opening,G::Surface::Anatomy);ContourLineage(jockstrap_strapLeft,target.rearStraps[0],G::Surface::Body);ContourLineage(jockstrap_strapRight,target.rearStraps[1],G::Surface::Body);
  target.anatomy.resize(nrCount);for(unsigned vertex=0;vertex<nrCount;vertex++){target.anatomy[vertex]={};target.anatomy[vertex].lineage.donors[0]={G::Surface::Anatomy,vertex,1};}
  target.anatomyTriangles.resize(nrIndexCount/3);for(unsigned triangle=0;triangle<nrIndexCount/3;triangle++)target.anatomyTriangles[triangle]={nrIndices[triangle*3],nrIndices[triangle*3+2],nrIndices[triangle*3+1]};
+ // Use the final unified collar's authored fine-to-coarse edge ownership.
+ // Native skinning need not preserve geometric collinearity of packed fine
+ // vertices. Only the virtual volume closure consumes these source bindings;
+ // the complete native physical/rendered anatomy and body remain unchanged.
+ target.rootSubdivisions.clear();
+ for(unsigned k=0;k<ucSeamCount;k++){unsigned x=ucKeep[ucSeamVertices[k*3]],a=ucKeep[ucSeamVertices[k*3+1]],b=ucKeep[ucSeamVertices[k*3+2]];if(x>=nrCount||a>=nrCount||b>=nrCount)throw std::invalid_argument("Native collar source subdivision outside anatomical root");target.rootSubdivisions.push_back({x,a,b,ucSeamWeights[k]});}
  CompleteBodySurface(target,&geometry,true);
  auto beforeWorld=std::chrono::steady_clock::now();static thread_local SamplingMaps cached;cached.Begin();// Full native tissue/body rows were reconstructed immediately above with
  // exactly one native donor. Only those rows use the bounded single-donor
