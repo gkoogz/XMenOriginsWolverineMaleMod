@@ -1,5 +1,12 @@
 # Educational context and cross-game architecture
 
+Highest-priority enduring requirement (October 5): attachment integrity, smooth
+collar continuity and a natural pelvic ramp are the most critical aspects of
+the entire project at every scale. Every mod edit requires a regression pass
+for gaps, dark seams, folds, constrictions and wedges across size/angle/state/
+motion. Numerical welding is not visual acceptance. See the mandatory gate
+in AGENTS.md; preserve the last accepted runtime when a candidate fails.
+
 Latest clothing authorization: adopt the shared classic white jockstrap with
 matte elastic, red/blue stripes, a knitted scalable pouch and flat under-glute
 straps. The intact anatomy remains inside. Genuine persistent fabric dynamics
