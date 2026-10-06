@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/gkoogz/MaleModBase.git",
-  "commit": "3511c34f5f2b97bc1715d5adf2c9798ee415b22f",
+  "commit": "4e1a8072e75b157224b9182b6ba04721f21abcca",
   "modules": [
     "surface/pelvic_frame",
     "garments/jockstrap",
