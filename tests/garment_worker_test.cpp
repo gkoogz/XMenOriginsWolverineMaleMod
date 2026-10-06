@@ -33,4 +33,15 @@ clock.Reset();clock.Advance(0xfffffff0u,2);tick=clock.Advance(0x20u,2);if(tick.r
  };
  for(unsigned i=0;i<2;i++){auto header=std::make_shared<G::Input>();header->characterEpoch=174+i;header->topologyRevision=1;header->restRevision=31+i;header->gravity={0,0,-9.81-double(i)};G::Capsule capsule;capsule.a={9,9,9};capsule.b={10,10,10};capsule.radius=.01+double(i)*.001;header->bodyContacts.push_back(capsule);worker.Submit(header,pose,0,prepareHeader);auto output=Wait(worker,174+i);if(output->mesh.vertices.empty()||!header->anatomy.empty()||!header->bodySurface.empty())throw std::runtime_error("Deferred recycling changed immutable caller input");}
  if(recycled!=2)throw std::runtime_error("Deferred recycle test did not execute both requests");
- worker.Stop();std::cout<<"PASS CPU worker latest request, epoch rejection, immutable snapshots, clear/resume/stop and reusable geometry/current header; submit="<<submit<<"ms\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+ worker.Clear();std::atomic<unsigned> initializations{0};
+ JockstrapCpuWorker::Initialize initialize=[&](G::Session& session,const G::Input& in,const JockstrapKinematics::Pose& captured)->const G::Output&{
+  if(captured.serial!=912||std::this_thread::get_id()==caller)throw std::runtime_error("Material placement lost worker/pose ownership");
+  initializations++;return session.Initialize(in,in,[](const G::Sample& source){return source;});
+ };
+ auto placed=Fixture(180);placed->restRevision=9;worker.Submit(placed,pose,0,{}, {},initialize);Wait(worker,180);
+ auto waitSerial=[&](unsigned long long previous){auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);while(std::chrono::steady_clock::now()<deadline){auto delivery=worker.PollDelivery(180);if(delivery&&delivery->serial>previous)return delivery;auto error=worker.Error();if(!error.empty())throw std::runtime_error(error);std::this_thread::sleep_for(std::chrono::milliseconds(1));}throw std::runtime_error("Placed material update timed out");};
+ auto placedFirst=worker.PollDelivery(180);worker.Submit(placed,pose,1./120,{}, {},initialize);auto placedNext=waitSerial(placedFirst->serial);
+ if(initializations!=1||placedNext->output->physics.reset||placedNext->output->physics.substeps!=1)throw std::runtime_error("Animation recreated reference material");
+ auto morphology=std::make_shared<G::Input>(*placed);morphology->restRevision++;worker.Submit(morphology,pose,2./120,{}, {},initialize);waitSerial(placedNext->serial);
+ if(initializations!=2)throw std::runtime_error("Explicit rest revision did not replace reference material");
+ worker.Stop();std::cout<<"PASS CPU worker latest request, epoch rejection, immutable snapshots, clear/resume/stop, reusable geometry and one-time reference placement; submit="<<submit<<"ms\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

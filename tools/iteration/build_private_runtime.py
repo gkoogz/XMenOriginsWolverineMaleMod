@@ -26,6 +26,7 @@ def main():
     with zipfile.ZipFile(io.BytesIO(run('git','archive','--format=zip',lock['commit'],'include',cwd=args.base))) as z:z.extractall(target/'base')
     helper=pathlib.Path(__file__).with_name('sealed_d3d9.hpp').read_bytes()
     native=target/'source/src/runtime';(native/'sealed_d3d9.hpp').write_bytes(helper)
+    (native/'sandbox_world_origin.hpp').write_bytes(pathlib.Path(__file__).with_name('sandbox_world_origin.hpp').read_bytes())
     cpp=native/'d3d9_proxy.cpp';s=cpp.read_text()
     s=s.replace('static bool menuOpen=true, shapeDirty=true;','static bool menuOpen=false, shapeDirty=true;',1)
     old='IDirect3D9* WINAPI Direct3DCreate9(UINT sdk){LoadReal();IDirect3D9* d=realCreate9(sdk);'
@@ -48,6 +49,7 @@ def main():
     subprocess.run(['cmd','/c',str(cmd)],check=True,env=compiler_env)
     record={'sourceCommit':head,'baseCommit':lock['commit'],'dirtySourceIncluded':False,
       'privateFactorySHA256':hashlib.sha256(helper).hexdigest(),
+      'sandboxWorldOriginSHA256':hashlib.sha256((native/'sandbox_world_origin.hpp').read_bytes()).hexdigest(),
       'generatedRuntimeSourceSHA256':hashlib.sha256(cpp.read_bytes()).hexdigest(),
       'builderSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),
       'runtimeSHA256':hashlib.sha256((target/'d3d9.dll').read_bytes()).hexdigest(),

@@ -1,3 +1,13 @@
+## October 6 reference-pose garment candidate - uninstalled
+
+Base674f89 adds SDK-free reference-pose physical material placement and bent
+root edge classification. The worker initializes only on first use/reset or
+explicit morphology revision; animated requests retain state. Adapter supplies
+identity source palettes and observed native placement. Grey-floor origin is
+limited to exact checked-in recipe package hashes. Gameplay cloth now receives
+world poses; retail origins remain unchanged. New clean native test pending.
+No complete attachment gate, no human/retail installation or release.
+
 ## October 6 native root classification correction
 
 Candidate A reached gameplay but rejected cloth initialization: an animated fine

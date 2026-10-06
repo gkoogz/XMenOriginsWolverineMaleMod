@@ -1,5 +1,6 @@
 #pragma once
 #include <Xinput.h>
+#include "sandbox_world_origin.hpp"
 static bool maleModPrivateExActive=false;
 static double maleModPrivateDrawMs=0;static unsigned maleModPrivateDrawCalls=0;
 static HWND maleModPrivateWindow=nullptr;
@@ -65,7 +66,7 @@ static void MaleModPrivateFocusImports(HWND window){
  }
  }
 }
-static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){LARGE_INTEGER a{},b{},f{};QueryPerformanceCounter(&a);HRESULT hr=MaleModPrivateSourceDIP(d,type,base,minv,nv,start,count);if(maleModPrivateExActive){QueryPerformanceCounter(&b);QueryPerformanceFrequency(&f);maleModPrivateDrawMs+=double(b.QuadPart-a.QuadPart)*1000/double(f.QuadPart);++maleModPrivateDrawCalls;}return hr;}
+static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){MaleModSandboxOrigin(d,type,nv,count);LARGE_INTEGER a{},b{},f{};QueryPerformanceCounter(&a);HRESULT hr=MaleModPrivateSourceDIP(d,type,base,minv,nv,start,count);if(maleModPrivateExActive){QueryPerformanceCounter(&b);QueryPerformanceFrequency(&f);maleModPrivateDrawMs+=double(b.QuadPart-a.QuadPart)*1000/double(f.QuadPart);++maleModPrivateDrawCalls;}return hr;}
 static HRESULT MaleModPrivateMeasuredPresent(IDirect3DDevice9* d,const RECT* src,const RECT* dst,HWND window,const RGNDATA* dirty){
  if(!maleModPrivateExActive)return origPresent(d,src,dst,window,dirty);
  LARGE_INTEGER a{},b{},frequency{};QueryPerformanceCounter(&a);HRESULT hr=origPresent(d,src,dst,window,dirty);QueryPerformanceCounter(&b);QueryPerformanceFrequency(&frequency);

@@ -27,6 +27,9 @@ $env:MALEMOD_PRIVATE_TIMEOUT_MS=[string]($Seconds*1000)
 $env:MALEMOD_PRIVATE_TEST_CONTROLS=if ($AcceptanceControls) {'1'} else {'0'}
 $env:MALEMOD_PRIVATE_START_PAUSED=if ($Active -or $AcceptanceControls) {'0'} else {'1'}
 $env:MALEMOD_TRACE_BOOT_IO='0'
+$floorHash=(Get-FileHash -LiteralPath (Join-Path $root 'owned-game/WGame/CookedPC/jungle1_zone01a.xxx')).Hash
+if($floorHash -notin @('C84DF9CE0D73089C51F2A4DD9BAE49EFD04D60F5C73AA6C03085678623A5046B','41B9764DAC2F1E85584FC19BDAC00867288237B179F4D4CA31E0FF9C693F5D2A')){throw 'Unsupported sandbox origin recipe; floor package differs.'}
+$env:MALEMOD_SANDBOX_ORIGIN_V1='1'
 # The private checkpoint always provides the same native player spawn.
 $sourceProfile=Join-Path $root 'owned-game/WGame/SaveData-ground-control/Player.wgameprofile'
 Copy-Item -LiteralPath $sourceProfile -Destination (Join-Path $root 'owned-game/WGame/SaveData/Player.wgameprofile') -Force

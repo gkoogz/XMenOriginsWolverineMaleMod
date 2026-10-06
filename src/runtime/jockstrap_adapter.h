@@ -120,6 +120,20 @@ static void PrepareSnapshotInput(G::Input& target,const K::Pose& pose,const Geom
  for(auto* contour:{&target.waist,&target.opening,&target.anatomy,&target.rearStraps[0],&target.rearStraps[1],&target.bodySurface})for(auto& sample:*contour)WorldSample(sample,pose,&geometry,&cached,contour==&target.anatomy||contour==&target.bodySurface?1:unsigned(G::Lineage{}.donors.size()));
  if(timing){timing->lineageMilliseconds=std::chrono::duration<double,std::milli>(beforeWorld-began).count();timing->worldMilliseconds=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-beforeWorld).count();timing->uniqueMatrices=cached.composed;}
 }
+static const G::Output& InitializeMaterial(G::Session& session,const G::Input& current,const K::Pose& pose,const GeometrySnapshot& geometry){
+ // Source positions and final collar recipes are already in model units.
+ // Identity palettes recover that measured reference; no engine bone names
+ // or guessed character dimensions enter the shared fitter.
+ for(unsigned section=0;section<3;section++)for(unsigned axis=0;axis<3;axis++){
+  G::Point basis{};basis[axis]=1;
+  if(std::abs(G::Length(K::Direction(pose.actor[section],basis))-1)>1e-4)throw std::invalid_argument("Cloth rest placement requires a verified unit-scale actor");
+ }
+ K::Pose identity;identity.title=pose.title;identity.count=pose.count;
+ for(unsigned section=0;section<3;section++){identity.actor[section]=identity.inverseActor[section]=K::Identity();for(unsigned bone=0;bone<identity.count[section];bone++)identity.skin[section][bone]=identity.world[section][bone]=K::Identity();}
+ auto reference=current;reference.frame={};reference.frame.lateral={0,-1,0};reference.frame.forward={1,0,0};reference.frame.up={0,0,1};reference.deltaTime=0;reference.bodyContacts.clear();
+ PrepareSnapshotInput(reference,identity,geometry);
+ return session.Initialize(reference,current,[&](const G::Sample& source){auto sample=source;auto map=NativeMap(source.lineage,pose,true,&geometry);sample.position=K::Point(map,source.position);sample.normal=K::Normal(map,source.normal);return sample;});
+}
 static void SetStyle(unsigned value){style=value==1?G::Style::WhiteJockstrap:G::Style::Naked;styleGeneration++;snapshot.reset();solved.reset();ready=false;restKnown=false;activeClock.Reset();if(worker)worker->Clear();}
 static unsigned GetStyle(){return unsigned(style);}
 static const G::Output* latest=nullptr;
@@ -147,7 +161,7 @@ static bool Update(const unsigned char* body,unsigned long long characterEpoch=1
   for(auto& capsule:input.bodyContacts){capsule.a=K::Point(pelvis,capsule.a);capsule.b=K::Point(pelvis,capsule.b);capsule.radius*=scale;}
   if(!restKnown||restControls!=morphology){restControls=morphology;restKnown=true;restRevision++;}input.restRevision=restRevision;
   auto time=activeClock.Advance(now,epoch);if(!worker)worker=new JockstrapCpuWorker;if(time.reset){worker->Clear();snapshot.reset();solved.reset();latest=nullptr;ready=false;}
-  worker->Submit(std::make_shared<G::Input>(input),std::move(pose),time.activeSeconds,[geometry](G::Input& target,const K::Pose& captured){PrepareSnapshotInput(target,captured,*geometry);},std::move(reaction));Refresh();return true;
+  worker->Submit(std::make_shared<G::Input>(input),std::move(pose),time.activeSeconds,[geometry](G::Input& target,const K::Pose& captured){PrepareSnapshotInput(target,captured,*geometry);},std::move(reaction),[geometry](G::Session& session,const G::Input& current,const K::Pose& captured)->const G::Output&{return InitializeMaterial(session,current,captured,*geometry);});Refresh();return true;
  }catch(const std::exception& e){ready=false;Log("Garment source update rejected: %s",e.what());return false;}
 }
 // Capture at each verified native body/anatomy draw. Frame tags prevent mixing
