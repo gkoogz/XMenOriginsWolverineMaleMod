@@ -1,3 +1,14 @@
+## October 7 glute crease route correction - development only
+
+Base fb7f5ff removes the extra downward steering offset from measured glute and
+medial strap targets. Regenerated native donor routes keep the forward hip
+origin, cup higher beneath the glutes and retain both complete body resources.
+No waist/root/anatomy donors or native draw indices changed. Captured native
+pose replay passes preparation and 12 stationary contact/material steps; rear
+and side offline full-mesh renders reviewed. Native motion, all-size fitting
+and full attachment visual matrix remain pending. Physics performance remains
+unacceptable (105-142ms per step); this is not a playable release or human install.
+Accepted retail/human runtimes and exact rollback remain authoritative.
 ## October 7 shared contact repair - isolated candidate only
 
 Base4256c94 covers contact search application guards, final-pose settling and
