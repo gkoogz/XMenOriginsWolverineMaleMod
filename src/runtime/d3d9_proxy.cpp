@@ -2175,6 +2175,9 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
   }
   TankCameraDrawOverride cameraOverride(dev);
   if(FluidWorkActive()||JockstrapAdapter::GetStyle()==1){CaptureFluidWorldGeometry(dev,type,base,minv,nv,start,count,vb,offset,stride,FluidWorkActive());CaptureFluidCamera(dev);}
+  // Retry after scene-origin/body observations, irrespective of native material
+  // draw order. Draw accepts only its captured same-frame scene target.
+  JockstrapAdapter::Draw(dev);
   if(SUCCEEDED(gs)&&vb){
     // WStart draws a stock CH_Wolverine shell over WolverineNudeMenuMesh. Keep
     // its dedicated layered-hair draw and the two isolated eyeball components,
@@ -2248,7 +2251,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
       }
     }
     if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST){
-      HRESULT result=DrawWithIdleGesture(dev,type,base,minv,nv,start,count);vb->Release();return result;
+      HRESULT result=DrawWithIdleGesture(dev,type,base,minv,nv,start,count);JockstrapAdapter::Draw(dev);vb->Release();return result;
     }
     vb->Release();
   }
