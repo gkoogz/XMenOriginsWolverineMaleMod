@@ -24,6 +24,8 @@ class Clock {
  struct Tick{double activeSeconds=0;bool reset=false;};
  void Reset(){ready_=suspended_=false;active_=0;epoch_=0;}
  void Suspend(std::uint32_t now){if(ready_)tick_=now;suspended_=true;}
- Tick Advance(std::uint32_t now,unsigned long long epoch){if(!ready_||epoch_!=epoch){tick_=now;epoch_=epoch;active_=0;ready_=true;suspended_=false;return {active_,true};}std::uint32_t elapsed=now-tick_;tick_=now;if(suspended_){suspended_=false;return {active_,false};}if(elapsed>1000){active_=0;return {active_,true};}active_+=elapsed*.001;return {active_,false};}
+ Tick Advance(std::uint32_t now,unsigned long long epoch){if(!ready_||epoch_!=epoch){tick_=now;epoch_=epoch;active_=0;ready_=true;suspended_=false;return {active_,true};}std::uint32_t elapsed=now-tick_;tick_=now;if(suspended_){suspended_=false;return {active_,false};}// A render/driver hitch is not a character or material discontinuity.
+ // Preserve active time; loading, pauses and transitions call Suspend/Reset.
+ active_+=elapsed*.001;return {active_,false};}
 };
 }

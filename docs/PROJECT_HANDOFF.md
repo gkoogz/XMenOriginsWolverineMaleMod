@@ -1,3 +1,27 @@
+## October 6 persistent garment remaining blockers
+
+The adapter captures each body resource and anatomy from the HDR scene target,
+keeps anatomy view/local matrices independently, rejects mixed-target poses,
+and retries the cloth draw after body/origin observations. Offscreen production
+HAL tests pass, including target mismatch rejection and poisoned unrelated
+matrices. This does not establish a native camera pass.
+
+The native F run failed unpublished dressing equilibrium in the captured startup
+pose. It ended at the bounded 300-second timeout (exit124), not a CTD. Candidate E
+previously showed the striped garment from the rear, then lost it after orbit.
+Both runs are private evidence; no accepted human/retail installation occurred.
+
+A separate confirmed clock bug discarded active time and recreated material
+after any render hitch over one second. The clock now retains that active span;
+explicit pause/scene/character lifecycle suspension and reset remain authoritative.
+Worker tests cover a 2.975-second hitch followed by continuous advancement.
+
+Performance remains unacceptable: saved full-resolution contact/material replay
+requires roughly79-108ms per 1/120-second physical step. A nearest-face interior
+classification experiment gave no useful gain and remains ignored/unadopted.
+Native motion, startup equilibrium, pose strap-route and complete attachment
+matrix are still unresolved. Retain the accepted runtime and rollback.
+
 ## October 6 persistent dressing native candidate - isolated verification only
 
 Base5ac1639 pins corrected skin-normal waistband anchors, free elastic rows,
