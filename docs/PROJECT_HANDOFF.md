@@ -1,3 +1,14 @@
+## October 7 shared contact repair - isolated candidate only
+
+Base4256c94 covers contact search application guards, final-pose settling and
+extension/sewing checks after contact. Exact new native-pose replay passes
+preparation and12stationary steps; startup29seconds, physics86-113ms per step.
+This is not realtime acceptance. Direct live-fit/cap experiments failed and
+remain ignored. Complete measured body resources now supersede the legacy
+inflated thigh proxies in deferred garment conversion; anatomy physics is
+unchanged. Native visibility/motion and the complete attachment visual matrix
+remain pending. Accepted human/retail hashes and exact rollback are unchanged.
+
 ## October 6 verification closeout
 
 Owned candidate F runtime ED71B58A0F93040EC64301D2010F8BFD0703A748566A1EADD9F67065085021C2

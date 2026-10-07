@@ -115,6 +115,10 @@ static void PrepareSnapshotInput(G::Input& target,const K::Pose& pose,const Geom
  target.rootSubdivisions.clear();
  for(unsigned k=0;k<ucSeamCount;k++){unsigned x=ucKeep[ucSeamVertices[k*3]],a=ucKeep[ucSeamVertices[k*3+1]],b=ucKeep[ucSeamVertices[k*3+2]];if(x>=nrCount||a>=nrCount||b>=nrCount)throw std::invalid_argument("Native collar source subdivision outside anatomical root");target.rootSubdivisions.push_back({x,a,b,ucSeamWeights[k]});}
  CompleteBodySurface(target,&geometry,true);
+ // These are legacy thigh proxies used by the anatomy solver. Cloth receives
+ // both complete measured body resources; inflated proxies would impose a
+ // different obstacle on top of their actual skin and invalidate the drape.
+ target.bodyContacts.clear();
  auto beforeWorld=std::chrono::steady_clock::now();static thread_local SamplingMaps cached;cached.Begin();// Full native tissue/body rows were reconstructed immediately above with
  // exactly one native donor. Only those rows use the bounded single-donor
  // input path; arbitrary material support/output lineage retains all16.
