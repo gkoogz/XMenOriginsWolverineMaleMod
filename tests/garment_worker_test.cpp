@@ -44,4 +44,14 @@ clock.Reset();clock.Advance(0xfffffff0u,2);tick=clock.Advance(0x20u,2);if(tick.r
  if(initializations!=1||placedNext->output->physics.reset||placedNext->output->physics.substeps!=1)throw std::runtime_error("Animation recreated reference material");
  auto morphology=std::make_shared<G::Input>(*placed);morphology->restRevision++;worker.Submit(morphology,pose,2./120,{}, {},initialize);waitSerial(placedNext->serial);
  if(initializations!=2)throw std::runtime_error("Explicit rest revision did not replace reference material");
+ // Material construction is not gameplay time: a delayed first fit must not
+ // turn queued wall time into seconds of cloth integration on publication.
+ worker.Clear();std::promise<void> fitting,finishFit;auto finish=finishFit.get_future().share();
+ auto delayed=[&](G::Session& session,const G::Input& in,const JockstrapKinematics::Pose&)->const G::Output&{fitting.set_value();finish.wait();return session.Initialize(in,in,[](const G::Sample& source){return source;});};
+ auto fitInput=Fixture(181);worker.Submit(fitInput,pose,0,{}, {},delayed);
+ if(fitting.get_future().wait_for(std::chrono::seconds(2))!=std::future_status::ready)throw std::runtime_error("Delayed material test did not enter initialization");
+ worker.Submit(fitInput,pose,10,{}, {},delayed);finishFit.set_value();
+ auto waitTime=[&](double time){auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);while(std::chrono::steady_clock::now()<deadline){auto d=worker.PollDelivery(181);if(d&&fabs(d->activeSeconds-time)<1e-10)return d;auto e=worker.Error();if(!e.empty())throw std::runtime_error(e);std::this_thread::sleep_for(std::chrono::milliseconds(1));}throw std::runtime_error("Delayed material publication timed out");};
+ auto dressed=waitTime(10);if(dressed->output->physics.substeps||dressed->output->physics.accumulatedSeconds)throw std::runtime_error("Dressing time became simulation backlog");
+ worker.Submit(fitInput,pose,10+1./120,{}, {},delayed);auto advanced=waitTime(10+1./120);if(advanced->output->physics.substeps!=1)throw std::runtime_error("First active cloth step was lost after dressing");
  worker.Stop();std::cout<<"PASS CPU worker latest request, epoch rejection, immutable snapshots, clear/resume/stop, reusable geometry and one-time reference placement; submit="<<submit<<"ms\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

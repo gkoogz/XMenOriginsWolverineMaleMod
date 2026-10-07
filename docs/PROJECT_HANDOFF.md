@@ -1,3 +1,16 @@
+## October 7 supported-trim owned-room candidate
+
+Wolverine source 428e3cf adopts Base 85f9b60 via the pinned dependency.
+The worker accepts an explicit shared parameter set; generic callers retain
+existing defaults. Wolverine opts into fitted rear straps/upper band and a
+persistent 12x24 front cloth sheet. Lower-front band retains necessary flex.
+Saved live-pose Base replay passes 180 updates of contact and material checks;
+strap/root/waist/collar unit gates and source provenance pass.
+This source snapshot is for isolated native verification. It is NOT installed
+in the human room or retail game and is not a release. Native movement, size
+changes, feedback/cadence and complete attachment matrix remain unverified.
+Rollback stays build/playable-cloth-20261006-a/previous-owned-d3d9.dll (02A654...).
+
 ## October 7 glute crease route correction - development only
 
 Base fb7f5ff removes the extra downward steering offset from measured glute and
