@@ -165,7 +165,7 @@ static bool Update(const unsigned char* body,unsigned long long characterEpoch=1
   double scale=G::Length(K::Direction(pose->actor[section],{0,0,1}));input.gravity=G::Mul(measuredGravity,scale);
   for(auto& capsule:input.bodyContacts){capsule.a=K::Point(pelvis,capsule.a);capsule.b=K::Point(pelvis,capsule.b);capsule.radius*=scale;}
   if(!restKnown||restControls!=morphology){restControls=morphology;restKnown=true;restRevision++;}input.restRevision=restRevision;
-  auto time=activeClock.Advance(now,epoch);if(!worker)worker=new JockstrapCpuWorker;if(time.reset){worker->Clear();snapshot.reset();solved.reset();latest=nullptr;ready=false;}
+  auto time=activeClock.Advance(now,epoch);if(!worker)worker=new JockstrapCpuWorker(G::SupportedPouchParameters());if(time.reset){worker->Clear();snapshot.reset();solved.reset();latest=nullptr;ready=false;}
   worker->Submit(std::make_shared<G::Input>(input),std::move(pose),time.activeSeconds,[geometry](G::Input& target,const K::Pose& captured){PrepareSnapshotInput(target,captured,*geometry);},std::move(reaction),[geometry](G::Session& session,const G::Input& current,const K::Pose& captured)->const G::Output&{return InitializeMaterial(session,current,captured,*geometry);});Refresh();return true;
  }catch(const std::exception& e){ready=false;Log("Garment source update rejected: %s",e.what());return false;}
 }
