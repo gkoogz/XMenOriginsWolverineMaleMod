@@ -137,7 +137,7 @@ static const G::Output& InitializeMaterial(G::Session& session,const G::Input& c
  for(unsigned section=0;section<3;section++){identity.actor[section]=identity.inverseActor[section]=K::Identity();for(unsigned bone=0;bone<identity.count[section];bone++)identity.skin[section][bone]=identity.world[section][bone]=K::Identity();}
  auto reference=current;reference.frame={};reference.frame.lateral={0,-1,0};reference.frame.forward={1,0,0};reference.frame.up={0,0,1};reference.deltaTime=0;reference.bodyContacts.clear();
  PrepareSnapshotInput(reference,identity,geometry);
- return session.InitializeDraped(reference,current);
+ JockstrapCpuWorker::Record(reference,"reference");JockstrapCpuWorker::Record(current,"prepared");return session.InitializeDraped(reference,current);
 }
 static void SetStyle(unsigned value){style=value==1?G::Style::WhiteJockstrap:G::Style::Naked;styleGeneration++;snapshot.reset();solved.reset();ready=false;restKnown=false;activeClock.Reset();if(worker)worker->Clear();}
 static unsigned GetStyle(){return unsigned(style);}
