@@ -1,3 +1,20 @@
+## October 6 verification closeout
+
+Owned candidate F runtime ED71B58A0F93040EC64301D2010F8BFD0703A748566A1EADD9F67065085021C2
+was closed and rolled back with exact saved settings. Owned/human sandbox DLL:
+02A654BA91B7AAC7BE3A8E9EF958EF61B178210A028BB50224EFC626AD693FDE.
+Retail DLL remains:
+4F4900A5E70CE9BB127B46C3D7FE57EF74FFEACE8A5AE704D3DA1EFF6E2BA9A3.
+No owned Wolverine child remains. No host input/focus or audio settings changed.
+
+Worker cumulative-time/reaction tests and actual hidden HAL rendering tests pass
+on the clock/scene-ownership source changes. The clock fix is not yet verified
+in native gameplay. Source commits are local; nothing is released as playable.
+Base pin a917c55801db89e87237c80ba1ff788952406d54 preserves numerical code and
+normalizes garment source hashes to LF for reproducible checkout verification.
+Startup equilibrium, real-time cloth cost, native visibility/motion, existing
+strap-route fit and the full attachment visual matrix remain open blockers.
+
 ## October 6 persistent garment remaining blockers
 
 The adapter captures each body resource and anatomy from the HDR scene target,
