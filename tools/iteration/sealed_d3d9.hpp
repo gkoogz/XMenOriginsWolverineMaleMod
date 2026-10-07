@@ -12,12 +12,23 @@ static LPARAM MaleModPrivateKeyParam(unsigned key,bool down){return LPARAM(1u|(M
 static void MaleModPrivateCommands(unsigned frame,bool game){
  if(!maleModPrivateExActive||!game)return;
  for(unsigned key=1;key<256;key++)if(maleModPrivateKeyRelease[key]&&frame>=maleModPrivateKeyRelease[key]){maleModPrivateHeldKeys[key]=false;maleModPrivateKeyRelease[key]=0;PostMessageW(maleModPrivateWindow,WM_KEYUP,key,MaleModPrivateKeyParam(key,false));}
- char path[MAX_PATH]{};SiblingPath(path,"MaleModSandboxControl.ini");unsigned revision=GetPrivateProfileIntA("Control","Revision",0,path);if(!revision||revision==maleModPrivateControlRevision)return;maleModPrivateControlRevision=revision;
- char name[32]{},action[32]{};GetPrivateProfileStringA("Control","Key","",name,sizeof(name),path);GetPrivateProfileStringA("Control","Action","Press",action,sizeof(action),path);
+ // Read the atomically replaced owned command file directly. The profile API
+ // may retain a process-local cached INI after another process replaces it.
+ char path[MAX_PATH]{};SiblingPath(path,"MaleModSandboxControl.ini");
+ FILE* command=nullptr;if(fopen_s(&command,path,"rb")||!command)return;
+ char data[512]{};size_t bytes=fread(data,1,sizeof(data)-1,command);bool oversized=!feof(command)&&bytes==sizeof(data)-1;fclose(command);if(oversized)return;
+ unsigned revision=0;int requestedValue=50;char name[32]{},action[32]="Press",*context=nullptr;
+ for(char* line=strtok_s(data,"\r\n",&context);line;line=strtok_s(nullptr,"\r\n",&context)){
+  if(!strncmp(line,"Revision=",9))sscanf_s(line+9,"%u",&revision);
+  else if(!strncmp(line,"Value=",6))sscanf_s(line+6,"%d",&requestedValue);
+  else if(!strncmp(line,"Key=",4))sscanf_s(line+4,"%31s",name,unsigned(sizeof(name)));
+  else if(!strncmp(line,"Action=",7))sscanf_s(line+7,"%31s",action,unsigned(sizeof(action)));
+ }
+ if(!revision||revision==maleModPrivateControlRevision)return;maleModPrivateControlRevision=revision;
  if(!strcmp(name,"Pause")||!strcmp(name,"Resume")){maleModPrivatePaused=!strcmp(name,"Pause");Log("Private command revision=%u key=%s",revision,name);return;}
  if(!strcmp(name,"Defaults")){ResetStudyControls();QueueSettingsSave();Log("Private command revision=%u key=Defaults",revision);return;}
  if(!strcmp(name,"Naked")||!strcmp(name,"Jockstrap")){SetJockstrapStyle(!strcmp(name,"Jockstrap")?1:0);QueueSettingsSave();shapeDirty=true;Log("Private command revision=%u key=%s",revision,name);return;}
- if(!strcmp(name,"Overall")){int value=GetPrivateProfileIntA("Control","Value",50,path);if(value>=1&&value<=100){AdjustStudyControl(3,value>=sliderUI[0]?1:-1,fabsf(value-sliderUI[0]));QueueSettingsSave();Log("Private command revision=%u key=Overall value=%d",revision,value);}return;}
+ if(!strcmp(name,"Overall")){int value=requestedValue;if(value>=1&&value<=100){AdjustStudyControl(3,value>=sliderUI[0]?1:-1,fabsf(value-sliderUI[0]));QueueSettingsSave();Log("Private command revision=%u key=Overall value=%d",revision,value);}return;}
  if(!strcmp(name,"Capture")){maleModPrivateCaptureRequested=true;Log("Private command capture revision=%u",revision);return;}
  struct NamedKey{const char* name;unsigned key;};const NamedKey allowed[]={{"TurnLeft",'R'},{"TurnRight",'T'},{"LookUp",'Y'},{"LookDown",'U'},{"Zoom",'V'},{"W",'W'},{"A",'A'},{"S",'S'},{"D",'D'},{"Space",VK_SPACE},{"Shift",VK_SHIFT},{"F6",VK_F6},{"F8",VK_F8},{"Up",VK_UP},{"Down",VK_DOWN},{"Left",VK_LEFT},{"Right",VK_RIGHT}};
  unsigned key=0;for(const auto& item:allowed)if(!strcmp(name,item.name)){key=item.key;break;}if(!key)return;
