@@ -28,7 +28,7 @@ static void MaleModPrivateCommands(unsigned frame,bool game){
  if(!strcmp(name,"Pause")||!strcmp(name,"Resume")){maleModPrivatePaused=!strcmp(name,"Pause");Log("Private command revision=%u key=%s",revision,name);return;}
  if(!strcmp(name,"Defaults")){ResetStudyControls();QueueSettingsSave();Log("Private command revision=%u key=Defaults",revision);return;}
  if(!strcmp(name,"TankTop")||!strcmp(name,"TopNaked")){topStyle=!strcmp(name,"TankTop")?1:0;QueueSettingsSave();Log("Private command revision=%u key=%s top=%u bottom=%u",revision,name,topStyle,clothingStyle);return;}
- if(!strcmp(name,"Naked")||!strcmp(name,"Jockstrap")){SetJockstrapStyle(!strcmp(name,"Jockstrap")?1:0);QueueSettingsSave();shapeDirty=true;Log("Private command revision=%u key=%s",revision,name);return;}
+ if(!strcmp(name,"Naked")||!strcmp(name,"Jockstrap")||!strcmp(name,"Jeans")||!strcmp(name,"JeansOpen")){SetJockstrapStyle(!strcmp(name,"JeansOpen")?3:!strcmp(name,"Jeans")?2:!strcmp(name,"Jockstrap")?1:0);QueueSettingsSave();shapeDirty=true;Log("Private command revision=%u key=%s",revision,name);return;}
  if(!strcmp(name,"Overall")){int value=requestedValue;if(value>=1&&value<=100){AdjustStudyControl(3,value>=sliderUI[0]?1:-1,fabsf(value-sliderUI[0]));QueueSettingsSave();Log("Private command revision=%u key=Overall value=%d",revision,value);}return;}
  struct ShapeCommand{const char* name;int menuIndex;int sliderIndex;};
  const ShapeCommand shapes[]={{"Width",5,2},{"Length",4,1},{"Scrotum",7,3},{"Angle",9,4},{"Forward",10,5},{"Vertical",11,6}};

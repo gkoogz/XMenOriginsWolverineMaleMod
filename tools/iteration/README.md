@@ -79,7 +79,7 @@ optional Source archive contains the frozen approved runtime implementation. Use
 ## Verification limits
 
 Existing owned native room: grounding/walking, pause/resume/capture, F6 and
-Overall50→51 observed; human classicD3D9/user input observed. The fresh vanilla
+Overall50â†’51 observed; human classicD3D9/user input observed. The fresh vanilla
 bootstrap has independent compile/authoring/native receipts when executed;
 those are not inherited from this earlier room. StaticMesh fluid-world origin,
 extreme cloth states and high frame rate remain separate gates. Use the room
@@ -134,3 +134,17 @@ work in the title scene. No host input or focus is used. Diagnostic runs can set
 native lighting shader declarations. Keep it off for performance measurements.
 Normal prototype launches explicitly clear it. See
 `docs/NATIVE-MATERIAL-REPAIR.md` for native texture, light and depth contracts.
+
+# Independent wardrobe checks
+
+After the owned startup demo finishes, run Test-Costumes.ps1 with Workspace
+and RuntimeProvenance. Add -Jeans for all eight Top/Bottom combinations and
+open-fly motion views; otherwise it checks the four Naked/Jockstrap variants.
+Captures retain raw hashes and start as visualReviewed=false. Follow with
+Test-MeridianCandidate.ps1 for the shared attachment matrix; review actual
+front/side/oblique and motion captures before recording any sampled pass.
+Full coupled controls, LODs and campaign transitions are a separate gate.
+Test-JeansFit.ps1 uses the same Workspace/RuntimeProvenance arguments for
+1/25/50/75/100 Overall+Width and maximum open/closed checks. Hide the F6 menu
+before the attachment/size matrix. Block is not a dedicated crouch; inspect
+the actual captured pose and do not infer crouch recovery from that command.

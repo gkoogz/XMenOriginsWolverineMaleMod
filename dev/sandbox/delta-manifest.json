@@ -81,7 +81,7 @@
     },
     {
       "path": "tools/iteration/README.md",
-      "lfSHA256": "ded9c284339fa7ccaec2fc593c0e7ce60f5d053038b3ebb343ec83838fbcf1fa"
+      "lfSHA256": "f0b7e8084e7cd366c5593c952ff45c9fbe2dac03f0e23bca295f32046b01d0a3"
     },
     {
       "path": "tools/iteration/Reset-NativeSandbox.ps1",
@@ -89,7 +89,7 @@
     },
     {
       "path": "tools/iteration/sealed_d3d9.hpp",
-      "lfSHA256": "45563525b061b192f414603519c8192abc2ef50bcb30e7249293b2f4dcb75d2d"
+      "lfSHA256": "9436be0c78def016512f0de28bfe53ab9ce9dee16f8446fdf286b3b78ba54203"
     },
     {
       "path": "tools/iteration/seed_checkpoint.py",
@@ -97,7 +97,7 @@
     },
     {
       "path": "tools/iteration/Set-NativeSandboxInput.ps1",
-      "lfSHA256": "d8f607f3f80b2b0b6254173d5266b3a558c4ab3bcd382a451f57093fa066604f"
+      "lfSHA256": "5ad2b38340611c820e2fcbcedb29872af7ea49483dd46c7664e4ff2f9cea65d5"
     },
     {
       "path": "tools/iteration/Start-NativeSandbox.ps1",
@@ -174,6 +174,14 @@
     {
       "path": "tools/iteration/Test-PouchMotion.ps1",
       "lfSHA256": "74cd2a5ccccc6d30f1043081175c763f1cbb7cab4eb516ea58259c4e716d2646"
+    },
+    {
+      "path": "tools/iteration/Test-Costumes.ps1",
+      "lfSHA256": "d11601004ec826e80ce5c920c930c9631b56a8f595e153f6199593b83fc48cbe"
+    },
+    {
+      "path": "tools/iteration/Test-JeansFit.ps1",
+      "lfSHA256": "0213c4927478e22fefe0a5a98215f0287cfd151827a9b45e14daa119f4a59541"
     }
   ],
   "retailAssetsShipped": false,
