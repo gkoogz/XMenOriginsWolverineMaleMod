@@ -65,7 +65,9 @@ static bool Ensure(IDirect3DDevice9* d){
  const char* vertex=R"(
  float4 L[4]:register(c0);float4 V[4]:register(c4);
  struct I{float3 p:POSITION;float3 n:NORMAL;float2 uv:TEXCOORD0;float4 c:COLOR0;};
- struct O{float4 p:POSITION;float3 n:TEXCOORD1;float3 w:TEXCOORD2;float4 screen:TEXCOORD3;float2 uv:TEXCOORD0;float4 c:COLOR0;};
+ // Material role and winding are data, including values outside [0,1].
+ // D3D9 color interpolators saturate; TEXCOORD retains these values.
+ struct O{float4 p:POSITION;float3 n:TEXCOORD1;float3 w:TEXCOORD2;float4 screen:TEXCOORD3;float2 uv:TEXCOORD0;float4 c:TEXCOORD4;};
  O main(I i){O o;float4 w=i.p.x*L[0]+i.p.y*L[1]+i.p.z*L[2]+L[3];o.p=w.x*V[0]+w.y*V[1]+w.z*V[2]+w.w*V[3];o.w=w.xyz;o.screen=o.p;
  float3 a=L[0].xyz,b=L[1].xyz,c=L[2].xyz;float det=dot(a,cross(b,c));o.n=normalize((i.n.x*cross(b,c)+i.n.y*cross(c,a)+i.n.z*cross(a,b))*(det<0?-1:1));o.uv=i.uv;o.c=i.c;return o;})";
  const char* pixel=R"(
@@ -73,7 +75,7 @@ static bool Ensure(IDirect3DDevice9* d){
  float4 params:register(c3);float4 stripes:register(c4);
  float4 light:register(c5);float4 ambient:register(c6);float4 direction:register(c7);float4 sh[7]:register(c8);samplerCUBE basis0:register(s0);samplerCUBE basis1:register(s1);
  float4 flags:register(c15);float4 position:register(c16);float4 spotDirection:register(c17);float4 spotAngles:register(c18);float4 screenBias:register(c19);float4 passParams:register(c20);sampler2D attenuation:register(s2);
- float4 main(float4 projected:TEXCOORD3,float3 n:TEXCOORD1,float3 w:TEXCOORD2,float2 uv:TEXCOORD0,float4 c:COLOR0,float facing:VFACE):COLOR0{
+ float4 main(float4 projected:TEXCOORD3,float3 n:TEXCOORD1,float3 w:TEXCOORD2,float2 uv:TEXCOORD0,float4 c:TEXCOORD4,float facing:VFACE):COLOR0{
  n*=rsqrt(max(dot(n,n),1e-10));n*=facing*c.w<0?-1:1;float3 color=white.rgb;float pouch=1-step(.5,c.x),band=step(.5,c.x)*(1-step(1.5,c.x));
  float aa=max(fwidth(uv.y),.0001);float r=1-smoothstep(stripes.z-aa,stripes.z+aa,abs(uv.y-stripes.x));float b=1-smoothstep(stripes.z-aa,stripes.z+aa,abs(uv.y-stripes.y));color=lerp(color,red.rgb,r*band);color=lerp(color,blue.rgb,b*band);
  float phase=uv.x*params.x*6.2831853;float fade=1-smoothstep(.2,.65,fwidth(uv.x)*params.x);float rib=cos(phase)*fade;
