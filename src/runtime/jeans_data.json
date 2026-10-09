@@ -1,16 +1,19 @@
 {
   "schema": "wolverine.jeans-binding/1",
-  "revision": 2,
+  "revision": 3,
   "stockSHA256": "90385a8b1734c3f4b1e1697734d2b6b98a319fec6c6ea27ea906d626f3a06cf6",
+  "stockPSKSHA256": "3074ccb3a7d2f7fa900f78cd4f27c8111e9afbe1b3eaba01f8b64b9f86cf2f29",
   "stockSectionFirst": 4995,
+  "stockBuckleVertices": 291,
+  "stockBuckleTriangles": 286,
   "counts": [
     {
-      "vertices": 888,
-      "triangles": 1478
+      "vertices": 1179,
+      "triangles": 1764
     },
     {
-      "vertices": 5862,
-      "triangles": 2192
+      "vertices": 6153,
+      "triangles": 2478
     }
   ],
   "sourceUnits": true,
@@ -20,6 +23,6 @@
   "flyHalfWidth": 14,
   "restEase": 0.55,
   "maximumDiscardedSkinWeight": 2.2291536808160006e-16,
-  "headerSHA256": "cc74f29eae655b0b94e00cf282030d53de51c53fd495c5dd6e083c97f4346535",
+  "headerSHA256": "7dbd7182cebd7deb84352bc4f80b3f24241c2e629968302cd65d10406923a83d",
   "nativeVerified": false
 }

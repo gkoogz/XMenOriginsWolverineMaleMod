@@ -2,10 +2,12 @@
 #include "tank_top_data.h"
 #include "meridian_state_audit.h"
 #define FABRIC_COTTON_TOP
+#define FABRIC_STOCK_MAPS
 #define FABRIC_MATERIAL_NAMESPACE TankTopMaterial
 #include "fabric_material.inl"
 #undef FABRIC_MATERIAL_NAMESPACE
 #undef FABRIC_COTTON_TOP
+#undef FABRIC_STOCK_MAPS
 namespace TankTopAdapter {
 static constexpr unsigned count=sizeof(TankTopRecipe::vertices)/sizeof(NcVertex);
 static constexpr unsigned faces=sizeof(TankTopRecipe::triangles)/sizeof(TankTopRecipe::triangles[0]);
@@ -71,7 +73,7 @@ static void Draw(IDirect3DDevice9* d){
  }
  auto audit=MeridianStateSnapshot(d);if(FAILED(state->Capture()))return;
  d->SetVertexShader(TankTopMaterial::vs);d->SetPixelShader(TankTopMaterial::ps);d->SetVertexDeclaration(declaration);d->SetStreamSource(0,vb,0,sizeof(vertices[0]));d->SetIndices(ib);
- d->SetVertexShaderConstantF(0,local,4);d->SetVertexShaderConstantF(4,view,4);TankTopMaterial::Apply(d);
+ d->SetVertexShaderConstantF(0,local,4);d->SetVertexShaderConstantF(4,view,4);TankTopMaterial::SetStockCamera(view);TankTopMaterial::Apply(d);
  d->SetRenderState(D3DRS_ZENABLE,TRUE);d->SetRenderState(D3DRS_ZWRITEENABLE,TankTopMaterial::additive?FALSE:TRUE);d->SetRenderState(D3DRS_ZFUNC,D3DCMP_LESSEQUAL);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);d->SetRenderState(D3DRS_ALPHATESTENABLE,FALSE);d->SetRenderState(D3DRS_STENCILENABLE,FALSE);d->SetRenderState(D3DRS_ALPHABLENDENABLE,TankTopMaterial::additive);d->SetRenderState(D3DRS_COLORWRITEENABLE,TankTopMaterial::additive?7:15);
  HRESULT hr=origDIP(d,D3DPT_TRIANGLELIST,0,0,count,0,faces),restored=state->Apply();
  if(FAILED(hr)||FAILED(restored))Log("Tank top draw failure=%08x restored=%08x",hr,restored);

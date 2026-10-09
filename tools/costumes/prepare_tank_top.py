@@ -11,8 +11,8 @@ def array(text,name,dtype):
  return np.array([float(x) for x in re.findall(r'-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?',match[1])],dtype=dtype)
 
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);args=ap.parse_args()
- sys.path.insert(0,str(args.base));from malemod_base.radial_garment_coverage import radial_coverage;from malemod_base.torso_garment_fit import refit_radially,refine_triangles,smooth_tubular_chart,clear_projected_faces
+ ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--stock-psk',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);args=ap.parse_args()
+ sys.path.insert(0,str(args.base));from malemod_base.radial_garment_coverage import radial_coverage;from malemod_base.torso_garment_fit import refit_between_bodies,refine_triangles,clear_projected_faces
  repo=Path(__file__).resolve().parents[2];bodyPath=repo/'src/runtime/menu_retarget_body_data.h'
  source=json.loads(args.stock.read_text(encoding='utf-8-sig'));assert source['schema']=='wolverine.stock-tank/1' and source['first']==1722 and source['triangles']==1091
  text=bodyPath.read_text();packed=array(text,'menuRetargetBodyPacked0',np.uint8).reshape(-1,32)
@@ -42,8 +42,9 @@ def main():
    uv.append(struct.unpack('<H',struct.pack('<e',value))[0])
   generated.append({'bone':bones,'weight':weights,'uv':uv,'n':np.array(original[a]['n'])*.5+np.array(original[b]['n'])*.5})
  source['vertices']=generated
- chart=smooth_tubular_chart(stock,faces)
- fitted,bindings=refit_radially(chart,p,selected,.72,fallback_distance=3.5)
+ from stock_psk import torso
+ sourceBody,sourceFaces=torso(args.stock_psk)
+ fitted,bindings=refit_between_bodies(stock,sourceBody,sourceFaces,p,selected,.72,fallback_distance=9.)
  supports=np.concatenate((p[np.unique(selected)],p[selected].mean(axis=1),(p[selected[:,0]]+p[selected[:,1]])*.5,(p[selected[:,1]]+p[selected[:,2]])*.5,(p[selected[:,2]]+p[selected[:,0]])*.5))
  # UV aliases are separate draw vertices, but must share the fitted position.
  aliases={}
@@ -61,17 +62,9 @@ def main():
  originalNormal=np.array([v['n'] for v in source['vertices']])/127.5-1
  winding=-1 if np.median(np.sum(normal*originalNormal,axis=1))<0 else 1
  normal*=winding
- # Conforming cotton uses the measured smooth body normals. Strong stock
- # wrinkles projected onto a new chest must not retain flipped shading wedges.
- bodyNormal=np.concatenate((packed[:,16:19],p1[:,16:19])).astype(float)/127.5-1
- for i,(j,weight,gap) in enumerate(bindings):
-  measured=np.array(weight)@bodyNormal[selected[j]];measured/=max(np.linalg.norm(measured),1e-12)
-  if np.dot(measured,normal[i])<0:normal[i]=measured
-  else:normal[i]=.9*measured+.1*normal[i]
- normal/=np.maximum(np.linalg.norm(normal,axis=1)[:,None],1e-12)
  # Preserve each measured original vertex and UV alias. The normals are
  # recomputed from the fitted topology rather than stretched stock tangents.
- rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=6;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
+ rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=7;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
  for v,q in zip(source['vertices'],fitted):rows.append('{{'+','.join(f'{x:.9f}f' for x in q)+'},{'+','.join(map(str,v['bone']))+'},{'+','.join(map(str,v['weight']))+'}},')
  rows+=['};','static const unsigned short triangles[][3]={']+[ '{'+','.join(map(str,t))+'},' for t in faces]+['};','static const float uv[][2]={']
  rows+=['{'+','.join(f'{struct.unpack("<e",struct.pack("<H",int(x)))[0]:.9f}f' for x in v['uv'])+'},' for v in source['vertices']]+['};','static const float normals[][3]={']
@@ -89,6 +82,6 @@ def main():
   mask=hidden[:len(bodyFaces)] if section==0 else hidden[-len(bodyFaces):]
   rows.insert(-1,'static const unsigned short hiddenBody'+str(section)+'[][3]={'+','.join('{'+','.join(map(str,f))+'}' for f in bodyFaces[mask])+'};')
  args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt={'schema':'wolverine.tank-top-binding/1','revision':6,'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'projectedFaceClearance':.72,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True}
+ receipt={'schema':'wolverine.tank-top-binding/1','revision':7,'foldTransport':'measured source-to-target body displacement','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'projectedFaceClearance':.72,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True}
  args.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()

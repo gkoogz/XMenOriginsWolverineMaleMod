@@ -1,0 +1,81 @@
+{
+  "schema": "wolverine.stock-material-maps/1",
+  "sourcePackage": "Startup_int.xxx",
+  "sourceMeshPackage": "CH_Wolverine_Alkali_SF.xxx",
+  "sourceMeshSHA256": "90385a8b1734c3f4b1e1697734d2b6b98a319fec6c6ea27ea906d626f3a06cf6",
+  "maps": [
+    {
+      "name": "T_Wolverine_Shirt_d.dds",
+      "resource": 301,
+      "sha256": "4188cb9b38c2d1928545070d44a31c3426d88124d924fbbafcd77b4ebc10063a",
+      "width": 1024,
+      "height": 512,
+      "sourceMipCount": 0,
+      "fourCC": "DXT1"
+    },
+    {
+      "name": "T_Wolverine_Shirt_n.dds",
+      "resource": 302,
+      "sha256": "734e0b4e50b86ebed89647c25d8e2db87f4d2c28c9e299301e56ba9f71d20a7d",
+      "width": 1024,
+      "height": 512,
+      "sourceMipCount": 0,
+      "fourCC": "DXT1"
+    },
+    {
+      "name": "T_Wolverine_Shirt_s.dds",
+      "resource": 303,
+      "sha256": "4f66a6220e6872eb53d32f8739b8f3abb243ea4646de0898163cf5f9d422ccbf",
+      "width": 512,
+      "height": 256,
+      "sourceMipCount": 0,
+      "fourCC": "DXT1"
+    },
+    {
+      "name": "T_Wolverine_Jeans_d.dds",
+      "resource": 304,
+      "sha256": "bd569a71e947d48d086ec74fdf4a2cd0b8cc8fc1263845fd6d665845dbd4267b",
+      "width": 1024,
+      "height": 1024,
+      "sourceMipCount": 0,
+      "fourCC": "DXT1"
+    },
+    {
+      "name": "T_Wolverine_Jeans_n.dds",
+      "resource": 305,
+      "sha256": "52030ca66f7dd36f952d2b0a216e6b6063f8f9f88c768dc2b2b9452502612e74",
+      "width": 1024,
+      "height": 1024,
+      "sourceMipCount": 0,
+      "fourCC": "DXT1"
+    },
+    {
+      "name": "T_Wolverine_Jeans_s.dds",
+      "resource": 306,
+      "sha256": "f8d8297fdd4f78a9ce26c6810cb35edb32d8ac1480e762aea6bf063d32f27067",
+      "width": 512,
+      "height": 512,
+      "sourceMipCount": 0,
+      "fourCC": "DXT1"
+    },
+    {
+      "name": "T_Wolverine_Buckle_d.dds",
+      "resource": 307,
+      "sha256": "b1c79569af060098215be3b3abb30ede1c1e8658a2b2a1ad8dd341c53d363614",
+      "width": 256,
+      "height": 256,
+      "sourceMipCount": 0,
+      "fourCC": "DXT1"
+    },
+    {
+      "name": "T_Wolverine_Buckle_n.dds",
+      "resource": 308,
+      "sha256": "b723e37f944cdf51c85aaea6b4766393dd9589851bfc5a7eef928c4a9be9ba39",
+      "width": 256,
+      "height": 256,
+      "sourceMipCount": 0,
+      "fourCC": "DXT1"
+    }
+  ],
+  "stockPixelsOmittedFromGit": true
+}

@@ -7,6 +7,8 @@ if errorlevel 1 exit /b 1
 set "MALEMOD_BASE_RESOLVED="
 set /p MALEMOD_BASE_RESOLVED=<"%~dp0build\base.path"
 if not defined MALEMOD_BASE_RESOLVED exit /b 1
+python "%~dp0tools\costumes\prepare_stock_materials.py" --runtime "%~dp0src\runtime"
+if errorlevel 1 exit /b 1
 call "C:\BuildTools\VC\Auxiliary\Build\vcvars32.bat" >nul
 if not exist "%~dp0build" mkdir "%~dp0build"
 pushd "%~dp0src\runtime"

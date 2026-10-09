@@ -23,10 +23,12 @@ def main():
     target.mkdir(parents=True)
     head=run('git','rev-parse',args.source_ref+'^{commit}',cwd=repo).decode().strip()
     lock=json.loads(run('git','show',head+':dependencies/base.lock.json',cwd=repo))
-    with zipfile.ZipFile(io.BytesIO(run('git','archive','--format=zip',head,'src/runtime','third-party',cwd=repo))) as z:z.extractall(target/'source')
+    with zipfile.ZipFile(io.BytesIO(run('git','archive','--format=zip',head,'src/runtime','third-party','tools/costumes',cwd=repo))) as z:z.extractall(target/'source')
     with zipfile.ZipFile(io.BytesIO(run('git','archive','--format=zip',lock['commit'],'include',cwd=args.base))) as z:z.extractall(target/'base')
     helper=pathlib.Path(__file__).with_name('sealed_d3d9.hpp').read_bytes()
     native=target/'source/src/runtime';(native/'sealed_d3d9.hpp').write_bytes(helper)
+    import sys
+    subprocess.run([sys.executable,str(target/'source/tools/costumes/prepare_stock_materials.py'),'--runtime',str(native)],check=True)
     (native/'sandbox_world_origin.hpp').write_bytes(pathlib.Path(__file__).with_name('sandbox_world_origin.hpp').read_bytes())
     cpp=native/'d3d9_proxy.cpp';s=cpp.read_text()
     s=s.replace('static bool menuOpen=true, shapeDirty=true;','static bool menuOpen=false, shapeDirty=true;',1)

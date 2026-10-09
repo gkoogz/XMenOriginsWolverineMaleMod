@@ -1,5 +1,8 @@
 #include <malemod/garments/meridian_material.hpp>
 namespace FABRIC_MATERIAL_NAMESPACE {
+#ifdef FABRIC_STOCK_MAPS
+#include "stock_material_maps.inl"
+#endif
 static IDirect3DVertexShader9* vs=nullptr;
 static IDirect3DPixelShader9* ps=nullptr;
 static IDirect3DPixelShader9* variants[16]{};
@@ -11,7 +14,11 @@ static LONG frame=-3;
 static float incident[28]{};static IDirect3DBaseTexture9* basis[2]{},*attenuation=nullptr;
 struct Registers {IUnknown* shader;UINT light,ambient,direction,incident,basis;bool vertex;UINT position=~0u,localLight=~0u,spotDirection=~0u,spotAngles=~0u,screen=~0u,attenuation=~0u,depth=~0u;};
 static std::vector<Registers> registers;
-static void Release(){if(vs)vs->Release();for(auto& p:variants){if(p)p->Release();p=nullptr;}vs=nullptr;ps=nullptr;for(auto& r:registers)r.shader->Release();registers.clear();for(auto& t:basis){if(t)t->Release();t=nullptr;}if(attenuation)attenuation->Release();attenuation=nullptr;valid=false;frame=-3;}
+static void Release(){
+#ifdef FABRIC_STOCK_MAPS
+ReleaseStockMaps();
+#endif
+if(vs)vs->Release();for(auto& p:variants){if(p)p->Release();p=nullptr;}vs=nullptr;ps=nullptr;for(auto& r:registers)r.shader->Release();registers.clear();for(auto& t:basis){if(t)t->Release();t=nullptr;}if(attenuation)attenuation->Release();attenuation=nullptr;valid=false;frame=-3;}
 template<class T> static Registers Reflect(T* shader,bool vertex){
  for(auto r:registers)if(r.shader==shader)return r;
  Registers r{shader,~0u,~0u,~0u,~0u,~0u,vertex};UINT bytes=0;
@@ -59,6 +66,12 @@ static void Capture(IDirect3DDevice9* d,LONG serial){
 }
 
 static bool Ensure(IDirect3DDevice9* d){
+#ifdef FABRIC_STOCK_MAPS
+ if(!EnsureStockMaps(d))return false;
+ const char* stock="1";
+#else
+ const char* stock="0";
+#endif
  unsigned key=0;for(unsigned i=0;i<4;i++)if(flags[i]>.5f)key|=1u<<i;ps=variants[key];
  if(vs&&ps)return true;
  
@@ -67,7 +80,7 @@ static bool Ensure(IDirect3DDevice9* d){
 #else
  const char* cotton="0";
 #endif
- D3DXMACRO defines[]={{"COTTON_TOP",cotton},{"HAS_DIRECTION",flags[0]>.5f?"1":"0"},{"HAS_SH",flags[1]>.5f?"1":"0"},{"HAS_LOCAL",flags[2]>.5f?"1":"0"},{"HAS_SPOT",flags[3]>.5f?"1":"0"},{nullptr,nullptr}};
+ D3DXMACRO defines[]={{"STOCK_MAPS",stock},{"COTTON_TOP",cotton},{"HAS_DIRECTION",flags[0]>.5f?"1":"0"},{"HAS_SH",flags[1]>.5f?"1":"0"},{"HAS_LOCAL",flags[2]>.5f?"1":"0"},{"HAS_SPOT",flags[3]>.5f?"1":"0"},{nullptr,nullptr}};
  const char* vertex=R"(
  float4 L[4]:register(c0);float4 V[4]:register(c4);
  struct I{float3 p:POSITION;float3 n:NORMAL;float2 uv:TEXCOORD0;float4 c:TEXCOORD1;};
@@ -81,11 +94,13 @@ static bool Ensure(IDirect3DDevice9* d){
  float4 params:register(c3);float4 stripes:register(c4);
  float4 light:register(c5);float4 ambient:register(c6);float4 direction:register(c7);float4 sh[7]:register(c8);samplerCUBE basis0:register(s0);samplerCUBE basis1:register(s1);
  float4 flags:register(c15);float4 position:register(c16);float4 spotDirection:register(c17);float4 spotAngles:register(c18);float4 screenBias:register(c19);float4 passParams:register(c20);sampler2D attenuation:register(s2);
+ sampler2D stockDiffuse:register(s3);sampler2D stockNormal:register(s4);sampler2D stockSpecular:register(s5);sampler2D buckleDiffuse:register(s6);sampler2D buckleNormal:register(s7);float4 camera:register(c21);
  float4 main(float4 projected:TEXCOORD3,float3 n:TEXCOORD1,float3 w:TEXCOORD2,float2 uv:TEXCOORD0,float4 c:TEXCOORD4,float facing:VFACE):COLOR0{
  n*=rsqrt(max(dot(n,n),1e-10));n*=facing*(c.x>3.5?1:c.w)<0?-1:1;float3 color=white.rgb;float pouch=1-step(.5,c.x),band=step(.5,c.x)*(1-step(1.5,c.x));
 #if COTTON_TOP
  pouch=0;band=0;
 #endif
+#if !STOCK_MAPS
  if(c.x>3.5){
   float grainAA=1/(1+fwidth(uv.x+uv.y)*180);
   float weave=1+.12*sin((uv.x+uv.y)*360)*grainAA+.035*sin(uv.x*95)*sin(uv.y*111);
@@ -100,6 +115,7 @@ static bool Ensure(IDirect3DDevice9* d){
   float stitch=max(waist,max(fly,pocket));color=lerp(color,float3(.24,.16,.07),stitch*.5);
   if(c.x>4.5)color=float3(.035,.025,.018)*(1+.035*sin(uv.x*150));
  }
+#endif
  float aa=max(fwidth(uv.y),.0001);float r=1-smoothstep(stripes.z-aa,stripes.z+aa,abs(uv.y-stripes.x));float b=1-smoothstep(stripes.z-aa,stripes.z+aa,abs(uv.y-stripes.y));color=lerp(color,red.rgb,r*band);color=lerp(color,blue.rgb,b*band);
  float phase=uv.x*params.x*6.2831853;float fade=1-smoothstep(.2,.65,fwidth(uv.x)*params.x);float rib=cos(phase)*fade;
  // Derivative tangent follows the authored weave under deformation. Fade at
@@ -107,10 +123,23 @@ static bool Ensure(IDirect3DDevice9* d){
  float3 dx=ddx(w),dy=ddy(w);float2 ux=ddx(uv),uy=ddy(uv);float determinant=ux.x*uy.y-ux.y*uy.x;
  float3 tangent=dx*uy.y-dy*ux.y;tangent-=n*dot(n,tangent);tangent*=rsqrt(max(dot(tangent,tangent),1e-10));tangent*=determinant<0?-1:1;
  n=normalize(n+tangent*(sin(phase)*params.y*fade*pouch));color*=1+pouch*.035*rib;
+#if STOCK_MAPS
+ color=tex2D(stockDiffuse,uv).rgb;
+ float3 mapped=tex2D(stockNormal,uv).rgb*2-1;
+ float3 specular=tex2D(stockSpecular,uv).rgb*.18;
+ if(!COTTON_TOP && c.x>5.5){color=tex2D(buckleDiffuse,uv).rgb;mapped=tex2D(buckleNormal,uv).rgb*2-1;specular=float3(.35,.35,.35);}
+ float3 bitangent=dy*ux.x-dx*uy.x;bitangent-=n*dot(n,bitangent);bitangent*=rsqrt(max(dot(bitangent,bitangent),1e-10));bitangent*=determinant<0?-1:1;
+ n=normalize(tangent*mapped.x+bitangent*mapped.y+n*max(mapped.z,.05));
+ float3 view=normalize(camera.xyz-w);float3 shine=0;
+#endif
  float3 illumination=ambient.rgb;
  // Rough cotton uses the engine's current diffuse lights and SH. The base
  // pass and additive lights retain their own blend/depth/alpha contracts.
- if(HAS_DIRECTION){float3 l=direction.xyz*rsqrt(max(dot(direction.xyz,direction.xyz),1e-10));illumination+=light.rgb*saturate(dot(n,l));}
+ if(HAS_DIRECTION){float3 l=direction.xyz*rsqrt(max(dot(direction.xyz,direction.xyz),1e-10));illumination+=light.rgb*saturate(dot(n,l));
+#if STOCK_MAPS
+ shine+=light.rgb*specular*pow(saturate(dot(n,normalize(l+view))),24)*saturate(dot(n,l))*camera.w;
+#endif
+ }
  if(HAS_SH){
   float4 a=(texCUBE(basis0,n)*2-1)*float4(2.09439516,2.09439516,2.09439516,.785398185);
   float4 shB=(texCUBE(basis1,n)*2-1)*.785398185;
@@ -130,10 +159,16 @@ static bool Ensure(IDirect3DDevice9* d){
   shadow=1;
 #endif
   illumination+=light.rgb*saturate(dot(n,l))*falloff*shadow;
+#if STOCK_MAPS
+ shine+=light.rgb*specular*pow(saturate(dot(n,normalize(l+view))),24)*saturate(dot(n,l))*falloff*shadow*camera.w;
+#endif
  }
  // UE3 scene alpha uses the captured inverse-depth coefficients, not opacity.
  // Additive RGB-only passes preserve it for native blur and translucency.
  float3 radiance=color*max(illumination,0);
+#if STOCK_MAPS
+ radiance+=shine;
+#endif
  if(white.w<0)radiance=float3(.8,.01,.6); // sealed flat-color visibility probe
  // The tank's blue key exceeds 17 in linear HDR. A smooth, hue-preserving
  // shoulder keeps white cotton readable without a hard clip or an ambient floor.
@@ -146,6 +181,9 @@ static bool Ensure(IDirect3DDevice9* d){
  if(!ps){if(!compile(pixel,"ps_3_0",&code))return false;HRESULT hr=d->CreatePixelShader((DWORD*)code->GetBufferPointer(),&ps);code->Release();if(FAILED(hr))return false;variants[key]=ps;}return true;
 }
 static void Apply(IDirect3DDevice9* d){auto s=malemod::garments::meridian::classicFabric;float values[8][4]={{s.white[0],s.white[1],s.white[2],1},{s.red[0],s.red[1],s.red[2],1},{s.blue[0],s.blue[1],s.blue[2],1},{s.ribCount,s.ribSlope,0,0},{s.redCenter,s.blueCenter,s.stripeHalfWidth,0}};memcpy(values[5],light,16);memcpy(values[6],ambient,16);memcpy(values[7],direction,16);static const bool probe=[](){char v[8]{};return GetEnvironmentVariableA("MALEMOD_MERIDIAN_LIGHT_TRACE",v,8)==1&&v[0]=='1';}();if(probe){char path[MAX_PATH]{};SiblingPath(path,"MeridianFlat.request");if(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES)values[0][3]=-1;}d->SetPixelShaderConstantF(0,values[0],8);d->SetPixelShaderConstantF(8,incident,7);d->SetPixelShaderConstantF(15,flags,1);d->SetPixelShaderConstantF(16,position,1);d->SetPixelShaderConstantF(17,spotDirection,1);d->SetPixelShaderConstantF(18,spotAngles,1);d->SetPixelShaderConstantF(19,screen,1);float passParams[4]={additive?0.f:1.f,TankCameraSceneActive()?.22f:0.f,depth[0],depth[1]};d->SetPixelShaderConstantF(20,passParams,1);
+#ifdef FABRIC_STOCK_MAPS
+ ApplyStockMaps(d);d->SetPixelShaderConstantF(21,stockCamera,1);
+#endif
  d->SetTexture(2,attenuation);for(auto state:{D3DSAMP_MINFILTER,D3DSAMP_MAGFILTER})d->SetSamplerState(2,state,D3DTEXF_POINT);d->SetSamplerState(2,D3DSAMP_MIPFILTER,D3DTEXF_NONE);for(unsigned i=0;i<3;i++){
   // Every material draw owns its sampler contract. Native body textures can
   // otherwise leave a mip limit or bias on a shared sampler between frames.

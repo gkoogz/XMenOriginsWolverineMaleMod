@@ -1,1 +1,2 @@
 201 RCDATA "splat_bakes.bin"
+#include "stock_materials.rc"

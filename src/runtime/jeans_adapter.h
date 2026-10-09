@@ -3,8 +3,10 @@
 #include "jeans_data.h"
 #include "menu_necklace_palette.h"
 #define FABRIC_MATERIAL_NAMESPACE JeansMaterial
+#define FABRIC_STOCK_MAPS
 #include "fabric_material.inl"
 #undef FABRIC_MATERIAL_NAMESPACE
+#undef FABRIC_STOCK_MAPS
 namespace JeansAdapter {
 static IDirect3DVertexBuffer9* vb=nullptr;
 static IDirect3DIndexBuffer9* ib[2]{},*bodyIB[2][2][8]{};static unsigned bodyCount[2][2][8]{};
@@ -62,13 +64,13 @@ static void Draw(IDirect3DDevice9* d){
    for(unsigned k=0;k<4;k++)if(source[i].weight[k]&&!rig.valid[source[i].bone[k]])return;
    auto p=NcSkin(source[i],rig);auto& v=rendered[i];v.p[0]=p.x;v.p[1]=p.y;v.p[2]=p.z;
    for(unsigned a=0;a<3;a++){v.n[a]=0;for(unsigned k=0;k<4;k++)if(source[i].weight[k])for(unsigned b=0;b<3;b++)v.n[a]+=source[i].weight[k]/255.f*rig.matrix[source[i].bone[k]][a*4+b]*normals[i][b];}
-   memcpy(v.uv,uv[i],8);v.color[0]=source[i].p[2]<5?5.f:4.f;
+   memcpy(v.uv,uv[i],8);v.color[0]=(open?JeansRecipe::sourceResource1[i]:JeansRecipe::sourceResource0[i])?6.f:4.f;
    const auto& rest=open?JeansRecipe::restPositions1[i]:JeansRecipe::restPositions0[i];v.color[1]=rest[1];v.color[2]=rest[2];v.color[3]=rest[0];
   }
   void* raw=nullptr;if(FAILED(vb->Lock(0,0,&raw,D3DLOCK_DISCARD)))return;memcpy(raw,rendered.data(),count*sizeof(RenderVertex));vb->Unlock();prepared=renderFrameSerial;preparedStyle=clothingStyle;
  }
  auto audit=MeridianStateSnapshot(d);if(FAILED(state->Capture()))return;
- d->SetVertexShader(JeansMaterial::vs);d->SetPixelShader(JeansMaterial::ps);d->SetVertexDeclaration(declaration);d->SetStreamSource(0,vb,0,sizeof(RenderVertex));d->SetIndices(ib[open]);d->SetVertexShaderConstantF(0,local,4);d->SetVertexShaderConstantF(4,view,4);JeansMaterial::Apply(d);
+ d->SetVertexShader(JeansMaterial::vs);d->SetPixelShader(JeansMaterial::ps);d->SetVertexDeclaration(declaration);d->SetStreamSource(0,vb,0,sizeof(RenderVertex));d->SetIndices(ib[open]);d->SetVertexShaderConstantF(0,local,4);d->SetVertexShaderConstantF(4,view,4);JeansMaterial::SetStockCamera(view);JeansMaterial::Apply(d);
  d->SetRenderState(D3DRS_ZENABLE,TRUE);d->SetRenderState(D3DRS_ZWRITEENABLE,JeansMaterial::additive?FALSE:TRUE);d->SetRenderState(D3DRS_ZFUNC,D3DCMP_LESSEQUAL);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);d->SetRenderState(D3DRS_ALPHATESTENABLE,FALSE);d->SetRenderState(D3DRS_STENCILENABLE,FALSE);d->SetRenderState(D3DRS_ALPHABLENDENABLE,JeansMaterial::additive);d->SetRenderState(D3DRS_COLORWRITEENABLE,JeansMaterial::additive?7:15);
  HRESULT hr=origDIP(d,D3DPT_TRIANGLELIST,0,0,count,0,faces),restore=state->Apply();if(FAILED(hr)||FAILED(restore))Log("Jeans draw failure=%08x restored=%08x",hr,restore);if(!audit.empty()&&audit!=MeridianStateSnapshot(d))Log("Jeans state audit MISMATCH frame=%ld",renderFrameSerial);
  static unsigned draws=0;if(++draws%240==1)Log("Jeans native draw frame=%ld bottom=%u vertices=%u triangles=%u",renderFrameSerial,clothingStyle,count,faces);

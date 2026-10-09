@@ -5,7 +5,7 @@ import numpy as np
 from prepare_tank_top import array
 
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);a=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--stock-psk',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);a=ap.parse_args()
  sys.path.insert(0,str(a.base));from malemod_base.fly_panels import folded_fly
  repo=Path(__file__).resolve().parents[2];s=json.loads(a.stock.read_text(encoding='utf-8-sig'))
  assert s['schema']=='wolverine.stock-jeans/1' and s['first']==4995 and s['triangles']==1478
@@ -16,6 +16,20 @@ def main():
  fitted=p+normals*.55
  opened=folded_fly(fitted,tri,front_axis=0,side_axis=1,height_axis=2,front_plane=0,lower=70,upper=97,half_width=14,angle=np.deg2rad(145))
  variants=[dict(positions=fitted,triangles=tri,donors=np.repeat(np.arange(len(p))[:,None],3,axis=1),weights=np.tile([1.,0,0],(len(p),1)),panels=np.zeros(len(p))),opened]
+ from stock_psk import buckle
+ accessory,accessoryFaces=buckle(a.stock_psk);base=len(original)
+ bp=np.array([v['p'] for v in accessory]);bp[:,0]+=.55
+ for index,r in enumerate(variants):
+  q=bp.copy()
+  if index:
+   # The separate rigid buckle belongs to the right fly flap. Retain it as
+   # one piece, applying the same measured envelope transform to all vertices.
+   hinge=14*(q[:,2]-70)/27;offset=q[:,1]-hinge
+   q[:,0]-=offset*np.sin(np.deg2rad(145));q[:,1]=hinge+offset*np.cos(np.deg2rad(145))
+  count=len(r['positions']);r['positions']=np.concatenate((r['positions'],q));r['triangles']=np.concatenate((r['triangles'],accessoryFaces+count))
+  r['donors']=np.concatenate((r['donors'],np.repeat((np.arange(len(bp))+base)[:,None],3,axis=1)))
+  r['weights']=np.concatenate((r['weights'],np.tile([1.,0,0],(len(bp),1))));r['panels']=np.r_[r['panels'],np.ones(len(bp))*index]
+ original=original+accessory;p=np.concatenate((p,np.array([v['p'] for v in accessory])))
  text=(repo/'src/runtime/menu_retarget_body_data.h').read_text();game=(repo/'src/runtime/fluid_gameplay_bones.h').read_text();pal=(repo/'src/runtime/menu_necklace_palette.h').read_text()
  packed=[array(text,f'menuRetargetBodyPacked{i}',np.uint8).reshape(-1,32) for i in range(2)];body=[np.array([struct.unpack('<3f',bytes(v[:12])) for v in q]) for q in packed]
  mappings=[];allBones=set()
@@ -29,7 +43,7 @@ def main():
      mapping[slot]=bone
   mappings.append(mapping);allBones.update(mapping.values())
  for bone in s['palette']:assert bone in allBones
- rows=['#pragma once','// Measured licensed Alkali section. Recipe keeps source UV and face donors.','namespace JeansRecipe {','static constexpr unsigned revision=2;']
+ rows=['#pragma once','// Measured licensed Alkali section. Recipe keeps source UV and face donors.','namespace JeansRecipe {','static constexpr unsigned revision=3;']
  for section,mapping in enumerate(mappings):rows+=['static const unsigned char gameplayPalette'+str(section)+'[]={'+','.join(str(mapping.get(i,0)) for i in range(max(mapping)+1))+'};']
  maxDiscard=0
  for index,r in enumerate(variants):
@@ -53,6 +67,8 @@ def main():
    rows.append('{{'+','.join(f'{v:.9f}f' for v in point)+'},{'+','.join(map(str,bones))+'},{'+','.join(map(str,weights))+'}},')
    uv.append(sum(amount*np.array([struct.unpack('<e',struct.pack('<H',v))[0] for v in original[donor]['uv']]) for donor,amount in zip(d,w)))
   rows+=['};','static const unsigned short triangles'+str(index)+'[][3]={']+['{'+','.join(map(str,f))+'},' for f in faces]+['};','static const float normals'+str(index)+'[][3]={']+['{'+','.join(f'{v:.9f}f' for v in n)+'},' for n in ns]+['};','static const float uv'+str(index)+'[][2]={']+['{'+','.join(f'{v:.9f}f' for v in u)+'},' for u in uv]+['};','static const unsigned sourceDonors'+str(index)+'[][3]={']+['{'+','.join(str(original[j]['id']) for j in d)+'},' for d in r['donors']]+['};','static const float sourceWeights'+str(index)+'[][3]={']+['{'+','.join(f'{v:.9f}f' for v in w)+'},' for w in r['weights']]+['};']
+  resources=[original[d[0]].get('sourceResource',0) for d in r['donors']]
+  rows+=['// Resource 0: observed UPK jeans vertex IDs; 1: original PSK buckle wedge IDs.','static const unsigned char sourceResource'+str(index)+'[]={'+','.join(map(str,resources))+'};']
  for index,r in enumerate(variants):
   rest=np.einsum('ij,ijk->ik',r['weights'],p[r['donors']])
   rows+=['static const float restPositions'+str(index)+'[][3]={']+['{'+','.join(f'{v:.9f}f' for v in q)+'},' for q in rest]+['};']
@@ -63,6 +79,6 @@ def main():
    if opened:keep|=(centers[:,0]>0)&(centers[:,2]>70)&(abs(centers[:,1])<14*(centers[:,2]-70)/27+2)
    selected=bt[keep];rows+=['static const unsigned short body'+str(section)+str(opened)+'[][3]={']+['{'+','.join(map(str,f))+'},' for f in selected]+['};']
  rows+=['}'];a.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt=dict(schema='wolverine.jeans-binding/1',revision=2,stockSHA256=s['packageHash'].lower(),stockSectionFirst=4995,counts=[dict(vertices=len(r['positions']),triangles=len(r['triangles'])) for r in variants],sourceUnits=True,foldDegrees=145,flyLower=70,flyUpper=97,flyHalfWidth=14,restEase=.55,maximumDiscardedSkinWeight=maxDiscard/255,headerSHA256=hashlib.sha256(a.output.read_bytes()).hexdigest(),nativeVerified=False)
+ receipt=dict(schema='wolverine.jeans-binding/1',revision=3,stockSHA256=s['packageHash'].lower(),stockPSKSHA256=hashlib.sha256(a.stock_psk.read_bytes()).hexdigest(),stockSectionFirst=4995,stockBuckleVertices=len(accessory),stockBuckleTriangles=len(accessoryFaces),counts=[dict(vertices=len(r['positions']),triangles=len(r['triangles'])) for r in variants],sourceUnits=True,foldDegrees=145,flyLower=70,flyUpper=97,flyHalfWidth=14,restEase=.55,maximumDiscardedSkinWeight=maxDiscard/255,headerSHA256=hashlib.sha256(a.output.read_bytes()).hexdigest(),nativeVerified=False)
  a.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()

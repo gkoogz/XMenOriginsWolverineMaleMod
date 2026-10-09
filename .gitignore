@@ -13,3 +13,6 @@
 dependencies/MaleModBase/
 __pycache__/
 *.pyc
+
+/src/runtime/stock_materials.rc
+/src/runtime/stock-materials/
