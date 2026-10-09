@@ -81,7 +81,7 @@
     },
     {
       "path": "tools/iteration/README.md",
-      "lfSHA256": "e38a52f5ee8743d5f202425805e2f67fd4f37861736ccf58bf40ef08b2d3aa86"
+      "lfSHA256": "2e63b200b6c19a6b6f1819c3403c04e2ead7c6edfa6fa58e95ff16a211e8c7ca"
     },
     {
       "path": "tools/iteration/Reset-NativeSandbox.ps1",
@@ -97,7 +97,7 @@
     },
     {
       "path": "tools/iteration/Set-NativeSandboxInput.ps1",
-      "lfSHA256": "5ad2b38340611c820e2fcbcedb29872af7ea49483dd46c7664e4ff2f9cea65d5"
+      "lfSHA256": "fd5d47f871518cc801ff87559d9b809e4ad83319178dfb0b7721aac2695ef47e"
     },
     {
       "path": "tools/iteration/Start-NativeSandbox.ps1",
@@ -186,6 +186,10 @@
     {
       "path": "tools/iteration/Test-JeansMotion.ps1",
       "lfSHA256": "14e326dd9baec2d7e67dae408276c1bd1c1a6b879d8e51a4167adaacb29e5602"
+    },
+    {
+      "path": "tools/iteration/Test-TankWardrobe.ps1",
+      "lfSHA256": "70e730a2c1a9827266aa45163dc5eb980e6d277a8a093b54dce837c984dc83b8"
     }
   ],
   "retailAssetsShipped": false,

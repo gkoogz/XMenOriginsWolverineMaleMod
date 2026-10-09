@@ -156,3 +156,16 @@ native frame/time metadata and bounded hinge samples from that sequence only.
 The captures and receipts stay private. Review the frames yourself; scripted
 bounds are not cloth collision or attachment visual acceptance. Then run the
 attachment and jeans-size matrices before considering any retail installation.
+
+## Native title tank wardrobe regression
+
+After staging the clean-source private candidate in the owned clone, launch
+Open-NativeSandbox.ps1 with -TitleOnly -AcceptanceControls -Active. Set the
+owned TankCameraPresets.txt from the developer's measured title camera; FOV
+may be widened for anatomy visibility. No host input or focus is driven.
+Run Test-TankWardrobe.ps1 -Workspace <room> -RuntimeProvenance <private receipt>.
+It captures eight wardrobe combinations, five sizes and three mechanical
+states. State uses ordinal 1/2/3; invalid ordinals are refused before writing
+the command. Captures require visual review and do not certify campaign,
+every body/LOD or full attachment acceptance. Close the owned run and inspect
+its exit/audio restoration before starting the separate grey-room matrix.

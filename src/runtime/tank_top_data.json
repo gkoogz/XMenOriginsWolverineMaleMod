@@ -1,6 +1,6 @@
 {
   "schema": "wolverine.tank-top-binding/1",
-  "revision": 10,
+  "revision": 11,
   "roundedCutVertices": 97,
   "maximumCutRounding": 0.22,
   "posedAliasNormals": true,
@@ -13,9 +13,9 @@
   "triangles": 4364,
   "clearance": 0.72,
   "projectedFaceClearance": 0.72,
-  "maximumFaceNormalRotationDegrees": 25.7940551231483,
+  "maximumFaceNormalRotationDegrees": 45.80960528292583,
   "sourceFaceOrientationPreserved": true,
-  "maximumDisplacement": 7.802851678648146,
+  "maximumDisplacement": 11.034336721817283,
   "subdivisionLevels": 1,
   "sectionSpacing": 4.0,
   "offsetWidth": 5.0,
@@ -26,7 +26,8 @@
   "originalSkinWeightsPreserved": true,
   "maximumNewVertexDiscardedWeight": 0.00784313725490196,
   "bodySHA256": "c4075718353b229faafa3c2a6b558d3a07c74785336b0b0f703f20bbfa818f25",
-  "headerSHA256": "7f50e1dfd5995a26c15cb730db5ca4e4790839a257b74f596b2b7b50acd9ef29",
+  "headerSHA256": "32b38607837dedb0ae40eec2c0b61708ac2cb984d7b59a6ab3c6d8542548b757",
   "nativeVerified": false,
-  "bodyCoverageMasked": true
+  "bodyCoverageMasked": true,
+  "lateralSpacing": 3.0
 }
