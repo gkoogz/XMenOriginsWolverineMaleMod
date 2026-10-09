@@ -1696,8 +1696,10 @@ static unsigned MeridianAnatomyIndexCount();
 #include "prepared_shape.h"
 #include "shared_body_surface.h"
 #include "anatomy_surface.h"
+namespace JeansAdapter {static HRESULT Body(IDirect3DDevice9*,unsigned,bool,D3DPRIMITIVETYPE,INT,UINT,UINT,UINT,UINT);}
 #include "menu_tank.h"
 #include "tank_top_adapter.h"
+#include "jeans_adapter.h"
 #include "menu_necklace_contact.h"
 #include "tank_set_extension.h"
 #include "fluid_collision.h"
@@ -1707,7 +1709,7 @@ static unsigned MeridianAnatomyIndexCount();
 #include "meridian_adapter.h"
 #include "jockstrap_support_data.h"
 #include <malemod/garments/numerical_support.hpp>
-static void SetJockstrapStyle(unsigned value){clothingStyle=value==1?1:0;JockstrapAdapter::SetStyle(clothingStyle);surfaceGarmentEnabled=false;surfaceGarmentContactReaction=false;surfaceGarmentShaft={};surfaceGarmentLobes[0]=surfaceGarmentLobes[1]={};surfaceGarmentCursor={};surfaceGarmentPendingReady=false;for(auto& p:surfaceGarmentPendingRod)p={};for(auto& p:surfaceGarmentPendingLobes)p={};for(auto& p:surfaceGarmentPendingAngular)p={};}
+static void SetJockstrapStyle(unsigned value){clothingStyle=value<4?value:0;JockstrapAdapter::SetStyle(clothingStyle==1?1:0);surfaceGarmentEnabled=false;surfaceGarmentContactReaction=false;surfaceGarmentShaft={};surfaceGarmentLobes[0]=surfaceGarmentLobes[1]={};surfaceGarmentCursor={};surfaceGarmentPendingReady=false;for(auto& p:surfaceGarmentPendingRod)p={};for(auto& p:surfaceGarmentPendingLobes)p={};for(auto& p:surfaceGarmentPendingAngular)p={};}
 static void UpdateJockstrapSource(const unsigned char* body){
  if(MeridianAdapter::Enabled()){MeridianAdapter::Update(body);return;}
  using G=malemod::garments::Point;
@@ -1790,7 +1792,7 @@ static void FlushHud(IDirect3DDevice9* d){
 }
 static void ResetStudyControls(){topStyle=0;SetJockstrapStyle(0);CancelTeaching();hangUI=glansUI=50.f;for(int i=0;i<7;i++)sliderUI[i]=50.f;for(int i=0;i<8;i++)physUI[i]=50.f;throbMode=0;idleChatterEnabled=false;ResetThrobClock();ApplyControlMapping();physicsState=2;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shapeDirty=true;}
 static void AdjustStudyControl(int index,int dir,float mult){
-  if(index==20){SetJockstrapStyle(clothingStyle?0:1);QueueSettingsSave();shapeDirty=true;return;}
+  if(index==20){SetJockstrapStyle((clothingStyle+dir+4)%4);QueueSettingsSave();shapeDirty=true;return;}
   if(index==21){topStyle=topStyle?0:1;QueueSettingsSave();Log("top costume %s",malemod::controls::Tops[topStyle]);return;}
   if(index==22){
     tankCameraCycleEnabled=!tankCameraCycleEnabled;tankCameraCycleTick=GetTickCount();
@@ -1851,7 +1853,7 @@ static void OverlayFrame(IDirect3DDevice9* d){PerfScope perf(1);
     for(int i=0;i<rows;i++){float row=y+39+i*25;bool selected=i==selectedSlider;D3DCOLOR tc=selected?D3DCOLOR_ARGB(255,255,221,86):D3DCOLOR_ARGB(255,230,230,230);const char* name;float value,lo,hi;char val[32];
       int control=i-3;
       if(i==21){name="TOP";value=float(topStyle);lo=0;hi=1;sprintf_s(val,"%s",malemod::controls::Tops[topStyle]);}
-      else if(i==20){name="BOTTOM";value=float(clothingStyle);lo=0;hi=1;sprintf_s(val,"%s",malemod::controls::Garments[clothingStyle]);}
+      else if(i==20){name="BOTTOM";value=float(clothingStyle);lo=0;hi=3;sprintf_s(val,"%s",malemod::controls::Bottoms[clothingStyle]);}
       else if(i==0){name="ERECTION";value=(float)physicsState;lo=0;hi=2;sprintf_s(val,"%s",physicsState==0?"ERECT":physicsState==1?"SEMI":"FULL FLOPPY");}
       else if(i==1){name="THROB";value=(float)throbMode;lo=0;hi=3;sprintf_s(val,"%s",throbMode==0?"OFF":throbMode==1?"GENTLE":throbMode==2?"MEDIUM":"INTENSE");}
       else if(i==2){name="IDLE CHATTER";value=idleChatterEnabled?1.f:0.f;lo=0;hi=1;sprintf_s(val,"%s",idleChatterEnabled?"ON":"OFF");}
@@ -1895,7 +1897,7 @@ static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const R
   if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}menuTankDrawnThisFrame=false;frameRendered=false;d->Release();}
   return origSwapPresent(sc,src,dst,wnd,dirty,flags);
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){anatomyVisibleFrame=-3;anatomyScene=-1;tankCameraSceneTick=0;MenuNecklace::Release();TankTopAdapter::Release();MeridianAdapter::Release();JockstrapAdapter::Release();clothingEpoch++;surfaceGarmentEnabled=false;ReleaseTeaching();ReleaseFluidSpaceDiagnostics();ResetFluidCollision();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseSharedSkin();ReleaseR14SkinTextures();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;shaderLayoutIndex.clear();motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){anatomyVisibleFrame=-3;anatomyScene=-1;tankCameraSceneTick=0;MenuNecklace::Release();TankTopAdapter::Release();JeansAdapter::Release();MeridianAdapter::Release();JockstrapAdapter::Release();clothingEpoch++;surfaceGarmentEnabled=false;ReleaseTeaching();ReleaseFluidSpaceDiagnostics();ResetFluidCollision();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseSharedSkin();ReleaseR14SkinTextures();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;shaderLayoutIndex.clear();motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
 static void Log(const char* fmt, ...) {
   static volatile LONG lines=0;LONG line=InterlockedIncrement(&lines);if(line>12000)return;
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);
@@ -2138,7 +2140,7 @@ static HRESULT DrawMenuNecklaceClearance(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
 // character buffer. Every shader constant is restored before returning to UE3.
 static HRESULT DrawBodySectionMaterial(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){
  bool body=(start==85446u&&count==28536u)||(start==219414u&&count==10130u);
- return body?DrawSharedBodySkin(d,type,base,minv,nv,start,count):origDIP(d,type,base,minv,nv,start,count);
+ return body?JeansAdapter::Body(d,start==219414u?1:0,false,type,base,minv,nv,start,count):origDIP(d,type,base,minv,nv,start,count);
 }
 static HRESULT DrawWithIdleGesture(IDirect3DDevice9* dev,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){
   unsigned paletteCount=0;const unsigned char*palette=IGPalette(start,count,paletteCount);
@@ -2164,7 +2166,7 @@ static void SelectAnatomyScene(bool title){
  tankCameraSceneTick=title?GetTickCount():0;
  if(anatomyScene==next)return;
  int previous=anatomyScene;anatomyScene=next;
- MenuNecklace::Release();TankTopAdapter::Release();MeridianAdapter::Release();JockstrapAdapter::Release();clothingEpoch++;surfaceGarmentEnabled=false;ReleaseTeaching();ResetFluidCollision();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();
+ MenuNecklace::Release();TankTopAdapter::Release();JeansAdapter::Release();MeridianAdapter::Release();JockstrapAdapter::Release();clothingEpoch++;surfaceGarmentEnabled=false;ReleaseTeaching();ResetFluidCollision();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();
  if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}
  menuTankSurfaceReady=false;menuRetargetBodyDynamicReady=false;r14Ready=false;
  preparedShapeReady=false;constraintSolverReady=false;shaftRestFrameReady=false;eggRestReady=false;
@@ -2213,8 +2215,8 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
       bool chest=EnsureMenuChestBuffer(dev,vb);if(chest)dev->SetStreamSource(0,menuChestVB,offset,stride);
       HRESULT body;
       if(start==0u&&count==360u)body=MenuNecklace::Queue(dev,type,base,minv,nv,start,count)?D3D_OK:DrawMenuNecklaceClearance(dev,type,base,minv,nv,start,count);
-      else if(start==1080u&&count==7134u){MeridianAdapter::CaptureSection(dev,0);CaptureFluidBodySection(dev,0);MenuNecklace::Capture(dev,0);body=DrawMenuRetargetBody(dev,0,type);TankTopAdapter::Draw(dev);}
-      else if(start==39960u&&count==2540u){MeridianAdapter::CaptureSection(dev,1);CaptureFluidBodySection(dev,1);if(motionCaptureSerial!=renderFrameSerial){motionCaptureSerial=renderFrameSerial;CaptureMenuTankMotion(dev);}MenuNecklace::Capture(dev,1);body=DrawMenuRetargetBody(dev,1,type);MenuNecklace::Draw(dev);if(EnsureMenuTank(dev)){MeridianAdapter::CaptureSection(dev,2);CaptureFluidBodySection(dev,2);HRESULT anatomy=DrawMenuTank(dev,vb,offset,stride);if(IsHdrSceneColorPass(dev)){MeridianAdapter::Draw(dev);DrawTeachingFluid(dev);DrawTankSetExtension(dev);}if(FAILED(body))body=anatomy;}}
+      else if(start==1080u&&count==7134u){MeridianAdapter::CaptureSection(dev,0);CaptureFluidBodySection(dev,0);MenuNecklace::Capture(dev,0);JeansAdapter::Capture(dev,0,true);body=DrawMenuRetargetBody(dev,0,type);TankTopAdapter::Draw(dev);}
+      else if(start==39960u&&count==2540u){MeridianAdapter::CaptureSection(dev,1);CaptureFluidBodySection(dev,1);JeansAdapter::Capture(dev,1,true);if(motionCaptureSerial!=renderFrameSerial){motionCaptureSerial=renderFrameSerial;CaptureMenuTankMotion(dev);}MenuNecklace::Capture(dev,1);body=DrawMenuRetargetBody(dev,1,type);JeansAdapter::Draw(dev);MenuNecklace::Draw(dev);if(EnsureMenuTank(dev)){MeridianAdapter::CaptureSection(dev,2);CaptureFluidBodySection(dev,2);HRESULT anatomy=clothingStyle==2?D3D_OK:DrawMenuTank(dev,vb,offset,stride);if(clothingStyle==2)menuTankDrawnThisFrame=true;if(IsHdrSceneColorPass(dev)){MeridianAdapter::Draw(dev);if(clothingStyle!=2)DrawTeachingFluid(dev);DrawTankSetExtension(dev);}if(FAILED(body))body=anatomy;}}
       else if(start==47580u&&count==3168u)body=DrawBodyAttachments(dev,vb,offset,stride,type,base,minv,nv,start,count);
       else body=origDIP(dev,type,base,minv,nv,start,count);
       if(chest)dev->SetStreamSource(0,vb,offset,stride);vb->Release();return body;
@@ -2247,12 +2249,12 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
       }
     }
     if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST)CaptureNecklaceBodyPose(dev,start,count);
-    if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST&&start==85446u&&count==28536u){MeridianAdapter::CaptureSection(dev,0);CaptureFluidBodySection(dev,0);}
-    if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST&&start==219414u&&count==10130u){MeridianAdapter::CaptureSection(dev,1);CaptureFluidBodySection(dev,1);}
+    if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST&&start==85446u&&count==28536u){MeridianAdapter::CaptureSection(dev,0);CaptureFluidBodySection(dev,0);JeansAdapter::Capture(dev,0,false);}
+    if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST&&start==219414u&&count==10130u){MeridianAdapter::CaptureSection(dev,1);CaptureFluidBodySection(dev,1);JeansAdapter::Capture(dev,1,false);}
     if(vb==graftBuffer && type==D3DPT_TRIANGLELIST && start==graftTriangleIndexStart && count==graftTriangleIndexCount/3u && EnsureR14(dev)){
       MeridianAdapter::CaptureSection(dev,2);CaptureFluidBodySection(dev,2);
-      HRESULT replacement=DrawR14(dev,vb,offset,stride);
-      if(SUCCEEDED(replacement)){if(IsFullResolutionScenePass(dev)){MeridianAdapter::Draw(dev);DrawTeachingFluid(dev);}vb->Release();return replacement;}
+      HRESULT replacement=clothingStyle==2?D3D_OK:DrawR14(dev,vb,offset,stride);
+      if(SUCCEEDED(replacement)){if(IsFullResolutionScenePass(dev)){MeridianAdapter::Draw(dev);if(clothingStyle!=2)DrawTeachingFluid(dev);}vb->Release();return replacement;}
     }
     if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST&&start==81126u&&count==1440u){
       float original[48]{};UINT boneRegister=0;
@@ -2263,7 +2265,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
       }
     }
     if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST){
-      HRESULT result=DrawWithIdleGesture(dev,type,base,minv,nv,start,count);if(start==85446u&&count==28536u)TankTopAdapter::Draw(dev);MeridianAdapter::Draw(dev);vb->Release();return result;
+      HRESULT result=DrawWithIdleGesture(dev,type,base,minv,nv,start,count);if(start==85446u&&count==28536u)TankTopAdapter::Draw(dev);if(start==219414u&&count==10130u)JeansAdapter::Draw(dev);MeridianAdapter::Draw(dev);vb->Release();return result;
     }
     vb->Release();
   }

@@ -1,9 +1,11 @@
 #pragma once
 #include "tank_top_data.h"
 #include "meridian_state_audit.h"
+#define FABRIC_COTTON_TOP
 #define FABRIC_MATERIAL_NAMESPACE TankTopMaterial
 #include "fabric_material.inl"
 #undef FABRIC_MATERIAL_NAMESPACE
+#undef FABRIC_COTTON_TOP
 namespace TankTopAdapter {
 static constexpr unsigned count=sizeof(TankTopRecipe::vertices)/sizeof(NcVertex);
 static constexpr unsigned faces=sizeof(TankTopRecipe::triangles)/sizeof(TankTopRecipe::triangles[0]);

@@ -162,7 +162,7 @@ static HRESULT DrawMenuRetargetBody(IDirect3DDevice9* d,int section,D3DPRIMITIVE
   const UINT triangles[2]={menuRetargetBodyTriangleCount0,menuRetargetBodyTriangleCount1};
   HRESULT hr=d->SetStreamSource(0,menuRetargetBodyVB[section],0,32);
   if(SUCCEEDED(hr))hr=d->SetIndices(menuRetargetBodyIB[section]);
-  if(SUCCEEDED(hr))hr=DrawSharedBodySkin(d,D3DPT_TRIANGLELIST,0,0,vertices[section],0,triangles[section]);
+  if(SUCCEEDED(hr))hr=JeansAdapter::Body(d,section,true,D3DPT_TRIANGLELIST,0,0,vertices[section],0,triangles[section]);
   d->SetStreamSource(0,originalVB,originalOffset,originalStride);d->SetIndices(originalIB);
   originalVB->Release();if(originalIB)originalIB->Release();
   static bool logged[2]{};if(SUCCEEDED(hr)&&!logged[section]){logged[section]=true;Log("menu tank exact gameplay body retarget %d active: %u vertices, %u triangles",section,vertices[section],triangles[section]);}

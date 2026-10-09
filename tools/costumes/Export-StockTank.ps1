@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$InputPackage,[Parameter(Mandatory=$true)][string]$Output,[Parameter(Mandatory=$true)][string]$UpkDirectory)
+param([Parameter(Mandatory=$true)][string]$InputPackage,[Parameter(Mandatory=$true)][string]$Output,[Parameter(Mandatory=$true)][string]$UpkDirectory,[ValidateSet('TankTop','Jeans')][string]$Garment='TankTop')
 $ErrorActionPreference='Stop'
 $toolDir=(Resolve-Path -LiteralPath $UpkDirectory).Path
 [Environment]::CurrentDirectory=$toolDir
@@ -14,11 +14,16 @@ $adapter=[UPK.Utils.Adapters.PackageAdapter]::new($package,[UPK.Explorer.Utils.G
 
 $e=$adapter.ObjectExports.Values | Where-Object ClassName -eq SkeletalMesh | Select-Object -First 1
 $m=$adapter.ObjectAdapters.Create($e);$null=@($m.GetLODs());$lod=$m.GetType().GetField('_lods',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($m).Items[0]
-$s=$lod.Sections.Items | Where-Object MaterialIndex -eq 4
+$material=if($Garment -eq 'Jeans'){3}else{4}
+$s=$lod.Sections.Items | Where-Object MaterialIndex -eq $material
+if(@($s).Count -ne 1){throw 'Expected one observed Alkali garment section'}
 $chunk=$lod.Chunks.Items[$s.ChunkIndex.Value];$bones=@($chunk.Bones.Items | ForEach-Object {[int]$_.Value});$vs=$lod.GPUSkin.VertsHalf.Items
 $ids=@($lod.IndexBuffer.Indices16.Items | Select-Object -Skip $s.FirstTriangleIndex.Value -First (3*$s.NumTriangles) | ForEach-Object {[int]$_.Value})
 $vertices=foreach($id in ($ids|Sort-Object -Unique)){
  $v=$vs[$id];@{id=$id;p=@([double]$v.Pos.X,[double]$v.Pos.Y,[double]$v.Pos.Z);n=@([int]$v.Normal.X,[int]$v.Normal.Y,[int]$v.Normal.Z);uv=@([int]$v.UVs.Items[0].U,[int]$v.UVs.Items[0].V);bone=@($v.BoneIndices|ForEach-Object{$bones[[int]$_]});weight=@($v.BoneWeights|ForEach-Object{[int]$_})}
 }
-@{schema='wolverine.stock-tank/1';packageHash=(Get-FileHash -LiteralPath $InputPackage).Hash;mesh="CH_Wolverine_Alkali";first=$s.FirstTriangleIndex.Value;triangles=$s.NumTriangles;vertices=@($vertices);indices=$ids;palette=$bones}|ConvertTo-Json -Depth 8 -Compress | Set-Content -LiteralPath $Output -Encoding utf8
+$names=@($package.Names)
+$boneNames=foreach($boneEntry in $m.NativeProperties['Ref skeleton'].Items){@{id=$boneEntry.Index;name=$names[[int]$boneEntry.Name.NameIndex].Name.Value}}
+$schema=if($Garment -eq 'Jeans'){'wolverine.stock-jeans/1'}else{'wolverine.stock-tank/1'}
+@{schema=$schema;packageHash=(Get-FileHash -LiteralPath $InputPackage).Hash;mesh="CH_Wolverine_Alkali";first=$s.FirstTriangleIndex.Value;triangles=$s.NumTriangles;vertices=@($vertices);indices=$ids;palette=$bones;boneNames=@($boneNames)}|ConvertTo-Json -Depth 8 -Compress | Set-Content -LiteralPath $Output -Encoding utf8
 "Exported $($vertices.Count) vertices / $($s.NumTriangles) triangles"
