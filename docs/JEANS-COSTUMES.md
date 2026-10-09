@@ -7,15 +7,19 @@ the jockstrap walking solver. Top selection remains independent.
 
 The licensed Alkali material3 section supplies 888 vertices/1478 triangles,
 original UVs and canonical bone weights. It includes its stock footwear. The
-adapter uses a dark denim weave, antialiased waistband/fly/pocket stitching and dark leather foot region, with the current
-native diffuse/SH lighting; original stock texture reproduction is not claimed.
+adapter now uses the original jeans diffuse/normal/specular maps and the
+original separate buckle mesh/maps. The stock leather belt remains in the
+jeans material. Procedural denim and footwear coloring were superseded by the
+stock-material refit. See STOCK-CLOTHING-REFIT.md for exact licensed input hashes.
 Source units are measured export coordinates, not asserted centimeters.
 
 Base `fly_panels.py` partitions triangles at the front fly envelope, preserves
 source-face barycentric donors, then folds the two panels145 degrees outward
 around their attached outer edges. The measured adapter envelope is Z70..97,
 half-width14 at its top, front +X. Skin and UV fields interpolate from the same
-donors. Maximum discarded skin weight is recorded in jeans_data.json. Folded
+donors. Revision4 carries the buckle with one rigid rotation rather than
+shearing it along the height-dependent cloth hinge. Maximum discarded skin
+weight is recorded in jeans_data.json. Folded
 panels are fixed rest geometry driven by the existing skeleton each frame;
 there is no second cloth simulation or update-rate reduction.
 

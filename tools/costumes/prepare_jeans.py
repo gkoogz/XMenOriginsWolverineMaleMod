@@ -6,7 +6,7 @@ from prepare_tank_top import array
 
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--stock-psk',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);a=ap.parse_args()
- sys.path.insert(0,str(a.base));from malemod_base.fly_panels import folded_fly
+ sys.path.insert(0,str(a.base));from malemod_base.fly_panels import folded_fly,fold_rigid_attachment
  repo=Path(__file__).resolve().parents[2];s=json.loads(a.stock.read_text(encoding='utf-8-sig'))
  assert s['schema']=='wolverine.stock-jeans/1' and s['first']==4995 and s['triangles']==1478
  original=s['vertices'];p=np.array([v['p'] for v in original]);ids={v['id']:i for i,v in enumerate(original)};tri=np.array([ids[i] for i in s['indices']]).reshape(-1,3)
@@ -24,8 +24,7 @@ def main():
   if index:
    # The separate rigid buckle belongs to the right fly flap. Retain it as
    # one piece, applying the same measured envelope transform to all vertices.
-   hinge=14*(q[:,2]-70)/27;offset=q[:,1]-hinge
-   q[:,0]-=offset*np.sin(np.deg2rad(145));q[:,1]=hinge+offset*np.cos(np.deg2rad(145))
+   q=fold_rigid_attachment(q,front_axis=0,side_axis=1,height_axis=2,lower=70,upper=97,half_width=14,angle=np.deg2rad(145))
   count=len(r['positions']);r['positions']=np.concatenate((r['positions'],q));r['triangles']=np.concatenate((r['triangles'],accessoryFaces+count))
   r['donors']=np.concatenate((r['donors'],np.repeat((np.arange(len(bp))+base)[:,None],3,axis=1)))
   r['weights']=np.concatenate((r['weights'],np.tile([1.,0,0],(len(bp),1))));r['panels']=np.r_[r['panels'],np.ones(len(bp))*index]
@@ -43,7 +42,7 @@ def main():
      mapping[slot]=bone
   mappings.append(mapping);allBones.update(mapping.values())
  for bone in s['palette']:assert bone in allBones
- rows=['#pragma once','// Measured licensed Alkali section. Recipe keeps source UV and face donors.','namespace JeansRecipe {','static constexpr unsigned revision=3;']
+ rows=['#pragma once','// Measured licensed Alkali section. Recipe keeps source UV and face donors.','namespace JeansRecipe {','static constexpr unsigned revision=4;']
  for section,mapping in enumerate(mappings):rows+=['static const unsigned char gameplayPalette'+str(section)+'[]={'+','.join(str(mapping.get(i,0)) for i in range(max(mapping)+1))+'};']
  maxDiscard=0
  for index,r in enumerate(variants):
@@ -79,6 +78,6 @@ def main():
    if opened:keep|=(centers[:,0]>0)&(centers[:,2]>70)&(abs(centers[:,1])<14*(centers[:,2]-70)/27+2)
    selected=bt[keep];rows+=['static const unsigned short body'+str(section)+str(opened)+'[][3]={']+['{'+','.join(map(str,f))+'},' for f in selected]+['};']
  rows+=['}'];a.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt=dict(schema='wolverine.jeans-binding/1',revision=3,stockSHA256=s['packageHash'].lower(),stockPSKSHA256=hashlib.sha256(a.stock_psk.read_bytes()).hexdigest(),stockSectionFirst=4995,stockBuckleVertices=len(accessory),stockBuckleTriangles=len(accessoryFaces),counts=[dict(vertices=len(r['positions']),triangles=len(r['triangles'])) for r in variants],sourceUnits=True,foldDegrees=145,flyLower=70,flyUpper=97,flyHalfWidth=14,restEase=.55,maximumDiscardedSkinWeight=maxDiscard/255,headerSHA256=hashlib.sha256(a.output.read_bytes()).hexdigest(),nativeVerified=False)
+ receipt=dict(schema='wolverine.jeans-binding/1',revision=4,rigidBuckleShapePreserved=True,stockSHA256=s['packageHash'].lower(),stockPSKSHA256=hashlib.sha256(a.stock_psk.read_bytes()).hexdigest(),stockSectionFirst=4995,stockBuckleVertices=len(accessory),stockBuckleTriangles=len(accessoryFaces),counts=[dict(vertices=len(r['positions']),triangles=len(r['triangles'])) for r in variants],sourceUnits=True,foldDegrees=145,flyLower=70,flyUpper=97,flyHalfWidth=14,restEase=.55,maximumDiscardedSkinWeight=maxDiscard/255,headerSHA256=hashlib.sha256(a.output.read_bytes()).hexdigest(),nativeVerified=False)
  a.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()

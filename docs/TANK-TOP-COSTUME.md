@@ -1,5 +1,11 @@
 # Independent tank-top costume
 
+Current correction: tank revision9 preserves the original shirt cut, folds,
+UVs and licensed diffuse/normal/specular maps while refitting the enlarged
+chest with Base's smooth section offset. Revision8's jagged neckline was
+rejected in native review. See STOCK-CLOTHING-REFIT.md; the older revision6
+verification below is historical and does not qualify the new candidate.
+
 The F6 menu has independent TOP (Naked / Tank Top) and BOTTOM (Naked /
 Jockstrap / Jeans / Jeans open) rows. Both values persist in WolverineLive.ini. Legacy Clothing/Style
 only migrates the bottom. Changing the top does not restart anatomy physics.
