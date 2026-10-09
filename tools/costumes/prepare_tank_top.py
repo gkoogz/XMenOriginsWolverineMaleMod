@@ -55,7 +55,7 @@ def main():
  _,bindings=refit_radially(stock,p,selected,.72,fallback_distance=9.)
  supports=np.concatenate((p[np.unique(selected)],p[selected].mean(axis=1),(p[selected[:,0]]+p[selected[:,1]])*.5,(p[selected[:,1]]+p[selected[:,2]])*.5,(p[selected[:,2]]+p[selected[:,0]])*.5))
  # UV aliases are separate draw vertices, but must share the fitted position.
- fitted=expand_projected_sections(stock,faces,supports,.72,spacing=4.,offset_width=5.,outward_cosine=.75,lateral_spacing=3.)
+ fitted=expand_projected_sections(stock,faces,supports,.72,spacing=4.,offset_width=5.,outward_cosine=.75,lateral_spacing=3.,field_regularization=64.)
  aliases={}
  for i,q in enumerate(stock):aliases.setdefault(tuple(np.round(q,5)),[]).append(i)
  for group in aliases.values():fitted[group]=fitted[group].mean(axis=0)
@@ -75,7 +75,7 @@ def main():
  normal*=winding
  # Preserve each measured original vertex and UV alias. The normals are
  # recomputed from the fitted topology rather than stretched stock tangents.
- rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=12;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
+ rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=13;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
  for v,q in zip(source['vertices'],fitted):rows.append('{{'+','.join(f'{x:.9f}f' for x in q)+'},{'+','.join(map(str,v['bone']))+'},{'+','.join(map(str,v['weight']))+'}},')
  rows+=['};','static const unsigned short triangles[][3]={']+[ '{'+','.join(map(str,t))+'},' for t in faces]+['};','static const float uv[][2]={']
  rows+=['{'+','.join(f'{struct.unpack("<e",struct.pack("<H",int(x)))[0]:.9f}f' for x in v['uv'])+'},' for v in source['vertices']]+['};','static const float normals[][3]={']
@@ -98,6 +98,6 @@ def main():
   rows.insert(-1,'static constexpr unsigned hiddenBodyTriangleCount'+str(section)+'='+str(len(selectedHidden))+';')
   rows.insert(-1,'static const unsigned short hiddenBody'+str(section)+'[][3]={'+(','.join('{'+','.join(map(str,f))+'}' for f in selectedHidden) if len(selectedHidden) else '{0,0,0}')+'};')
  args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt={'schema':'wolverine.tank-top-binding/1','revision':12,'roundedCutVertices':roundedCutVertices,'maximumCutRounding':.22,'posedAliasNormals':True,'foldTransport':'smooth measured torso section offset; stock cuts and fold chart retained','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'projectedFaceClearance':.72,'maximumFaceNormalRotationDegrees':maximumFaceRotation,'sourceFaceOrientationPreserved':True,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sectionSpacing':4.,'lateralSpacing':3.,'offsetWidth':5.,'outwardSupportCosine':.75,'grazingFaceClearanceVerified':False,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True,'cutMaskInset':2.5,'interiorMaskWitnesses':7}
+ receipt={'schema':'wolverine.tank-top-binding/1','revision':13,'roundedCutVertices':roundedCutVertices,'maximumCutRounding':.22,'posedAliasNormals':True,'foldTransport':'smooth measured torso section offset; stock cuts and fold chart retained','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'projectedFaceClearance':.72,'maximumFaceNormalRotationDegrees':maximumFaceRotation,'sourceFaceOrientationPreserved':True,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sectionSpacing':4.,'lateralSpacing':3.,'fieldRegularization':64.,'uniformWitnessFieldLimitRatio':1.05,'offsetWidth':5.,'outwardSupportCosine':.75,'grazingFaceClearanceVerified':False,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True,'cutMaskInset':2.5,'interiorMaskWitnesses':7}
  args.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()
