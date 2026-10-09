@@ -1,6 +1,6 @@
 {
   "schema": "wolverine.tank-top-binding/1",
-  "revision": 5,
+  "revision": 6,
   "stockSHA256": "90385a8b1734c3f4b1e1697734d2b6b98a319fec6c6ea27ea906d626f3a06cf6",
   "stockMesh": "CH_Wolverine_Alkali",
   "stockSectionFirst": 1722,
@@ -15,7 +15,7 @@
   "originalSkinWeightsPreserved": true,
   "maximumNewVertexDiscardedWeight": 0.00784313725490196,
   "bodySHA256": "c4075718353b229faafa3c2a6b558d3a07c74785336b0b0f703f20bbfa818f25",
-  "headerSHA256": "8be706b626d189a691cd565772bde6d51865a77beedef869c1ad4a2014b86245",
+  "headerSHA256": "6facade14d86cca55e4f280bb1b3eacf229f0716edb252179491f811537dd65b",
   "nativeVerified": false,
   "bodyCoverageMasked": true
 }
