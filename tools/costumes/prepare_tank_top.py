@@ -12,7 +12,7 @@ def array(text,name,dtype):
 
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);args=ap.parse_args()
- sys.path.insert(0,str(args.base));from malemod_base.garment_coverage import radial_coverage;from malemod_base.torso_garment_fit import refit_radially,refine_triangles,smooth_tubular_chart,clear_projected_faces
+ sys.path.insert(0,str(args.base));from malemod_base.radial_garment_coverage import radial_coverage;from malemod_base.torso_garment_fit import refit_radially,refine_triangles,smooth_tubular_chart,clear_projected_faces
  repo=Path(__file__).resolve().parents[2];bodyPath=repo/'src/runtime/menu_retarget_body_data.h'
  source=json.loads(args.stock.read_text(encoding='utf-8-sig'));assert source['schema']=='wolverine.stock-tank/1' and source['first']==1722 and source['triangles']==1091
  text=bodyPath.read_text();packed=array(text,'menuRetargetBodyPacked0',np.uint8).reshape(-1,32)
@@ -88,6 +88,6 @@ def main():
   mask=hidden[:len(bodyFaces)] if section==0 else hidden[-len(bodyFaces):]
   rows.insert(-1,'static const unsigned short hiddenBody'+str(section)+'[][3]={'+','.join('{'+','.join(map(str,f))+'}' for f in bodyFaces[mask])+'};')
  args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt={'schema':'wolverine.tank-top-binding/1','revision':5,'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'projectedFaceClearance':.72,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False}
+ receipt={'schema':'wolverine.tank-top-binding/1','revision':5,'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'projectedFaceClearance':.72,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True}
  args.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()
