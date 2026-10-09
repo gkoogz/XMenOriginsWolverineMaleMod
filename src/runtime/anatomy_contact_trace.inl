@@ -10,6 +10,7 @@ static void CaptureAnatomyContactTrace(){
  auto values=[&](const float* data,int count){fputc('[',file);for(int i=0;i<count;i++){if(i)fputc(',',file);number(data[i]);}fputc(']',file);};
  V3 thighs[4];CollisionCapsules(thighs[0],thighs[1],thighs[2],thighs[3]);
  fprintf(file,"{\"schema\":1,\"renderFrame\":%ld,\"coordinateSpace\":\"adapter CPU pelvis-local coordinates\",\"unit\":null,\"nativeSkinnedSurfaceCertificate\":false,\"physicsState\":%d,\"solverReady\":%s,\"inputReady\":%s,\"motionCollisionBonesReady\":%s,\"collisionOverride\":%s,",long(renderFrameSerial),physicsState,pdReady?"true":"false",pdInputReady?"true":"false",motionCollisionBonesReady?"true":"false",collisionCapsuleOverride?"true":"false");
+ fprintf(file,"\"rootJointRequested\":%s,\"rootJointContactsReady\":%s,",RootJointRequested()?"true":"false",rootJointContactsReady?"true":"false");
  fputs("\"root\":",file);point(ShaftRoot());fputs(",\"liveRootDirection\":",file);point(LiveRootDirection());
  fprintf(file,",\"rootDriveReady\":%s,\"rootDriveDegrees\":",rootDriveReady?"true":"false");number(rootDriveAngle);
  fputs(",\"rootDriveDegreesPerSecond\":",file);number(rootDriveVelocity);

@@ -569,11 +569,13 @@ static void KeepBallOnSide(float& value,float& previous,float minimum){
   previous=minimum-max(0.f,velocity);
 }
 static void KeepBallBelowMaximum(float& value,float& previous,float maximum,float relief=0.f){if(value>maximum){float strength=.12f*(1.f-.55f*relief),cap=.10f*(1.f-.40f*relief);float shift=min((value-maximum)*strength,cap);value-=shift;previous-=shift;}}
-static void CollisionCapsules(V3& leftA,V3& leftB,V3& rightA,V3& rightB){
+#include "root_joint_adapter.h"
+static bool CollisionCapsules(V3& leftA,V3& leftB,V3& rightA,V3& rightB){
   const V3 restLeftA={2.f,-7.8f,79.f},restLeftB={1.f,-8.2f,43.f},restRightA={2.f,7.8f,79.f},restRightB={1.f,8.2f,43.f};
-  if(collisionCapsuleOverride){leftA=overrideLeftA;leftB=overrideLeftB;rightA=overrideRightA;rightB=overrideRightB;return;}
+  if(collisionCapsuleOverride){leftA=overrideLeftA;leftB=overrideLeftB;rightA=overrideRightA;rightB=overrideRightB;return false;}
   leftA=restLeftA;leftB=restLeftB;rightA=restRightA;rightB=restRightB;
-  if(motionCollisionBonesReady){V3 la=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionLeftThighMatrix,restLeftA)),lb=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionLeftThighMatrix,restLeftB)),ra=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionRightThighMatrix,restRightA)),rb=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionRightThighMatrix,restRightB));if(Length(lb-la)>18.f&&Length(lb-la)<55.f&&Length(rb-ra)>18.f&&Length(rb-ra)<55.f&&Length(la-restLeftA)<45.f&&Length(ra-restRightA)<45.f){leftA=la;leftB=lb;rightA=ra;rightB=rb;}}
+  if(motionCollisionBonesReady){V3 la=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionLeftThighMatrix,restLeftA)),lb=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionLeftThighMatrix,restLeftB)),ra=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionRightThighMatrix,restRightA)),rb=InverseRigidPoint(motionPelvisMatrix,TransformPoint(motionRightThighMatrix,restRightB));if(Length(lb-la)>18.f&&Length(lb-la)<55.f&&Length(rb-ra)>18.f&&Length(rb-ra)<55.f&&Length(la-restLeftA)<45.f&&Length(ra-restRightA)<45.f){leftA=la;leftB=lb;rightA=ra;rightB=rb;return true;}}
+  return false;
 }
 static float CrouchFactor(V3 leftA,V3 leftB,V3 rightA,V3 rightB){
   V3 ld=Unit(leftB-leftA),rd=Unit(rightB-rightA);float verticality=(fabsf(ld.z)+fabsf(rd.z))*.5f;

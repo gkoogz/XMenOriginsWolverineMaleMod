@@ -17,9 +17,10 @@ static V3 pdPosition[pdCount],pdOldPosition[pdCount],pdVelocity[pdCount];
 static V3 pdOldBasis[2][3],pdThigh[4],pdOldThigh[4];
 static float pdInvMass[pdCount],pdInvInertia[2],pdMaxTetherRatio=0.f,pdMinimumGap=1e9f;
 static bool pdReady=false;
+static float rootJointPreviousClinicalYaw=0.f;
 static float pdPairForce=0.f,pdShaftForce[2]{};
 static V3 pdPressureDirection[2]={{0,-1,0},{0,1,0}};
-static void ResetCompliantDynamics(){pdReady=false;pdMaxTetherRatio=0.f;pdMinimumGap=1e9f;pdPairForce=0.f;pdShaftForce[0]=pdShaftForce[1]=0.f;}
+static void ResetCompliantDynamics(){rootJointContactsReady=false;rootJointPreviousClinicalYaw=0.f;pdReady=false;pdMaxTetherRatio=0.f;pdMinimumGap=1e9f;pdPairForce=0.f;pdShaftForce[0]=pdShaftForce[1]=0.f;}
 static void PDRotateBody(int s,V3 rotation){
  float angle=Length(rotation);if(angle<1e-9f)return;V3 axis=rotation/angle;
  const float cosine=cosf(angle),sine=sinf(angle);
@@ -343,7 +344,7 @@ static bool pdInputReady=false;
 static PDInput PDReadInput(float gait,float side){
  PDInput x{};x.length=constraintRestLength;x.radius=logicalShaftBodyRadius;x.angle=sliderValues[4];x.gait=gait;x.side=side;
  memcpy(x.radii,eggRadii,sizeof(x.radii));memcpy(x.rest,constraintBallRest,sizeof(x.rest));memcpy(x.centers,shaftRestCenters,sizeof(x.centers));
- CollisionCapsules(x.thigh[0],x.thigh[1],x.thigh[2],x.thigh[3]);return x;
+ const bool accepted=CollisionCapsules(x.thigh[0],x.thigh[1],x.thigh[2],x.thigh[3]);rootJointContactsReady=RootJointRequested()&&accepted;return x;
 }
 static void PDSetInput(const PDInput& a,const PDInput& b,float t){
  constraintRestLength=a.length+(b.length-a.length)*t;logicalShaftBodyRadius=a.radius+(b.radius-a.radius)*t;sliderValues[4]=a.angle+(b.angle-a.angle)*t;
@@ -374,6 +375,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
  if(!pdReady){for(int i=0;i<pdCount;i++)pdVelocity[i]={};for(int s=0;s<2;s++)pdPreviousAnchor[s]=BallAnchor(s);for(int s=0;s<2;s++)pdPreviousMaterial[s]=PDMaterialTarget(s);pdReady=true;}
  float shaftMass=.75f+physValues[1]*.0125f,bodyMass=.75f+physValues[5]*.0125f;
  for(int i=0;i<shaftNodeCount;i++){pdPosition[i]=shaftNodes[i];pdInvMass[i]=i<2?0.f:1.f/shaftMass;}
+ if(rootJointContactsReady){float segment=constraintRestLength/(shaftNodeCount-1);float angularMass=(1.f+physValues[1]*.016f)*max(.65f,sqrtf(constraintRestLength/24.f));pdInvMass[1]=float(::malemod::surface::root_contact::PointInverseMass(segment,angularMass));}
  // Include the attached neck tissue in angular inertia: contact impulses
  // should move the suspended contents more readily than roll them over.
  for(int s=0;s<2;s++){if(!initialized)pdPosition[pdBody0+s]=CPCenter(s);pdInvMass[pdBody0+s]=1.f/bodyMass;pdInvInertia[s]=1.5f/(bodyMass*Dot(CPRadii(s),CPRadii(s)));for(int j=0;j<3;j++)pdOldBasis[s][j]=cpBasis[s][j];}
@@ -446,6 +448,17 @@ static void StepConstraintSolver(float dt,float gait,float side){
   V3 spin{};for(int j=0;j<3;j++)spin=spin+Cross(pdOldBasis[s][j],cpBasis[s][j]);cpOmega[s]=spin*(.5f/dt);
  }
  PDSolveContactVelocities(dt);
+ const float imposedYaw=RootJointRequested()&&teachingTimeline.active?teachingFluid.MainLateralYaw(teachingTimeline.time):0.f;
+ if(rootJointContactsReady){
+  namespace contact=::malemod::surface::root_contact;auto point=[](V3 p){return contact::Point{p.x,p.y,p.z};};
+  pdPosition[1]=root+Unit(pdPosition[1]-root)*segment;
+  const double drive=rootDriveAngle*3.1415926535/180.;
+  const auto joint=contact::FromJoint(point(root),point(pdPosition[1]),point(pdVelocity[1]),drive+shaftSpring.pitch);
+  const auto relative=contact::Relative(joint,{drive,imposedYaw,rootDriveVelocity*3.1415926535/180.,(imposedYaw-rootJointPreviousClinicalYaw)/dt});
+  shaftSpring.pitch=float(relative.pitch);shaftSpring.yaw=float(relative.yaw);
+  shaftSpring.pitchVelocity=float(relative.pitchVelocity);shaftSpring.yawVelocity=float(relative.yawVelocity);
+ }
+ rootJointPreviousClinicalYaw=imposedYaw;
  PDAnteriorEnvelopeVelocity();
  PDAnteriorBodyRecovery(dt,true);
  if(ventralCorrection[0]<0.f||ventralCorrection[1]<0.f){
