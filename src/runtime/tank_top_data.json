@@ -1,6 +1,6 @@
 {
   "schema": "wolverine.tank-top-binding/1",
-  "revision": 7,
+  "revision": 8,
   "foldTransport": "measured source-to-target body displacement",
   "sourceBodyPSKSHA256": "3074ccb3a7d2f7fa900f78cd4f27c8111e9afbe1b3eaba01f8b64b9f86cf2f29",
   "stockSHA256": "90385a8b1734c3f4b1e1697734d2b6b98a319fec6c6ea27ea906d626f3a06cf6",
@@ -10,14 +10,15 @@
   "triangles": 4364,
   "clearance": 0.72,
   "projectedFaceClearance": 0.72,
-  "maximumDisplacement": 10.633481945151452,
+  "maximumDisplacement": 10.442190849635859,
   "subdivisionLevels": 1,
   "sourcePairLineagePreserved": true,
   "uvAliasesPreserved": true,
   "originalSkinWeightsPreserved": true,
   "maximumNewVertexDiscardedWeight": 0.00784313725490196,
   "bodySHA256": "c4075718353b229faafa3c2a6b558d3a07c74785336b0b0f703f20bbfa818f25",
-  "headerSHA256": "21aa6bd868bf9864a001b5605ab05f5b93d4674d42ec463461f2861fcf18937b",
+  "headerSHA256": "c60965dbc4c4ce592818f1c86954832689e5df1f812c4c6f96c2240c12aad9f0",
   "nativeVerified": false,
-  "bodyCoverageMasked": true
+  "bodyCoverageMasked": true,
+  "expansionSmoothingPasses": 12
 }

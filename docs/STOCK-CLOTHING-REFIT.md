@@ -2,14 +2,15 @@
 
 The correction preserves the stock tank/jeans UVs, texture detail and separate
 stock belt buckle. The earlier flat procedural cotton/denim was a poor visual
-substitute. Tank revision7 transports measured stock-to-target body displacement
-with original garment ease, without smoothing its source chart or replacing
+substitute. Tank revision8 transports measured stock-to-target body displacement
+with original garment ease and a smoothed radial expansion field, without
+smoothing its source chart or replacing
 cloth normals with body normals. Dog tags use the same fitted shirt surface.
 Jeans revision3 retains the original trouser mesh, boots and buckle; the open
 variant applies the existing fly fold and keeps the buckle in one piece on the
 right flap. UV donors identify UPK jeans vertices and PSK buckle wedges separately.
 
-Shared fitting lives in Base pin8bd2795; asset/material/rig code lives here.
+Shared fitting lives in Base pin1897455; asset/material/rig code lives here.
 Source package SHA90385a8b1734c3f4b1e1697734d2b6b98a319fec6c6ea27ea906d626f3a06cf6.
 Stock PSK SHA3074ccb3a7d2f7fa900f78cd4f27c8111e9afbe1b3eaba01f8b64b9f86cf2f29.
 This is a custom renderer using original diffuse/normal/specular maps and
