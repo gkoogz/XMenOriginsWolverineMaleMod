@@ -73,7 +73,7 @@ def main():
  normal*=winding
  # Preserve each measured original vertex and UV alias. The normals are
  # recomputed from the fitted topology rather than stretched stock tangents.
- rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=14;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
+ rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=15;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
  for v,q in zip(source['vertices'],fitted):rows.append('{{'+','.join(f'{x:.9f}f' for x in q)+'},{'+','.join(map(str,v['bone']))+'},{'+','.join(map(str,v['weight']))+'}},')
  rows+=['};','static const unsigned short triangles[][3]={']+[ '{'+','.join(map(str,t))+'},' for t in faces]+['};','static const float uv[][2]={']
  rows+=['{'+','.join(f'{struct.unpack("<e",struct.pack("<H",int(x)))[0]:.9f}f' for x in v['uv'])+'},' for v in source['vertices']]+['};','static const float normals[][3]={']
@@ -88,7 +88,7 @@ def main():
  # Covered body triangles are omitted in every native pass. This prevents
  # later bare-body passes from overwriting the forward cloth surface.
  from malemod_base.radial_garment_coverage import radial_triangle_coverage
- hidden=radial_triangle_coverage(fitted,faces,p,tri,radial_axes=(0,1),height_axis=2,cut_inset=2.5)
+ hidden=radial_triangle_coverage(fitted,faces,p,tri,radial_axes=(0,1),height_axis=2,cut_inset=1.,check_depth=False)
  for section in range(2):
   bodyFaces=array(text,'menuRetargetBodyIndices'+str(section),np.int64).reshape(-1,3)
   mask=hidden[:len(bodyFaces)] if section==0 else hidden[-len(bodyFaces):]
@@ -96,6 +96,6 @@ def main():
   rows.insert(-1,'static constexpr unsigned hiddenBodyTriangleCount'+str(section)+'='+str(len(selectedHidden))+';')
   rows.insert(-1,'static const unsigned short hiddenBody'+str(section)+'[][3]={'+(','.join('{'+','.join(map(str,f))+'}' for f in selectedHidden) if len(selectedHidden) else '{0,0,0}')+'};')
  args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt={'schema':'wolverine.tank-top-binding/1','revision':14,'roundedCutVertices':roundedCutVertices,'maximumCutRounding':.22,'posedAliasNormals':True,'foldTransport':'complete target-body closest surface; original displacement chart relaxed 10 passes','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'clearanceAfterRelaxationCertified':False,'displacementSmoothingPasses':10,'cutTopologyPreserved':True,'cutPositionsFollowTorso':True,'maximumFaceNormalRotationDegrees':maximumFaceRotation,'sourceFaceOrientationPreserved':True,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'grazingFaceClearanceVerified':False,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True,'cutMaskInset':2.5,'interiorMaskWitnesses':7}
+ receipt={'schema':'wolverine.tank-top-binding/1','revision':15,'roundedCutVertices':roundedCutVertices,'maximumCutRounding':.22,'posedAliasNormals':True,'foldTransport':'complete target-body closest surface; original displacement chart relaxed 10 passes','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'clearanceAfterRelaxationCertified':False,'displacementSmoothingPasses':10,'cutTopologyPreserved':True,'cutPositionsFollowTorso':True,'maximumFaceNormalRotationDegrees':maximumFaceRotation,'sourceFaceOrientationPreserved':True,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'grazingFaceClearanceVerified':False,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True,'cutMaskInset':1.,'coverageChecksDepth':False,'interiorMaskWitnesses':7}
  args.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()
