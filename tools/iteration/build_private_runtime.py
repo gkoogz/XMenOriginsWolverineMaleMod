@@ -112,6 +112,7 @@ def main():
       'generatedRuntimeSourceSHA256':hashlib.sha256(cpp.read_bytes()).hexdigest(),
       'builderSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),
       'runtimeSHA256':hashlib.sha256((target/'d3d9.dll').read_bytes()).hexdigest(),
+      'stockMaterialManifestSHA256':hashlib.sha256((target/'source/tools/costumes/stock_materials.json').read_bytes()).hexdigest(),
       'installed':False,'observedGameplay':False,'meridianCandidate':(native/'meridian_adapter.h').exists(),'productionSourceIntegrated':(native/'meridian_adapter.h').exists() and not bool(args.meridian_recipe),'candidateInputSHA256':candidate_hashes}
     (target/'provenance.json').write_text(json.dumps(record,indent=2)+'\n')
     print(json.dumps(record))
