@@ -94,7 +94,9 @@ def main():
  for section in range(2):
   bodyFaces=array(text,'menuRetargetBodyIndices'+str(section),np.int64).reshape(-1,3)
   mask=hidden[:len(bodyFaces)] if section==0 else hidden[-len(bodyFaces):]
-  rows.insert(-1,'static const unsigned short hiddenBody'+str(section)+'[][3]={'+','.join('{'+','.join(map(str,f))+'}' for f in bodyFaces[mask])+'};')
+  selectedHidden=bodyFaces[mask]
+  rows.insert(-1,'static constexpr unsigned hiddenBodyTriangleCount'+str(section)+'='+str(len(selectedHidden))+';')
+  rows.insert(-1,'static const unsigned short hiddenBody'+str(section)+'[][3]={'+(','.join('{'+','.join(map(str,f))+'}' for f in selectedHidden) if len(selectedHidden) else '{0,0,0}')+'};')
  args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
  receipt={'schema':'wolverine.tank-top-binding/1','revision':12,'roundedCutVertices':roundedCutVertices,'maximumCutRounding':.22,'posedAliasNormals':True,'foldTransport':'smooth measured torso section offset; stock cuts and fold chart retained','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'projectedFaceClearance':.72,'maximumFaceNormalRotationDegrees':maximumFaceRotation,'sourceFaceOrientationPreserved':True,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sectionSpacing':4.,'lateralSpacing':3.,'offsetWidth':5.,'outwardSupportCosine':.75,'grazingFaceClearanceVerified':False,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True,'cutMaskInset':2.5,'interiorMaskWitnesses':7}
  args.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
