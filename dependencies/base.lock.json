@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/gkoogz/MaleModBase.git",
-  "commit": "e31b222723aa942d3e15fd648689f9987d3ca9fb",
+  "commit": "04ea79fcd72b9902a96bdc433850024bf7361af2",
   "modules": [
     "surface/pelvic_frame",
     "garments/jockstrap",
@@ -9,7 +9,9 @@
     "controls/presentation",
     "garments/meridian",
     "physics/anterior_envelope",
-    "physics/anterior_capsule"
+    "physics/anterior_capsule",
+    "controls/costume",
+    "garments/torso_garment_fit"
   ],
   "legacySnapshot": "reference-only-immutable",
   "developmentCheckpoint": true

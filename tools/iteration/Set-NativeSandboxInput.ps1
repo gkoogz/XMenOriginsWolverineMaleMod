@@ -1,4 +1,4 @@
-param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[Parameter(Mandatory=$true)][ValidateSet('J','W','A','S','D','TurnLeft','TurnRight','LookUp','LookDown','Zoom','Space','Block','Shift','F6','F8','Up','Down','Left','Right','Capture','Pause','Resume','Defaults','Overall','Width','Length','Scrotum','Angle','Forward','Vertical','State','Naked','Jockstrap')][string]$Key,[ValidateSet('Press','Hold','Release')][string]$Action='Press',[ValidateRange(1,100)][int]$Value=50)
+param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[Parameter(Mandatory=$true)][ValidateSet('J','W','A','S','D','TurnLeft','TurnRight','LookUp','LookDown','Zoom','Space','Block','Shift','F6','F8','Up','Down','Left','Right','Capture','Pause','Resume','Defaults','Overall','Width','Length','Scrotum','Angle','Forward','Vertical','State','Naked','Jockstrap','TopNaked','TankTop')][string]$Key,[ValidateSet('Press','Hold','Release')][string]$Action='Press',[ValidateRange(1,100)][int]$Value=50)
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path -LiteralPath $Workspace).Path
 $file=Join-Path $root 'owned-game/Binaries/MaleModSandboxControl.ini'

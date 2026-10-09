@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <vector>
@@ -30,6 +31,8 @@ class NcContactSolver {
   static constexpr int gridSize=32;
   std::vector<int> bins[gridSize*gridSize];
   std::vector<NcPoint> chest;
+  std::vector<NcVertex> garment;
+  std::vector<std::array<unsigned short,3>> triangles;
   std::vector<int> order;
   float lowY=0,lowZ=0,scaleY=1,scaleZ=1;
   struct Constraint { float weight[4]{},need=0; };
@@ -41,6 +44,7 @@ class NcContactSolver {
   int cell(float x){return (std::max)(0,(std::min)(gridSize-1,(int)floorf(x)));}
 public:
   NcContactSolver(){
+    for(auto& t:ncChestTriangles)triangles.push_back({t[0],t[1],t[2]});
     chest.resize(sizeof(ncChestVertices)/sizeof(ncChestVertices[0]));
     constraints.resize(sizeof(ncTagVertices)/sizeof(ncTagVertices[0]));
     for(unsigned i=0;i<constraints.size();i++){
@@ -52,12 +56,21 @@ public:
       return *std::max_element(constraints[a].weight,constraints[a].weight+4)>*std::max_element(constraints[b].weight,constraints[b].weight+4);
     });
   }
+  void setGarment(const NcVertex* vertices,unsigned count,const unsigned short (*faces)[3],unsigned faceCount){
+    if(count==garment.size()&&(!count||memcmp(vertices,garment.data(),count*sizeof(NcVertex))==0))return;
+    garment.clear();if(count)garment.assign(vertices,vertices+count);
+    const unsigned bodyCount=sizeof(ncChestVertices)/sizeof(ncChestVertices[0]);
+    chest.resize(bodyCount+count);triangles.clear();
+    for(auto& t:ncChestTriangles)triangles.push_back({t[0],t[1],t[2]});
+    for(unsigned i=0;i<faceCount&&count;i++)triangles.push_back({static_cast<unsigned short>(bodyCount+faces[i][0]),static_cast<unsigned short>(bodyCount+faces[i][1]),static_cast<unsigned short>(bodyCount+faces[i][2])});
+    cacheValid=false;
+  }
   bool surface(float y,float z,float& front){
     float cy=(y-lowY)*scaleY,cz=(z-lowZ)*scaleZ;
     if(cy<0||cz<0||cy>=gridSize||cz>=gridSize)return false;
     bool hit=false;front=-1e20f;
     for(int ti:bins[cell(cz)*gridSize+cell(cy)]){
-      const auto& t=ncChestTriangles[ti];NcPoint a=chest[t[0]],b=chest[t[1]],c=chest[t[2]];
+      const auto& t=triangles[ti];NcPoint a=chest[t[0]],b=chest[t[1]],c=chest[t[2]];
       float d=(b.y-a.y)*(c.z-a.z)-(b.z-a.z)*(c.y-a.y);if(fabsf(d)<1e-7f)continue;
       float u=((y-a.y)*(c.z-a.z)-(z-a.z)*(c.y-a.y))/d;
       float v=((b.y-a.y)*(z-a.z)-(b.z-a.z)*(y-a.y))/d;
@@ -72,15 +85,18 @@ public:
     float inverse[12];if(!NcInverse(rig.matrix[6],inverse))return false;
     lowY=lowZ=1e20f;float highY=-1e20f,highZ=-1e20f;
     for(unsigned i=0;i<chest.size();i++){
-      NcPoint p=NcTransform(inverse,NcSkin(ncChestVertices[i],rig));
+      const unsigned bodyCount=sizeof(ncChestVertices)/sizeof(ncChestVertices[0]);
+      const auto& vertex=i<bodyCount?ncChestVertices[i]:garment[i-bodyCount];
+      for(unsigned k=0;k<4;k++)if(vertex.weight[k]&&!rig.valid[vertex.bone[k]])return false;
+      NcPoint p=NcTransform(inverse,NcSkin(vertex,rig));
       if(!std::isfinite(p.x)||!std::isfinite(p.y)||!std::isfinite(p.z))return false;
       chest[i]=p;lowY=(std::min)(lowY,p.y);lowZ=(std::min)(lowZ,p.z);highY=(std::max)(highY,p.y);highZ=(std::max)(highZ,p.z);
     }
     lowY-=.01f;lowZ-=.01f;highY+=.01f;highZ+=.01f;
     scaleY=gridSize/(highY-lowY);scaleZ=gridSize/(highZ-lowZ);
     for(auto& bin:bins)bin.clear();
-    for(unsigned i=0;i<sizeof(ncChestTriangles)/sizeof(ncChestTriangles[0]);i++){
-      const auto& t=ncChestTriangles[i];NcPoint a=chest[t[0]],b=chest[t[1]],c=chest[t[2]];
+    for(unsigned i=0;i<triangles.size();i++){
+      const auto& t=triangles[i];NcPoint a=chest[t[0]],b=chest[t[1]],c=chest[t[2]];
       int ymin=cell(((std::min)({a.y,b.y,c.y})-lowY)*scaleY),ymax=cell(((std::max)({a.y,b.y,c.y})-lowY)*scaleY);
       int zmin=cell(((std::min)({a.z,b.z,c.z})-lowZ)*scaleZ),zmax=cell(((std::max)({a.z,b.z,c.z})-lowZ)*scaleZ);
       for(int z=zmin;z<=zmax;z++)for(int y=ymin;y<=ymax;y++)bins[z*gridSize+y].push_back((int)i);

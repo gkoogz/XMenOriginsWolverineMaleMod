@@ -27,6 +27,7 @@ static void MaleModPrivateCommands(unsigned frame,bool game){
  if(!revision||revision==maleModPrivateControlRevision)return;maleModPrivateControlRevision=revision;
  if(!strcmp(name,"Pause")||!strcmp(name,"Resume")){maleModPrivatePaused=!strcmp(name,"Pause");Log("Private command revision=%u key=%s",revision,name);return;}
  if(!strcmp(name,"Defaults")){ResetStudyControls();QueueSettingsSave();Log("Private command revision=%u key=Defaults",revision);return;}
+ if(!strcmp(name,"TankTop")||!strcmp(name,"TopNaked")){topStyle=!strcmp(name,"TankTop")?1:0;QueueSettingsSave();Log("Private command revision=%u key=%s top=%u bottom=%u",revision,name,topStyle,clothingStyle);return;}
  if(!strcmp(name,"Naked")||!strcmp(name,"Jockstrap")){SetJockstrapStyle(!strcmp(name,"Jockstrap")?1:0);QueueSettingsSave();shapeDirty=true;Log("Private command revision=%u key=%s",revision,name);return;}
  if(!strcmp(name,"Overall")){int value=requestedValue;if(value>=1&&value<=100){AdjustStudyControl(3,value>=sliderUI[0]?1:-1,fabsf(value-sliderUI[0]));QueueSettingsSave();Log("Private command revision=%u key=Overall value=%d",revision,value);}return;}
  struct ShapeCommand{const char* name;int menuIndex;int sliderIndex;};
