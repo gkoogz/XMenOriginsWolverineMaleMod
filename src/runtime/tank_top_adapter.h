@@ -20,6 +20,7 @@ static IDirect3DStateBlock9* state=nullptr;
 static LONG prepared=-3;
 struct RenderVertex {float p[3],n[3],uv[2],color[4];};
 static std::vector<RenderVertex> vertices;
+static std::vector<::V3> normalSums;
 static void Refit(){
  EnsureSharedBody();if(bodyRevision==sharedBodyRevision)return;
  memcpy(fitted,TankTopRecipe::vertices,sizeof(fitted));
@@ -69,6 +70,11 @@ static void Draw(IDirect3DDevice9* d){
    // right-handed cross products with outward normals, so negate that sign.
    memcpy(v.uv,TankTopRecipe::uv[i],8);v.color[0]=3;v.color[1]=v.color[2]=1;v.color[3]=-TankTopRecipe::faceNormalSign;
   }
+  // Skinning across several joints changes the neck/armhole tangent plane.
+  // Use the actual posed surface, welding shading aliases while retaining UVs.
+  normalSums.assign(TankTopRecipe::normalGroups,::V3{});
+  for(const auto& f:TankTopRecipe::triangles){auto point=[&](unsigned i){auto& p=vertices[i].p;return ::V3{p[0],p[1],p[2]};};auto n=Cross(point(f[1])-point(f[0]),point(f[2])-point(f[0]))*TankTopRecipe::faceNormalSign;for(unsigned i:f){auto& sum=normalSums[TankTopRecipe::normalAliases[i]];sum=sum+n;}}
+  for(unsigned i=0;i<count;i++){auto n=normalSums[TankTopRecipe::normalAliases[i]];if(Length(n)>1e-10f){n=Unit(n);vertices[i].n[0]=n.x;vertices[i].n[1]=n.y;vertices[i].n[2]=n.z;}}
   void* raw=nullptr;if(FAILED(vb->Lock(0,0,&raw,D3DLOCK_DISCARD)))return;memcpy(raw,vertices.data(),vertices.size()*sizeof(vertices[0]));if(FAILED(vb->Unlock()))return;prepared=renderFrameSerial;
  }
  auto audit=MeridianStateSnapshot(d);if(FAILED(state->Capture()))return;

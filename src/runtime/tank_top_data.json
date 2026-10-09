@@ -1,6 +1,9 @@
 {
   "schema": "wolverine.tank-top-binding/1",
-  "revision": 9,
+  "revision": 10,
+  "roundedCutVertices": 97,
+  "maximumCutRounding": 0.22,
+  "posedAliasNormals": true,
   "foldTransport": "smooth measured torso section offset; stock cuts and fold chart retained",
   "sourceBodyPSKSHA256": "3074ccb3a7d2f7fa900f78cd4f27c8111e9afbe1b3eaba01f8b64b9f86cf2f29",
   "stockSHA256": "90385a8b1734c3f4b1e1697734d2b6b98a319fec6c6ea27ea906d626f3a06cf6",
@@ -23,7 +26,7 @@
   "originalSkinWeightsPreserved": true,
   "maximumNewVertexDiscardedWeight": 0.00784313725490196,
   "bodySHA256": "c4075718353b229faafa3c2a6b558d3a07c74785336b0b0f703f20bbfa818f25",
-  "headerSHA256": "1c56c16bc6525d6dd74865269a4b8bf266f74261efc70b775b5cdcf976f00eda",
+  "headerSHA256": "7f50e1dfd5995a26c15cb730db5ca4e4790839a257b74f596b2b7b50acd9ef29",
   "nativeVerified": false,
   "bodyCoverageMasked": true
 }

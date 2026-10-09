@@ -23,7 +23,12 @@ def main():
  slots0={13,14,30,31,32,33};slots1={6,7,23,24,30};membership=np.r_[np.sum(np.isin(packed[:,20:24],list(slots0))*packed[:,24:28]/255.,axis=1),np.sum(np.isin(p1[:,20:24],list(slots1))*p1[:,24:28]/255.,axis=1)];mask=np.all((p[tri][:,:,2]>89)&(p[tri][:,:,2]<146)&(membership[tri]>.7),axis=1)
  selected=tri[mask];stock=np.array([v['p'] for v in source['vertices']])
  ids={v['id']:i for i,v in enumerate(source['vertices'])};faces=np.array([ids[i] for i in source['indices']]).reshape(-1,3)
+ from malemod_base.torso_garment_fit import curved_boundary_midpoints
+ cutStock=stock.copy();cutFaces=faces.copy()
  stock,faces,lineage=refine_triangles(stock,faces)
+ linear=stock.copy()
+ stock=curved_boundary_midpoints(cutStock,cutFaces,stock,lineage,cutStock[:,2]>112,.22)
+ roundedCutVertices=int(np.count_nonzero(np.linalg.norm(stock-linear,axis=1)>1e-8))
  original=source['vertices'];generated=[];discarded=0
  for a,b in lineage:
   if a==b:generated.append(original[a]);continue
@@ -70,11 +75,14 @@ def main():
  normal*=winding
  # Preserve each measured original vertex and UV alias. The normals are
  # recomputed from the fitted topology rather than stretched stock tangents.
- rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=9;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
+ rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=10;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
  for v,q in zip(source['vertices'],fitted):rows.append('{{'+','.join(f'{x:.9f}f' for x in q)+'},{'+','.join(map(str,v['bone']))+'},{'+','.join(map(str,v['weight']))+'}},')
  rows+=['};','static const unsigned short triangles[][3]={']+[ '{'+','.join(map(str,t))+'},' for t in faces]+['};','static const float uv[][2]={']
  rows+=['{'+','.join(f'{struct.unpack("<e",struct.pack("<H",int(x)))[0]:.9f}f' for x in v['uv'])+'},' for v in source['vertices']]+['};','static const float normals[][3]={']
- rows+=['{'+','.join(f'{x:.9f}f' for x in n)+'},' for n in normal]+['};','struct Binding {unsigned donor[3]; float weight[3];};','static const Binding bindings[]={']
+ rows+=['{'+','.join(f'{x:.9f}f' for x in n)+'},' for n in normal]+['};']
+ labels=np.zeros(len(stock),int)
+ for group,indices in enumerate(aliases.values()):labels[indices]=group
+ rows+=['static constexpr unsigned normalGroups='+str(len(aliases))+';','static const unsigned short normalAliases[]={'+','.join(map(str,labels))+'};','struct Binding {unsigned donor[3]; float weight[3];};','static const Binding bindings[]={']
  rows+=['{{'+','.join(map(str,sourceIDs[selected[j]]))+'},{'+','.join(f'{w:.9f}f' for w in weight)+'}},' for j,weight,gap in bindings]+['};','static const float donorBase[][3]={']
  donors=sorted(set(int(i) for j,w,g in bindings for i in selected[j]))
  # Compact donor base for a cheap current-body displacement update.
@@ -88,6 +96,6 @@ def main():
   mask=hidden[:len(bodyFaces)] if section==0 else hidden[-len(bodyFaces):]
   rows.insert(-1,'static const unsigned short hiddenBody'+str(section)+'[][3]={'+','.join('{'+','.join(map(str,f))+'}' for f in bodyFaces[mask])+'};')
  args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt={'schema':'wolverine.tank-top-binding/1','revision':9,'foldTransport':'smooth measured torso section offset; stock cuts and fold chart retained','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'projectedFaceClearance':.72,'maximumFaceNormalRotationDegrees':maximumFaceRotation,'sourceFaceOrientationPreserved':True,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sectionSpacing':4.,'offsetWidth':5.,'outwardSupportCosine':.75,'grazingFaceClearanceVerified':False,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True}
+ receipt={'schema':'wolverine.tank-top-binding/1','revision':10,'roundedCutVertices':roundedCutVertices,'maximumCutRounding':.22,'posedAliasNormals':True,'foldTransport':'smooth measured torso section offset; stock cuts and fold chart retained','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'projectedFaceClearance':.72,'maximumFaceNormalRotationDegrees':maximumFaceRotation,'sourceFaceOrientationPreserved':True,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sectionSpacing':4.,'offsetWidth':5.,'outwardSupportCosine':.75,'grazingFaceClearanceVerified':False,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True}
  args.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()

@@ -1,6 +1,15 @@
 {
   "schema": "wolverine.jeans-binding/1",
-  "revision": 5,
+  "revision": 6,
+  "flapThickness": 0.12,
+  "beltThickness": 0.22,
+  "beltOutset": 0.24,
+  "beltBoundaryEdges": [
+    100,
+    124
+  ],
+  "maximumBeltAngularSamplingGap": 15.418294266970447,
+  "beltWrapSourceCoverage": true,
   "rigidBuckleShapePreserved": true,
   "stockSHA256": "90385a8b1734c3f4b1e1697734d2b6b98a319fec6c6ea27ea906d626f3a06cf6",
   "stockPSKSHA256": "3074ccb3a7d2f7fa900f78cd4f27c8111e9afbe1b3eaba01f8b64b9f86cf2f29",
@@ -9,12 +18,12 @@
   "stockBuckleTriangles": 286,
   "counts": [
     {
-      "vertices": 1179,
-      "triangles": 1764
+      "vertices": 2295,
+      "triangles": 2264
     },
     {
-      "vertices": 6141,
-      "triangles": 2472
+      "vertices": 9005,
+      "triangles": 3528
     }
   ],
   "sourceUnits": true,
@@ -24,7 +33,7 @@
   "flyHalfWidth": 9,
   "restEase": 0.55,
   "maximumDiscardedSkinWeight": 1.1145768404080003e-16,
-  "headerSHA256": "83de725b46595e97ed066d48878488925cb099b29328085a48575f0445cb0b46",
+  "headerSHA256": "a63f5e1c645d17749d237ae800734b9b55494a8948f7a4bd49863b594b7247d7",
   "motionBindingRevision": 1,
   "flyTravelDegrees": 3,
   "beltTravelDegrees": 2,

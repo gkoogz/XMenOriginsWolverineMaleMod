@@ -108,7 +108,7 @@ static void Draw(IDirect3DDevice9* d){
    }
    auto p=NcSkin(moving,rig);auto& v=rendered[i];v.p[0]=p.x;v.p[1]=p.y;v.p[2]=p.z;
    for(unsigned a=0;a<3;a++){v.n[a]=0;for(unsigned k=0;k<4;k++)if(source[i].weight[k])for(unsigned b=0;b<3;b++)v.n[a]+=source[i].weight[k]/255.f*rig.matrix[source[i].bone[k]][a*4+b]*normals[i][b];}
-   memcpy(v.uv,uv[i],8);v.color[0]=(open?JeansRecipe::sourceResource1[i]:JeansRecipe::sourceResource0[i])?6.f:4.f;
+   memcpy(v.uv,uv[i],8);v.color[0]=float(open?JeansRecipe::materialRoles1[i]:JeansRecipe::materialRoles0[i]);
    const auto& rest=open?JeansRecipe::restPositions1[i]:JeansRecipe::restPositions0[i];v.color[1]=rest[1];v.color[2]=rest[2];v.color[3]=rest[0];
   }
   if(open){
