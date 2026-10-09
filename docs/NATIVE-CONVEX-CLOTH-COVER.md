@@ -57,3 +57,10 @@ per-face deformation budgets. Unchanged poses and common actor motion no longer
 need a fresh walk; large relative motion, inverted faces or excess edge stretch
 force rebuilding. This is smooth display continuity, not a new collision pass.
 
+The centered-pole candidates were rejected for a broad box-like flare in side
+views. Base's anchored affine chart keeps the render pole at the current glans
+tip's transverse coordinates. The adapter transforms both cloth and exact
+collision support during walking, maps back before rendering/follow binding,
+checks physical sampling/hem budgets, and independently certifies any successful
+full solve in render space. Retail remains unchanged until native review.
+

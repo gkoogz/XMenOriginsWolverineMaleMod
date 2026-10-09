@@ -147,7 +147,8 @@ static void Draw(IDirect3DDevice9* d){
   for(unsigned h=0;h<6;h++)M::WriteLink(points.data()+MeridianRecipe::proxyRanges[h][0],rings[h],rings[h+1],64);
   M::WriteDome(points.data()+MeridianRecipe::proxyRanges[6][0],rings[6],apex,24,64);
   for(unsigned h=0;h<2;h++){auto c=lobeControls[h];M::WriteOvoid(points.data()+MeridianRecipe::proxyRanges[h+7][0],c[0],c[1],c[2],c[3],c[4],c[5],24,48);}
-  auto liveAxis=M::PrepareEnvelopePole(points,MeridianRecipe::columns,MeridianRecipe::clothCount-1,MeridianRecipe::count,MeridianRecipe::sampleCount-1);
+  auto chart=M::PrepareAnchoredEnvelope(points,MeridianRecipe::columns,MeridianRecipe::clothCount-1,MeridianRecipe::count,MeridianRecipe::sampleCount-1,apex);
+  auto liveAxis=chart.axis;
   std::vector<M::Hull> hulls;hulls.reserve(9);
   for(unsigned h=0;h<9;h++){
    auto* frame=MeridianRecipe::proxyFrames[h];M::Vec e=M::Unit(M::Sub(points[frame[1]],points[frame[0]])),n=M::Unit(M::Cross(e,M::Sub(points[frame[2]],points[frame[0]]))),v=M::Cross(n,e);
@@ -175,13 +176,22 @@ static void Draw(IDirect3DDevice9* d){
   certified=moved&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
   if(certified||(moved&&(refitInterior()||follower.DisplayWithinBudget(points,raw,followRig,MeridianRecipe::columns,interiorFaces.data(),unsigned(interiorFaces.size()))))){++followed;if(!certified)++uncertified;}else{
   points=raw;
-  std::vector<M::Hull> coverHulls{M::ConvexCover(hulls,liveAxis,.04f)};
+  std::vector<M::Hull> chartHulls;for(const auto& hull:hulls)chartHulls.push_back(chart.Transform(hull));
+  std::vector<M::Hull> coverHulls{M::ConvexCover(chartHulls,liveAxis,.04f)};
+  auto toChart=[&](){for(unsigned i=0;i<MeridianRecipe::clothCount;i++)points[i]=chart.Forward(points[i]);};
+  auto fromChart=[&](){for(unsigned i=0;i<MeridianRecipe::clothCount;i++)points[i]=chart.Inverse(points[i]);};
   try{
-   M::FitSeam(points,MeridianRecipe::columns,points[MeridianRecipe::clothCount-1],liveAxis,hulls,.12f,6.f);
+   toChart();
+   M::FitSeam(points,MeridianRecipe::columns,points[MeridianRecipe::clothCount-1],liveAxis,chartHulls,.12f,6.f);
    M::WalkMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,coverHulls,liveAxis,.04f);
+   auto taut=points;for(unsigned i=0;i<MeridianRecipe::clothCount;i++)taut[i]=chart.Inverse(taut[i]);
    static std::vector<unsigned> certificates;
    // This measured rig's last two solids are the moving testicle ovoïds.
-   receipt=M::ClearMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,liveAxis,.04f,12,&certificates,7);
+   receipt=M::ClearMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,chartHulls,liveAxis,.04f,12,&certificates,7);
+   fromChart();
+   if(!M::WithinMeridianSampling(points,taut,MeridianRecipe::columns,MeridianRecipe::rows))throw std::runtime_error("Contact correction exceeds physical sampling spacing");
+   for(unsigned i=0;i<MeridianRecipe::columns;i++){auto delta=M::Sub(points[i],raw[i]);if(M::Dot(delta,delta)>36.f)throw std::runtime_error("Sewn edge exceeds physical repair allowance");}
+   if(!M::CertifyFollowedSurface(points,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates))throw std::runtime_error("Physical-space chart certificate failed");
    continuity.Remember(points,raw,anchors,MeridianRecipe::columns,MeridianRecipe::clothCount);
    follower.Remember(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothCount);
    wrapped=certified=true;++wraps;
@@ -189,7 +199,7 @@ static void Draw(IDirect3DDevice9* d){
    // Failed triangle projection cannot become render geometry. Reconstruct
    // from the current pose instead of distorting a transported old chart.
    points=raw;
-   try{M::WalkMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,coverHulls,liveAxis,.04f);}
+   try{toChart();M::WalkMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,coverHulls,liveAxis,.04f);fromChart();}
    catch(const std::exception&){points=raw;if(!follower.Move(points,followRig,MeridianRecipe::columns))continuity.Transport(points,anchors,MeridianRecipe::columns);}
    ++transported;
    certified=M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,repairCertificates);
