@@ -1,3 +1,78 @@
+## October 9 - bounded pouch spike repair installed for development testing
+
+The user identified severe spikes around the testicles after rejecting the
+41c5c2a7 update. Retail was restored exactly to5df44248 first. The old contact
+projection could divide by a near-tangent slope, miss an oblique separating
+plane, and publish a partially changed failed repair. A longitudinal metric
+also missed transverse spikes (fresh all-max replay reached45.42 source units).
+
+Shared Base now supplies exact triangle support directions, a common convex
+cover, bounded sampling corrections, transactional repair, immutable current
+pole, and longitudinal/transverse fairing. An anchored affine chart preserves
+the current tip's transverse location while avoiding the folded-tip polar
+chart. Cloth and collision support transform together; corrections and complete
+certificates are checked in physical render space after inverse mapping.
+The adapter supplies current skin/pressure extents. The bounded posterior guard
+was isolated from cloth first, then re-enabled for combined native checks.
+
+Wolverine production source:f838a9d8dfed717d9308d9bf3efe30623f7d24e9.
+Tested Base pin:e31b222723aa942d3e15fd648689f9987d3ca9fb.
+Installed production SHA256:
+c8d61924b1fb334b175c684fb267e083b42e390a96544e07417d4f4b23f3dc35.
+Destination:C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll.
+Clean build:canonical Wolverine build/cover9-20261009. Dirty worker/CPU cloth
+work and private factory/world-origin/input code were excluded.32rays,24rows,
+bindingrevision5, fixed trim, UV lineage, materials and physics cadence remain.
+Other spokes adopt shared headers through tested pins; Witcher remains deferred.
+
+Native sealed derivative from the same source/pin:
+be045a15e93906cbe3f7274993c7c683339f81fd45dfba525c78f7c39c79968b.
+Base build/posterior-final-room-20261008/run20261009-003149-1222c2 completed20
+sampled matrix cases with zero reported draw rejection,38 unpaused default/max
+jump/landing/run captures including camera-facing runs, and24 sampled maximum
+naked/clothed recovery captures. Reviewed front/side/oblique and motion images
+show no long needle branches; the side envelope is rounded instead of the
+centered-pole candidates' box flare. Block is an alias, not a dedicated crouch;
+actual crouch-like landing poses were sampled. Child exited0; host input/focus
+were untouched and owned audio sessions restored. Evidence, review hashes and
+installation receipt:Base build/cover9-native-20261009. Source-only room recipe
+now inventories43 files; Test-PouchMotion.ps1 reproduces the unpaused cases.
+
+Source/offline:five assertion-enabled MSVC x86 tests and eight clean CTest
+cases passed, including original collar/root/motion regressions. Clean Base
+provenance passed516 imported files and185 arrays; measured binding revision5
+and the source-only recipe passed. Earlier22 Python guide tests passed before
+the anchored C++ change; those tests are not a native geometry acceptance claim.
+
+Rejected iterations remain private: first convex candidate had two native draw
+rejections/undersized guides; centered-pole candidates had a box flare. Removing
+only pinned contact faces did not solve repeated rebuilding. Uncertified display
+reuse now has relative-pose and movable-face stretch/orientation budgets; it
+moves with the current physics every frame and rebuilds on larger changes.
+Uncertified reuse is never relabeled a collision pass. A stale startup log caused
+one input-ack abort before cases; final checks waited for a fresh gameplay receipt.
+One earlier diagnostic run reached its900-second bound (exit124), not a native
+crash. Final combined run exited0.
+
+Last cumulative mixed-room sample:2521attempts,78full wraps,1474followed,
+969transported,2335uncertified. Draw mean8.1692ms/max58.7812ms; last inclusive
+physics window20.801ms/peak42.552ms. Phases overlap and this is not FPS or an
+A/B performance pass. Meaningful CPU cost/hitches remain. Extreme pouch
+faceting/broad envelopes remain, and one default front stride shows thigh
+occlusion/clipped cloth. Prescribed-edge/body contact remains uncertified.
+Full attachment gate is FALSE: every coupled shape/body-resource/LOD, campaign
+transition and continuous human gameplay is not observed. Do not claim complete
+spike elimination or release acceptance from these sampled images alone.
+
+The user-requested development install preserved397 checked settings/save/audio
+files and managed packages/materials. Actually installed, restored to5df44248,
+then reinstalled; final DLL hash and exact rollback validated. Final rollback:
+C:/Games/X-Men Origins Wolverine/WGame/ModBackups/Meridian-development-20261009-003927-86b339/Restore.ps1.
+That restores5df44248; the retained204636-da2311 transaction then restores the
+accepted Beta2 DLL4f4900a5. Neither backup is discarded. manifest.json and the
+published Beta2 release remain unchanged; restore development updates before
+using the Beta2 uninstaller. No game was launched over the human host.
+
 ## October 8 - retail update rejected by user; exact rollback performed
 
 The user reports the 41c5c2a7 runtime is "unplayably bad now". This supersedes
