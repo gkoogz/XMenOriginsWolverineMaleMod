@@ -60,7 +60,7 @@ game HWND on its validated owning thread before engine queue inspection.
 The hidden-window test also replaces the window procedure and reads queued
 messages before dispatch: open Down becomes WM_NULL, closed Down and unrelated
 W remain intact. Physical DirectInput neutralization is not established by
-private posted keys; Win32 GetKeyState imports are not masked by this patch.
+private posted keys. The c65fb9a checkpoint did not mask Win32 GetKeyState.
 
 Native source c65fb9a9310d5e84fc9577541f3a9699acc99856 / Base2c15479 was
 built from a clean archive (no unrelated dirty source) by the canonical private
@@ -87,3 +87,14 @@ garment/attachment acceptance is claimed. Ignored self-contained review and
 hash evidence: MaleModBase/build/menu-refresh-20261009/review.html and
 evidence.json. Witcher panel remains source/offline renderer tested; native
 readability and keyboard isolation are unobserved.
+
+The remaining Win32 polling gap is now covered by patching only the licensed
+executable's GetKeyState import. An open panel with the exact owned HWND in
+foreground returns neutral state for its navigation/reset/Shift/F6 keys.
+Closed-panel, background and unrelated queries preserve the original SHORT,
+including pressed and toggle bits. The proxy's raw GetAsyncKeyState panel
+polling and other processes/modules remain untouched. The hidden-window test
+uses a fake import/state returning0x8001, verifies all three cases and restores
+the import on detach without reading hardware state. Native import/call
+receipts for this added path remain pending; physical host input is prohibited
+and is not claimed as observed.

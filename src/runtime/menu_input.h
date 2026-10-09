@@ -16,6 +16,12 @@ static bool Active(){return panelActive.load(std::memory_order_acquire)&&window.
 static SHORT Poll(int key){return window.load()&&foreground()==window.load()?GetAsyncKeyState(key):0;}
 static bool Key(unsigned key,bool open){return key==VK_F6||(open&&(key==VK_F8||key==VK_UP||key==VK_DOWN||key==VK_LEFT||key==VK_RIGHT||key==VK_SHIFT||key==VK_LSHIFT||key==VK_RSHIFT));}
 static bool Scan(unsigned code,bool open){return code==DIK_F6||(open&&(code==DIK_F8||code==DIK_UP||code==DIK_DOWN||code==DIK_LEFT||code==DIK_RIGHT||code==DIK_LSHIFT||code==DIK_RSHIFT));}
+using KeyState=SHORT(WINAPI*)(int);static KeyState originalKeyState=nullptr;
+static SHORT WINAPI EngineKeyState(int key){
+ const bool open=Active();static LONG called=0;if(InterlockedCompareExchange(&called,1,0)==0)Log("Menu input exact executable GetKeyState call key=%d open=%d",key,open);
+ if(open&&Key(unsigned(key),true)){static LONG reported=0;if(InterlockedCompareExchange(&reported,1,0)==0)Log("Menu input owned GetKeyState neutralized key=%d",key);return 0;}
+ return originalKeyState?originalKeyState(key):0;
+}
 // UE3 can inspect retrieved messages before DispatchMessage, and may replace its
 // window procedure after device creation. Fence the exact owned window's queue
 // on its process-owned thread, never a desktop/global keyboard hook.
@@ -77,6 +83,9 @@ static void Detach(){
 }
 static void Install(){
  auto base=reinterpret_cast<unsigned char*>(GetModuleHandleW(nullptr));auto dos=reinterpret_cast<IMAGE_DOS_HEADER*>(base);auto nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(base+dos->e_lfanew);auto directory=nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];if(!directory.VirtualAddress)return;
- auto entry=reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base+directory.VirtualAddress);for(;entry->Name;entry++){if(_stricmp(reinterpret_cast<char*>(base+entry->Name),"dinput8.dll")||!entry->OriginalFirstThunk)continue;auto names=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+entry->OriginalFirstThunk);auto addresses=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+entry->FirstThunk);for(;names->u1.AddressOfData;names++,addresses++){if(IMAGE_SNAP_BY_ORDINAL32(names->u1.Ordinal))continue;auto name=reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(base+names->u1.AddressOfData);if(strcmp(reinterpret_cast<char*>(name->Name),"DirectInput8Create"))continue;auto slot=reinterpret_cast<void**>(&addresses->u1.Function);if(!originalCreate)originalCreate=reinterpret_cast<CreateInput>(*slot);if(PatchSlot(slot,reinterpret_cast<void*>(Create)))Log("Menu input exact executable DirectInput factory hooked");}}
+ auto entry=reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base+directory.VirtualAddress);for(;entry->Name;entry++){auto library=reinterpret_cast<char*>(base+entry->Name);const bool input=_stricmp(library,"dinput8.dll")==0,user=_stricmp(library,"user32.dll")==0;if((!input&&!user)||!entry->OriginalFirstThunk)continue;auto names=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+entry->OriginalFirstThunk);auto addresses=reinterpret_cast<IMAGE_THUNK_DATA32*>(base+entry->FirstThunk);for(;names->u1.AddressOfData;names++,addresses++){if(IMAGE_SNAP_BY_ORDINAL32(names->u1.Ordinal))continue;auto name=reinterpret_cast<IMAGE_IMPORT_BY_NAME*>(base+names->u1.AddressOfData);auto slot=reinterpret_cast<void**>(&addresses->u1.Function);
+  if(input&&!strcmp(reinterpret_cast<char*>(name->Name),"DirectInput8Create")){if(!originalCreate)originalCreate=reinterpret_cast<CreateInput>(*slot);if(PatchSlot(slot,reinterpret_cast<void*>(Create)))Log("Menu input exact executable DirectInput factory hooked");}
+  if(user&&!strcmp(reinterpret_cast<char*>(name->Name),"GetKeyState")){if(!originalKeyState)originalKeyState=reinterpret_cast<KeyState>(*slot);if(PatchSlot(slot,reinterpret_cast<void*>(EngineKeyState)))Log("Menu input exact executable GetKeyState import hooked");}
+ }}
 }
 }
