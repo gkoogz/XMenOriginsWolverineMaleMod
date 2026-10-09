@@ -36,6 +36,11 @@ try{
   Command W 50 Hold
   for($sample=0;$sample -lt 4;$sample++){Start-Sleep -Milliseconds 400;Capture "size-$size-run-$sample"}
   Command W 50 Release;Start-Sleep -Seconds 3;Capture "size-$size-rest"
+  # The away run mainly exposes the straps. Return toward the fixed camera
+  # so unpaused motion also exposes the pouch itself.
+  Command S 50 Hold
+  for($sample=0;$sample -lt 4;$sample++){Start-Sleep -Milliseconds 400;Capture "size-$size-run-front-$sample"}
+  Command S 50 Release;Start-Sleep -Seconds 3;Capture "size-$size-rest-front"
  }
 }finally{
  foreach($key in @('S','W','Space')){Command $key 50 Release}
