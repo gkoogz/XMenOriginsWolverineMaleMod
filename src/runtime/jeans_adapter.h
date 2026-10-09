@@ -1,5 +1,6 @@
 #pragma once
 #include "jeans_data.h"
+#include "menu_necklace_palette.h"
 #define FABRIC_MATERIAL_NAMESPACE JeansMaterial
 #include "fabric_material.inl"
 #undef FABRIC_MATERIAL_NAMESPACE
