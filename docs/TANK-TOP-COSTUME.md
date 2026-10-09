@@ -1,6 +1,16 @@
 # Independent tank-top costume
 
-Current correction: tank18 follows the complete measured pec/body surface
+Current correction: tank20 adds local measured armhole clearance through
+pinned Base cbe542f, plus a folded lower hem with original fabric donors.
+The jockstrap cotton is calibrated from the original tank diffuse median;
+ribbing and red/blue trim remain. Reproduce with prepare_matched_fabric.py
+using the licensed T_Wolverine_Shirt_d.dds and matched_fabric_data.h output.
+The original tank18 pec apex and remote chart remain
+unchanged. Original stock maps and original-sheet topology, UVs, source pairs and skin weights
+remain. See PROJECT_HANDOFF.md for exact identities and 61 native samples;
+full attachment acceptance remains false and this candidate is uninstalled.
+
+Historical correction: tank18 follows the complete measured pec/body surface
 using pinned Base 014e57a and a relaxed displacement field. Original mesh/UV/
 source-pair/skin lineage is retained; cut positions follow the body and measured
 body bindings are regenerated. Tank12's raised pec pockets are rejected;

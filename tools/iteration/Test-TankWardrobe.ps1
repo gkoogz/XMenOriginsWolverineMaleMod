@@ -8,13 +8,19 @@ $log=Join-Path $root 'owned-game/Binaries/WolverineRuntime.log'
 $out=Join-Path $run 'tank-wardrobe-cases';New-Item -ItemType Directory -Path $out -ErrorAction Stop|Out-Null
 $records=@()
 $started=$false
+function ReadLog {
+ for($attempt=0;$attempt -lt 30;$attempt++){
+  try{return Get-Content -LiteralPath $log -Raw}catch{Start-Sleep -Milliseconds 100}
+ }
+ throw 'Current runtime log stayed unavailable'
+}
 function Command([string]$Key,[int]$Value=50){& (Join-Path $PSScriptRoot 'Set-NativeSandboxInput.ps1') -Workspace $root -Key $Key -Value $Value|Out-Null}
 function Capture([string]$Id){
  Command Capture
  $ini=Get-Content -LiteralPath (Join-Path $root 'owned-game/Binaries/MaleModSandboxControl.ini') -Raw
  if($ini -notmatch 'Revision=(\d+)'){throw 'Capture revision absent'};$revision=$Matches[1]
  $deadline=(Get-Date).AddSeconds(10);$file=$null
- do{if((Get-Content -LiteralPath $log -Raw) -match "Private native capture revision=$revision result=00000000"){$file=Get-ChildItem -LiteralPath $run -Filter "*-command-$revision.png"|Select-Object -First 1};if(!$file){Start-Sleep -Milliseconds 100}}while(!$file -and (Get-Date) -lt $deadline)
+ do{if((ReadLog) -match "Private native capture revision=$revision result=00000000"){$file=Get-ChildItem -LiteralPath $run -Filter "*-command-$revision.png"|Select-Object -First 1};if(!$file){Start-Sleep -Milliseconds 100}}while(!$file -and (Get-Date) -lt $deadline)
  if(!$file){throw "Capture missing: $Id"}
  $path=Join-Path $out ($Id+'.png');Copy-Item -LiteralPath $file.FullName -Destination $path
  $script:records+=@{id=$Id;capture=$path;sha256=(Get-FileHash -LiteralPath $path).Hash;visualReviewed=$false}
@@ -23,7 +29,7 @@ function Capture([string]$Id){
 }
 try{
  $deadline=(Get-Date).AddSeconds(90)
- while(!(Test-Path -LiteralPath (Join-Path $run 'previous-runtime.log')) -or !(Test-Path -LiteralPath $log) -or (Get-Content -LiteralPath $log -Raw) -notmatch 'menu tank anatomy draw active'){
+ while(!(Test-Path -LiteralPath (Join-Path $run 'previous-runtime.log')) -or !(Test-Path -LiteralPath $log) -or (ReadLog) -notmatch 'menu tank anatomy draw active'){
   if((Get-Date) -gt $deadline){throw 'Native tank scene did not load'};Start-Sleep -Milliseconds 250
  }
  $started=$true
