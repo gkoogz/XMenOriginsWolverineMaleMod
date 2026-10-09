@@ -9,7 +9,8 @@ namespace MenuInput {
 static std::atomic<HWND> window{nullptr};
 static std::atomic<WNDPROC> previousWindowProc{nullptr};
 static std::atomic<bool> panelActive{false};static std::atomic<DWORD> lastPaint{0};
-using Focus=HWND(WINAPI*)();static Focus foreground=GetForegroundWindow;
+static HWND WINAPI NativeForeground(){return GetForegroundWindow();}
+using Focus=HWND(WINAPI*)();static Focus foreground=NativeForeground;
 static void Publish(bool displayed){if(displayed)lastPaint=GetTickCount();panelActive.store(displayed,std::memory_order_release);}
 static bool Active(){return panelActive.load(std::memory_order_acquire)&&window.load()&&foreground()==window.load()&&DWORD(GetTickCount()-lastPaint.load())<1500u;}
 static SHORT Poll(int key){return window.load()&&foreground()==window.load()?GetAsyncKeyState(key):0;}
