@@ -62,7 +62,7 @@ static void Draw(IDirect3DDevice9* d){
    for(unsigned k=0;k<4;k++)if(source[i].weight[k]&&!rig.valid[source[i].bone[k]])return;
    auto p=NcSkin(source[i],rig);auto& v=rendered[i];v.p[0]=p.x;v.p[1]=p.y;v.p[2]=p.z;
    for(unsigned a=0;a<3;a++){v.n[a]=0;for(unsigned k=0;k<4;k++)if(source[i].weight[k])for(unsigned b=0;b<3;b++)v.n[a]+=source[i].weight[k]/255.f*rig.matrix[source[i].bone[k]][a*4+b]*normals[i][b];}
-   memcpy(v.uv,uv[i],8);v.color[0]=source[i].p[2]<5?5.f:4.f;v.color[1]=v.color[2]=1;v.color[3]=-1;
+   memcpy(v.uv,uv[i],8);v.color[0]=source[i].p[2]<5?5.f:4.f;v.color[1]=v.color[2]=1;v.color[3]=1;
   }
   void* raw=nullptr;if(FAILED(vb->Lock(0,0,&raw,D3DLOCK_DISCARD)))return;memcpy(raw,rendered.data(),count*sizeof(RenderVertex));vb->Unlock();prepared=renderFrameSerial;preparedStyle=clothingStyle;
  }
