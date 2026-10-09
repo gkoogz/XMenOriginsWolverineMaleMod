@@ -173,7 +173,7 @@ static void Draw(IDirect3DDevice9* d){
   ++attempts;
   bool moved=follower.Move(points,followRig,MeridianRecipe::columns);
   certified=moved&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
-  if(certified||(moved&&refitInterior())){++followed;if(!certified)++uncertified;}else{
+  if(certified||(moved&&(refitInterior()||follower.DisplayWithinBudget(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount)))){++followed;if(!certified)++uncertified;}else{
   points=raw;
   std::vector<M::Hull> coverHulls{M::ConvexCover(hulls,liveAxis,.04f)};
   try{
@@ -193,7 +193,8 @@ static void Draw(IDirect3DDevice9* d){
    catch(const std::exception&){points=raw;if(!follower.Move(points,followRig,MeridianRecipe::columns))continuity.Transport(points,anchors,MeridianRecipe::columns);}
    ++transported;
    certified=M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,repairCertificates);
-   if(!certified&&refitInterior()){continuity.Remember(points,raw,anchors,MeridianRecipe::columns,MeridianRecipe::clothCount);follower.Remember(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothCount);}
+   if(!certified)refitInterior();
+   continuity.Remember(points,raw,anchors,MeridianRecipe::columns,MeridianRecipe::clothCount);follower.Remember(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothCount);
    if(!certified)++uncertified;
    if(attempts%120==1)Log("Meridian chart fallback frame=%ld transported=%d certified=%d: %s",renderFrameSerial,continuity.Ready(),certified,e.what());
   }

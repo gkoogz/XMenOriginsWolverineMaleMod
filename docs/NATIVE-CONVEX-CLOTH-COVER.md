@@ -51,3 +51,9 @@ used to justify an unbounded correction. The source-only Test-PouchMotion.ps1
 captures unpaused jump, landing and run samples at default and maximum sizes
 through the owned station; it never drives the host input or focus.
 
+The first cache-only candidate still rebuilt most frames. The final candidate
+also reuses uncertified display envelopes inside Base's relative-pose and
+per-face deformation budgets. Unchanged poses and common actor motion no longer
+need a fresh walk; large relative motion, inverted faces or excess edge stretch
+force rebuilding. This is smooth display continuity, not a new collision pass.
+
