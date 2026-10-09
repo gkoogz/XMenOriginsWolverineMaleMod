@@ -180,7 +180,13 @@ static bool Ensure(IDirect3DDevice9* d){
  ID3DXBuffer* code=nullptr;if(!vs){if(!compile(vertex,"vs_3_0",&code))return false;HRESULT hr=d->CreateVertexShader((DWORD*)code->GetBufferPointer(),&vs);code->Release();if(FAILED(hr))return false;}
  if(!ps){if(!compile(pixel,"ps_3_0",&code))return false;HRESULT hr=d->CreatePixelShader((DWORD*)code->GetBufferPointer(),&ps);code->Release();if(FAILED(hr))return false;variants[key]=ps;}return true;
 }
-static void Apply(IDirect3DDevice9* d){auto s=malemod::garments::meridian::classicFabric;float values[8][4]={{s.white[0],s.white[1],s.white[2],1},{s.red[0],s.red[1],s.red[2],1},{s.blue[0],s.blue[1],s.blue[2],1},{s.ribCount,s.ribSlope,0,0},{s.redCenter,s.blueCenter,s.stripeHalfWidth,0}};memcpy(values[5],light,16);memcpy(values[6],ambient,16);memcpy(values[7],direction,16);static const bool probe=[](){char v[8]{};return GetEnvironmentVariableA("MALEMOD_MERIDIAN_LIGHT_TRACE",v,8)==1&&v[0]=='1';}();if(probe){char path[MAX_PATH]{};SiblingPath(path,"MeridianFlat.request");if(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES)values[0][3]=-1;}d->SetPixelShaderConstantF(0,values[0],8);d->SetPixelShaderConstantF(8,incident,7);d->SetPixelShaderConstantF(15,flags,1);d->SetPixelShaderConstantF(16,position,1);d->SetPixelShaderConstantF(17,spotDirection,1);d->SetPixelShaderConstantF(18,spotAngles,1);d->SetPixelShaderConstantF(19,screen,1);float passParams[4]={additive?0.f:1.f,TankCameraSceneActive()?.22f:0.f,depth[0],depth[1]};d->SetPixelShaderConstantF(20,passParams,1);
+static void Apply(IDirect3DDevice9* d){
+#ifdef FABRIC_MATERIAL_STYLE
+ auto s=FABRIC_MATERIAL_STYLE;
+#else
+ auto s=malemod::garments::meridian::classicFabric;
+#endif
+ float values[8][4]={{s.white[0],s.white[1],s.white[2],1},{s.red[0],s.red[1],s.red[2],1},{s.blue[0],s.blue[1],s.blue[2],1},{s.ribCount,s.ribSlope,0,0},{s.redCenter,s.blueCenter,s.stripeHalfWidth,0}};memcpy(values[5],light,16);memcpy(values[6],ambient,16);memcpy(values[7],direction,16);static const bool probe=[](){char v[8]{};return GetEnvironmentVariableA("MALEMOD_MERIDIAN_LIGHT_TRACE",v,8)==1&&v[0]=='1';}();if(probe){char path[MAX_PATH]{};SiblingPath(path,"MeridianFlat.request");if(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES)values[0][3]=-1;}d->SetPixelShaderConstantF(0,values[0],8);d->SetPixelShaderConstantF(8,incident,7);d->SetPixelShaderConstantF(15,flags,1);d->SetPixelShaderConstantF(16,position,1);d->SetPixelShaderConstantF(17,spotDirection,1);d->SetPixelShaderConstantF(18,spotAngles,1);d->SetPixelShaderConstantF(19,screen,1);float passParams[4]={additive?0.f:1.f,TankCameraSceneActive()?.22f:0.f,depth[0],depth[1]};d->SetPixelShaderConstantF(20,passParams,1);
 #ifdef FABRIC_STOCK_MAPS
  ApplyStockMaps(d);d->SetPixelShaderConstantF(21,stockCamera,1);
 #endif

@@ -1,0 +1,29 @@
+{
+  "schema": "wolverine.matched-fabric/1",
+  "revision": 1,
+  "method": "Per-channel median of original cloth UV footprint, sRGB decoded to linear RGB",
+  "diffuseSHA256": "4188cb9b38c2d1928545070d44a31c3426d88124d924fbbafcd77b4ebc10063a",
+  "tankHeaderSHA256": "c59f657855f4668b0ae2b43f27821edc142f386f2ccca9b521b15ec142158880",
+  "imageSize": [
+    1024,
+    512
+  ],
+  "originalSheetVertices": 2341,
+  "originalSheetTriangles": 4364,
+  "clothTexels": 312231,
+  "medianEncodedRGB": [
+    192.0,
+    187.0,
+    181.0
+  ],
+  "linearRGB": [
+    0.5271151257058131,
+    0.4969329950608704,
+    0.4620769996544071
+  ],
+  "sharedContract": "malemod::garments::meridian::FabricStyle",
+  "appliesTo": "Jockstrap pouch, waistband and straps; original red/blue stripes and rib detail retained",
+  "originalTextureModified": false,
+  "geometryModified": false,
+  "headerSHA256": "12d5222a07f179e570ee514343dd8ef5531cee1d577db0461129f9e9a75950bf"
+}
