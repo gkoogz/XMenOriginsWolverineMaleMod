@@ -1,6 +1,12 @@
 # Independent tank-top costume
 
-Current correction: tank revision9 preserves the original shirt cut, folds,
+Current correction: tank12 uses localized expansion, bounded cut rounding,
+posed alias normals and a protected body mask at the neckline/armholes. The
+deferred title dog-tag draw explicitly restores full native shader constants
+to fix black anatomy. See STOCK-CLOTHING-REFIT.md and PROJECT_HANDOFF.md for
+current source/build/native evidence; full attachment acceptance remains false.
+
+Historical correction: tank revision9 preserves the original shirt cut, folds,
 UVs and licensed diffuse/normal/specular maps while refitting the enlarged
 chest with Base's smooth section offset. Revision8's jagged neckline was
 rejected in native review. See STOCK-CLOTHING-REFIT.md; the older revision6
@@ -38,6 +44,7 @@ pwsh -File tools/costumes/Export-StockTank.ps1 `
   -InputPackage '<vanilla>/WGame/CookedPC/CH_Wolverine_Alkali_SF.xxx' `
   -UpkDirectory '<UPK Explorer>' -Output '<private>/stock-tank.json'
 python tools/costumes/prepare_tank_top.py --stock '<private>/stock-tank.json' `
+  --stock-psk '<private>/CH_Wolverine_Alkali.psk' `
   --base '<exact pinned Base>' --output src/runtime/tank_top_data.h
 python -m unittest tests.test_torso_garment_fit # in Base
 ```

@@ -1,3 +1,13 @@
+## Current depth/full-waist correction: jeans6
+
+The original leather chart now wraps the entire waist with shallow inner faces
+and finished walls. The open version splits the belt at the fly and keeps the
+original rigid buckle. Fly depth0.12, belt depth0.22/outset0.24 measured source
+units; all original material/source UV donors remain. The previous restrained
+3-degree denim/2-degree belt-end motion remains. See STOCK-CLOTHING-REFIT.md
+and PROJECT_HANDOFF.md for exact pins, native evidence and install boundaries.
+The older revision descriptions below remain historical.
+
 # Jeans and open fly
 
 The independent Bottom selector includes Naked, Jockstrap, Jeans and Jeans

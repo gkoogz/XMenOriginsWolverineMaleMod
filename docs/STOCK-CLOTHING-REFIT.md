@@ -1,5 +1,37 @@
 # Existing Alkali clothing refit
 
+## Current correction: tank12 and jeans6
+
+Base pin8f45949f146f1ce866fc8ac35682be3f76ef585a supplies shallow garment
+shells, a localized height/lateral chest offset, bounded stock-cut refinement
+and conservative body masking at open cuts. Tank12 retains original corners,
+folds, UVs and source-pair/skin lineage; shading normals follow the posed mesh.
+The previous tank11 body mask was rejected after a native close-up revealed
+black triangular holes at the exposed neck. The new mask protects a measured
+2.5-unit cut band and checks edge/interior witnesses before removing a body
+face. It preserves the original body positions, topology and UVs.
+
+The black title-scene anatomy had a separate cause: deferred dog-tag rendering
+left upper vertex constants, including LocalToWorld, holding the tag transform.
+MenuNecklace explicitly preserves/restores all256 vertex and224 pixel float
+constant registers with the native state block. Original skin maps, native
+depth/culling and lighting remain. Full opt-in state auditing and captures are
+diagnostic only; recorded source/native evidence is separate from acceptance.
+
+Jeans6 retains the original trouser mesh, boots, original leather chart and
+rigid buckle. The fly keeps its narrower155-degree fold and restrained motion.
+Inner faces and finished cut walls add0.12 measured units of depth. The original
+leather strip follows the whole waist at0.22 thickness/0.24 outset, splitting
+at the open fly. Depth layers preserve source donors, UVs, skin and motion
+weights; walls have separate shading normals. Denim travel remains3 degrees,
+open belt ends2 degrees. No stock pixel assets are replaced or committed.
+Other spokes adopt shared helpers through their own pins and measured inputs;
+Witcher remains paused. Full body collision, attachment/LOD/campaign acceptance
+and UE3 damage/shadow parity remain unverified. See PROJECT_HANDOFF.md for
+actual build/native/installed identities and retained rollback.
+
+## Historical tank9 and jeans4 correction
+
 The correction preserves the stock tank/jeans UVs, texture detail and separate
 stock belt buckle. The earlier flat procedural cotton/denim was a poor visual
 substitute. Tank revision9 fits a smooth front/back section offset field to
