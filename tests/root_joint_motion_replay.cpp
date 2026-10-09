@@ -39,7 +39,10 @@ int main(int argc,char** argv){
    PDSetInput(previous,target,min(1.f,float(step)/48.f));
    const float gait=step<480?sinf(step*.04f)*.3f:0.f,side=step<480?cosf(step*.035f)*.3f:0.f;
    StepConstraintSolver(1.f/240.f,gait,side);
-   float speed=0;bool finite=true;for(int i=0;i<shaftNodeCount;i++){const auto p=shaftNodes[i];finite&=std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z);speed=max(speed,Length(pdVelocity[i]));}
+   auto finitePoint=[](V3 p){return std::isfinite(p.x)&&std::isfinite(p.y)&&std::isfinite(p.z);};
+   float speed=0;bool finite=true;for(int i=0;i<shaftNodeCount;i++){finite&=finitePoint(shaftNodes[i]);speed=max(speed,Length(pdVelocity[i]));}
+   for(int i=0;i<pdCount;i++)finite&=finitePoint(pdPosition[i])&&finitePoint(pdVelocity[i]);
+   for(unsigned s=0;s<2;s++){finite&=finitePoint(cpOmega[s]);for(const auto& axis:cpBasis[s])finite&=finitePoint(axis);}
    const float rootError=Length(shaftNodes[0]-ShaftRoot()),lengthError=fabsf(Length(shaftNodes[1]-shaftNodes[0])-constraintRestLength/(shaftNodeCount-1));
    finite&=std::isfinite(shaftSpring.pitch)&&std::isfinite(shaftSpring.yaw)&&std::isfinite(shaftSpring.pitchVelocity)&&std::isfinite(shaftSpring.yawVelocity);
    if(!finite||rootError>1e-5f||lengthError>2e-5f)invalid++;
