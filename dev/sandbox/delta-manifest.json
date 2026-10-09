@@ -165,7 +165,7 @@
     },
     {
       "path": "src/runtime/meridian_adapter.h",
-      "lfSHA256": "a5bbd5176ebd8210ec7137e2724c6b3ffd6918080ca6341a9f87d1bd0d29da72"
+      "lfSHA256": "d2e8cb0c5656ac9377772e4c5b494b79fc87f0396c1761a37cb6f7d558e094e8"
     },
     {
       "path": "tools/iteration/Test-AnteriorBodyMotion.ps1",

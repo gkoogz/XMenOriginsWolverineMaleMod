@@ -173,7 +173,7 @@ static void Draw(IDirect3DDevice9* d){
   ++attempts;
   bool moved=follower.Move(points,followRig,MeridianRecipe::columns);
   certified=moved&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
-  if(certified||(moved&&(refitInterior()||follower.DisplayWithinBudget(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount)))){++followed;if(!certified)++uncertified;}else{
+  if(certified||(moved&&(refitInterior()||follower.DisplayWithinBudget(points,raw,followRig,MeridianRecipe::columns,interiorFaces.data(),unsigned(interiorFaces.size()))))){++followed;if(!certified)++uncertified;}else{
   points=raw;
   std::vector<M::Hull> coverHulls{M::ConvexCover(hulls,liveAxis,.04f)};
   try{
