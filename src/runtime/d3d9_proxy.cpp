@@ -1746,6 +1746,7 @@ static void ApplyShape(){PerfScope perf(8);
   auto* fullBuffer=(unsigned char*)raw;
   ResetPelvicAttachmentBody(fullBuffer);
   EvaluateAnatomy(fullBuffer,graftFirstVertex);
+  if(MeridianAdapter::DiagnosticRequested("MeridianGeometry.request"))MeridianAdapter::CaptureAnatomyContactTrace();
   auto* p=fullBuffer+graftFirstVertex*graftStride;
   float written[3];memcpy(written,p,12);graftBuffer->Unlock();shapeDirty=false;if(report)Log("live controls, recruited pelvis collar, and dynamic tangent basis applied state=%d collar=%.3f shape=%.2f %.2f %.2f %.2f %.1f %.2f %.2f shaft=%.0f %.0f %.0f %.0f balls=%.0f %.0f %.0f %.0f first=(%.4f %.4f %.4f)",physicsState,PelvisCollarGrowth(),sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6],physValues[0],physValues[1],physValues[2],physValues[3],physValues[4],physValues[5],physValues[6],physValues[7],written[0],written[1],written[2]);
 }

@@ -31,4 +31,12 @@ static void CaptureAnatomyContactTrace(){
  fputs(",\"inputThighEndpoints\":",file);if(pdInputReady)points(pdInput.thigh,4);else fputs("null",file);
  fputs(",\"sourceDefinedContacts\":{\"solverThighRadius\":7.2,\"pelvisLobeOnly\":{\"a\":[3,0,70],\"b\":[5.4,0,86],\"radius\":6.4}},\"returnedEndpointOrigin\":\"CollisionCapsules output; bone-ready alone does not certify accepted bone transforms\"}",file);
  fclose(file);
+ SiblingPath(path,"AnatomyCPUFrame.bin");file=nullptr;
+ if(!fopen_s(&file,path,"wb")&&file){
+  // Final CPU vertex payload; shader skinning/world transformation is separate.
+  const unsigned header[]={1,unsigned(renderFrameSerial),rsCount,32,sharedBodyCount[0],sharedBodyCount[1]};
+  fwrite(header,sizeof(header),1,file);fwrite(rsPacked,sizeof(rsPacked),1,file);
+  for(unsigned s=0;s<2;s++)fwrite(sharedBodyOutput[s],32,sharedBodyCount[s],file);
+  fclose(file);
+ }
 }
