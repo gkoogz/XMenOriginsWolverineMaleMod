@@ -10,6 +10,8 @@ static constexpr unsigned faces=sizeof(TankTopRecipe::triangles)/sizeof(TankTopR
 static NcVertex fitted[count];
 static unsigned bodyRevision=~0u;
 static IDirect3DVertexBuffer9* vb=nullptr;
+static IDirect3DVertexBuffer9* nativeVB=nullptr;
+static unsigned nativeRevision=~0u;
 static IDirect3DIndexBuffer9* ib=nullptr;
 static IDirect3DVertexDeclaration9* declaration=nullptr;
 static IDirect3DStateBlock9* state=nullptr;
@@ -33,8 +35,8 @@ static void Collision(NcContactSolver& solver){
  Refit();solver.setGarment(topStyle==1?fitted:nullptr,topStyle==1?count:0,TankTopRecipe::triangles,topStyle==1?faces:0);
 }
 static void Release(){
- for(auto* p:{static_cast<IUnknown*>(vb),static_cast<IUnknown*>(ib),static_cast<IUnknown*>(declaration),static_cast<IUnknown*>(state)})if(p)p->Release();
- vb=nullptr;ib=nullptr;declaration=nullptr;state=nullptr;prepared=-3;bodyRevision=~0u;TankTopMaterial::Release();
+ for(auto* p:{static_cast<IUnknown*>(vb),static_cast<IUnknown*>(nativeVB),static_cast<IUnknown*>(ib),static_cast<IUnknown*>(declaration),static_cast<IUnknown*>(state)})if(p)p->Release();
+ vb=nullptr;nativeVB=nullptr;ib=nullptr;declaration=nullptr;state=nullptr;prepared=-3;bodyRevision=nativeRevision=~0u;TankTopMaterial::Release();
 }
 static bool Ensure(IDirect3DDevice9* d){
  if(!vb&&FAILED(d->CreateVertexBuffer(count*sizeof(RenderVertex),D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY,0,D3DPOOL_DEFAULT,&vb,nullptr)))return false;
@@ -47,8 +49,32 @@ static bool Ensure(IDirect3DDevice9* d){
  return true;
 }
 static void Draw(IDirect3DDevice9* d){
- if(topStyle!=1||!IsHdrSceneColorPass(d))return;
+ if(topStyle!=1)return;
  auto* layout=GetShaderLayout(d);if(!layout||!layout->valid||!layout->viewValid||layout->boneCount<102)return;
+ // The added cloth must also participate in native depth/shadow submissions.
+ // Otherwise screen-space lighting samples the bare chest behind the shirt.
+ if(!IsHdrSceneColorPass(d)){
+  Refit();if(!Ensure(d))return;
+  if(!nativeVB&&FAILED(d->CreateVertexBuffer(count*32,D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY,0,D3DPOOL_DEFAULT,&nativeVB,nullptr)))return;
+  if(nativeRevision!=bodyRevision){
+   std::vector<unsigned char> packed(count*32);const unsigned bones[]={3,4,5,6,7,34},slots[]={31,30,32,14,13,33};
+   for(unsigned i=0;i<count;i++){
+    auto* p=packed.data()+i*32;memcpy(p,fitted[i].p,12);
+    float n[3];memcpy(n,TankTopRecipe::normals[i],12);
+    float tangent[3]={-n[1],n[0],0};Normalize3(tangent);
+    for(unsigned a=0;a<3;a++){p[12+a]=(unsigned char)(max(0.f,min(255.f,(tangent[a]+1)*127.5f)));p[16+a]=(unsigned char)(max(0.f,min(255.f,(n[a]+1)*127.5f)));}
+    p[15]=127;p[19]=255;
+    for(unsigned k=0;k<4;k++){unsigned slot=31;for(unsigned b=0;b<6;b++)if(bones[b]==fitted[i].bone[k])slot=slots[b];p[20+k]=(unsigned char)slot;p[24+k]=fitted[i].weight[k];}
+    D3DXFLOAT16 uv[2];D3DXFloat32To16Array(uv,TankTopRecipe::uv[i],2);memcpy(p+28,uv,4);
+   }
+   void* raw=nullptr;if(FAILED(nativeVB->Lock(0,0,&raw,D3DLOCK_DISCARD)))return;memcpy(raw,packed.data(),packed.size());nativeVB->Unlock();nativeRevision=bodyRevision;
+  }
+  if(FAILED(state->Capture()))return;
+  d->SetStreamSource(0,nativeVB,0,32);d->SetIndices(ib);d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);
+  HRESULT hr=origDIP(d,D3DPT_TRIANGLELIST,0,0,count,0,faces),restored=state->Apply();
+  if(FAILED(hr)||FAILED(restored))Log("Tank top native depth failure=%08x restored=%08x",hr,restored);
+  return;
+ }
  float local[16],view[16];if(FAILED(d->GetVertexShaderConstantF(layout->localRegister,local,4))||FAILED(d->GetVertexShaderConstantF(layout->viewRegister,view,4)))return;
  TankTopMaterial::Capture(d,renderFrameSerial);if(!TankTopMaterial::valid||!TankTopMaterial::Ensure(d)||!Ensure(d))return;
  Refit();
