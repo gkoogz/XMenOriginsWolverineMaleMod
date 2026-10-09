@@ -59,10 +59,19 @@ def main():
  for group in aliases.values():normal[group]=np.sum(normal[group],axis=0)
  normal/=np.maximum(np.linalg.norm(normal,axis=1)[:,None],1e-12)
  originalNormal=np.array([v['n'] for v in source['vertices']])/127.5-1
- if np.median(np.sum(normal*originalNormal,axis=1))<0:normal=-normal
+ winding=-1 if np.median(np.sum(normal*originalNormal,axis=1))<0 else 1
+ normal*=winding
+ # Conforming cotton uses the measured smooth body normals. Strong stock
+ # wrinkles projected onto a new chest must not retain flipped shading wedges.
+ bodyNormal=np.concatenate((packed[:,16:19],p1[:,16:19])).astype(float)/127.5-1
+ for i,(j,weight,gap) in enumerate(bindings):
+  measured=np.array(weight)@bodyNormal[selected[j]];measured/=max(np.linalg.norm(measured),1e-12)
+  if np.dot(measured,normal[i])<0:normal[i]=measured
+  else:normal[i]=.9*measured+.1*normal[i]
+ normal/=np.maximum(np.linalg.norm(normal,axis=1)[:,None],1e-12)
  # Preserve each measured original vertex and UV alias. The normals are
  # recomputed from the fitted topology rather than stretched stock tangents.
- rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=3;','static const NcVertex vertices[]={']
+ rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=4;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
  for v,q in zip(source['vertices'],fitted):rows.append('{{'+','.join(f'{x:.9f}f' for x in q)+'},{'+','.join(map(str,v['bone']))+'},{'+','.join(map(str,v['weight']))+'}},')
  rows+=['};','static const unsigned short triangles[][3]={']+[ '{'+','.join(map(str,t))+'},' for t in faces]+['};','static const float uv[][2]={']
  rows+=['{'+','.join(f'{struct.unpack("<e",struct.pack("<H",int(x)))[0]:.9f}f' for x in v['uv'])+'},' for v in source['vertices']]+['};','static const float normals[][3]={']
@@ -72,6 +81,6 @@ def main():
  # Compact donor base for a cheap current-body displacement update.
  rows+=['{'+','.join(f'{x:.9f}f' for x in p[i])+'},' for i in donors]+['};','static const unsigned donorIDs[]={'+','.join(map(str,sourceIDs[donors]))+'};','static const unsigned sourcePairs[][2]={']+['{'+str(original[a]['id'])+','+str(original[b]['id'])+'},' for a,b in lineage]+['};','}']
  args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt={'schema':'wolverine.tank-top-binding/1','revision':3,'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.32,'projectedFaceClearance':.72,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False}
+ receipt={'schema':'wolverine.tank-top-binding/1','revision':4,'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.32,'projectedFaceClearance':.72,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False}
  args.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()

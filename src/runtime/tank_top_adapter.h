@@ -61,7 +61,7 @@ static void Draw(IDirect3DDevice9* d){
    auto p=NcSkin(fitted[i],rig);auto& v=vertices[i];v.p[0]=p.x;v.p[1]=p.y;v.p[2]=p.z;
    // Transform the refitted rest normal by the same weighted measured bones.
    for(unsigned a=0;a<3;a++){v.n[a]=0;for(unsigned k=0;k<4;k++)if(fitted[i].weight[k]){auto* m=rig.matrix[fitted[i].bone[k]];for(unsigned b=0;b<3;b++)v.n[a]+=fitted[i].weight[k]/255.f*m[a*4+b]*TankTopRecipe::normals[i][b];}}
-   memcpy(v.uv,TankTopRecipe::uv[i],8);v.color[0]=0;v.color[1]=v.color[2]=v.color[3]=1;
+   memcpy(v.uv,TankTopRecipe::uv[i],8);v.color[0]=0;v.color[1]=v.color[2]=1;v.color[3]=TankTopRecipe::faceNormalSign;
   }
   void* raw=nullptr;if(FAILED(vb->Lock(0,0,&raw,D3DLOCK_DISCARD)))return;memcpy(raw,vertices.data(),vertices.size()*sizeof(vertices[0]));if(FAILED(vb->Unlock()))return;prepared=renderFrameSerial;
  }

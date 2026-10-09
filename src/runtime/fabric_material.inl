@@ -74,7 +74,7 @@ static bool Ensure(IDirect3DDevice9* d){
  float4 light:register(c5);float4 ambient:register(c6);float4 direction:register(c7);float4 sh[7]:register(c8);samplerCUBE basis0:register(s0);samplerCUBE basis1:register(s1);
  float4 flags:register(c15);float4 position:register(c16);float4 spotDirection:register(c17);float4 spotAngles:register(c18);float4 screenBias:register(c19);float4 passParams:register(c20);sampler2D attenuation:register(s2);
  float4 main(float4 projected:TEXCOORD3,float3 n:TEXCOORD1,float3 w:TEXCOORD2,float2 uv:TEXCOORD0,float4 c:COLOR0,float facing:VFACE):COLOR0{
- n*=rsqrt(max(dot(n,n),1e-10));n*=facing<0?-1:1;float3 color=white.rgb;float pouch=1-step(.5,c.x),band=step(.5,c.x)*(1-step(1.5,c.x));
+ n*=rsqrt(max(dot(n,n),1e-10));n*=facing*c.w<0?-1:1;float3 color=white.rgb;float pouch=1-step(.5,c.x),band=step(.5,c.x)*(1-step(1.5,c.x));
  float aa=max(fwidth(uv.y),.0001);float r=1-smoothstep(stripes.z-aa,stripes.z+aa,abs(uv.y-stripes.x));float b=1-smoothstep(stripes.z-aa,stripes.z+aa,abs(uv.y-stripes.y));color=lerp(color,red.rgb,r*band);color=lerp(color,blue.rgb,b*band);
  float phase=uv.x*params.x*6.2831853;float fade=1-smoothstep(.2,.65,fwidth(uv.x)*params.x);float rib=cos(phase)*fade;
  // Derivative tangent follows the authored weave under deformation. Fade at
