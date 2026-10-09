@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_set>
 #include "jeans_data.h"
 #include "menu_necklace_palette.h"
 #define FABRIC_MATERIAL_NAMESPACE JeansMaterial
