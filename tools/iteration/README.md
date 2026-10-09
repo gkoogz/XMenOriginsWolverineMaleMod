@@ -84,3 +84,53 @@ bootstrap has independent compile/authoring/native receipts when executed;
 those are not inherited from this earlier room. StaticMesh fluid-world origin,
 extreme cloth states and high frame rate remain separate gates. Use the room
 for rapid iterations, then verify any campaign-specific integration in retail.
+
+## October 8 recipe inventory and experimental prototype
+
+Run `python tools/iteration/verify_recipe.py` before building. The source-only
+inventory now includes the later Meridian prototype, lighting, recovery and
+profiling tools. This inventory certifies source identity, not installed or
+visual acceptance. Uncommitted local updates must be committed/pushed explicitly
+before another machine's clone can inherit them.
+
+The approved baseline recipe remains unchanged. For an explicitly private
+Meridian derivative, use `Create-MeridianTestRoom.ps1` with a freshly reproduced
+source room and a hashed candidate DLL. `Play-MeridianPrototype.ps1` validates
+only an already authored prototype manifest; it is not a universal installer.
+Use `Test-MeridianCandidate.ps1` for the shared Base case matrix and
+`verify_anterior_recovery.py` for SDK-free recovery proof. See the handoff for
+source overlays, identities and known acceptance limits.
+
+To reproduce the newer even-v3 lighting without overwriting a shared room:
+
+```powershell
+$env:MALEMOD_SANDBOX_WORKSPACE='D:/Dev/WolverineGrey'
+python tools/iteration/author_native_layer.py --name jungle1_zone01a `
+  --studio --even-lighting --output-directory 'D:/Dev/WolverineGrey/even-lighting'
+python tools/iteration/pack_private_layer.py jungle1_zone01a even-lighting --offline
+./tools/iteration/Stage-MeridianLighting.ps1 `
+  -Workspace 'D:/Dev/WolverineMeridian' `
+  -Layer 'D:/Dev/WolverineGrey/even-lighting/jungle1_zone01a.cooked.xxx' `
+  -OverlayDirectory 'D:/Dev/WolverineMeridianCooked'
+```
+
+Choose an overlay on the same volume as the source assets. Stage only a closed,
+owned Meridian workspace. The tool hard-links immutable inputs and makes the
+lighting layer a private regular file; it never writes through the accepted
+room's CookedPC junction. Packed even-v3 layer SHA256:
+`10adb25651b10b14db1ee490feeb17b0ae300ed558c2b507d16f9c2a5789d5eb`.
+A fresh room still needs its own grounding, appearance and motion evidence.
+
+See [measured jockstrap costs and experiments](../../docs/MERIDIAN-PERFORMANCE.md).
+The reusable CPU profiler extracts an exact selected build and consumes private
+pose inputs; it never launches the host's game or publishes those inputs.
+# Tank material diagnosis (October 8)
+
+Use `Open-NativeSandbox.ps1 -TitleOnly -Active` to stay in the floating tank;
+omit `-TitleOnly` to enter the grey room. The owned command channel also accepts
+`J` for the existing clinical sequence, and capture/pause/garment controls now
+work in the title scene. No host input or focus is used. Diagnostic runs can set
+`MALEMOD_MERIDIAN_LIGHT_TRACE=1` to audit garment state restoration and capture
+native lighting shader declarations. Keep it off for performance measurements.
+Normal prototype launches explicitly clear it. See
+`docs/NATIVE-MATERIAL-REPAIR.md` for native texture, light and depth contracts.

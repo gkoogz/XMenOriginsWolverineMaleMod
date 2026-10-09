@@ -4,8 +4,11 @@ Offline asset authoring only; output stays outside repositories and games.
 """
 import runpy,struct,sys,uuid,json,hashlib,os
 import argparse
-ap=argparse.ArgumentParser();ap.add_argument("--name",required=True);ap.add_argument("--empty",action="store_true");ap.add_argument('--studio',action='store_true');ap.add_argument('--output-directory');ap.add_argument('--guid');args=ap.parse_args()
+ap=argparse.ArgumentParser();ap.add_argument("--name",required=True);ap.add_argument("--empty",action="store_true");ap.add_argument('--studio',action='store_true');ap.add_argument('--even-lighting',action='store_true');ap.add_argument('--output-directory');ap.add_argument('--guid');args=ap.parse_args()
 if not args.name.startswith("jungle1_") or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_" for c in args.name):raise SystemExit("Unsupported native layer name")
+if args.even_lighting and not args.studio:raise SystemExit('--even-lighting requires --studio')
+key_brightness=.035 if args.even_lighting else .12
+sky_brightness=.85 if args.even_lighting else .35
 P=Path(os.environ['MALEMOD_SANDBOX_WORKSPACE']).resolve()
 SCRIPT=Path(__file__).resolve().parent
 
@@ -76,7 +79,7 @@ assert add('StaticMeshComponent0',componentcls,12,struct.pack('<2i',0,0)+obj('St
 assert add('SandboxLight',lightcls,2,state(lightcls)+arr('Components',[15])+obj('LightComponent',15)+rot('Rotation',(-8192,-8192,0))+NONE,True)==14
 channels=boo('Static',True)+boo('Dynamic',True)+boo('CompositeDynamic',True)+NONE
 shadowflags=(boo('CastShadows',False)+boo('CastStaticShadows',False)+boo('CastDynamicShadows',False)+boo('bCastCompositeShadow',False)) if args.studio else b''
-assert add('DirectionalLightComponent0',lightcomponentcls,14,struct.pack('<2i',0,0)+tag('Brightness','FloatProperty',struct.pack('<f',.12))+tag('LightColor','StructProperty',bytes([225,225,225,255]),'Color')+tag('LightingChannels','StructProperty',channels,'LightingChannelContainer')+boo('bOnlyAffectSameAndSpecifiedLevels',False)+NONE+struct.pack('<2i',0,0))==15
+assert add('DirectionalLightComponent0',lightcomponentcls,14,struct.pack('<2i',0,0)+tag('Brightness','FloatProperty',struct.pack('<f',key_brightness))+tag('LightColor','StructProperty',bytes([225,225,225,255]),'Color')+tag('LightingChannels','StructProperty',channels,'LightingChannelContainer')+boo('bOnlyAffectSameAndSpecifiedLevels',False)+NONE+struct.pack('<2i',0,0))==15
 assert add('RCheckpoint_2',checkpointcls,2,state(checkpointcls)+string('PersistentLevelName','MaleModSandbox_p')+string('MapName','MaleModSandbox_p')+vec('Location',(0,0,110))+rot('Rotation',(0,0,0))+obj('CylinderComponent',17)+obj('CollisionComponent',17)+arr('Overrides',[])+NONE,True)==16
 nm,cl,sz,pos=base['exports'][0];assert add('CylinderComponent0',cl,16,bytes(original[pos:pos+sz]))==17
 # Remap nested property names from the native floor's package. Payload arrays of
@@ -144,7 +147,7 @@ if args.studio and not args.empty:
  skycls=classref('SkyLight');skycomponentcls=classref('SkyLightComponent')
  skyactor=add('SandboxSoftFill',skycls,2,state(skycls)+arr('Components',[22])+obj('LightComponent',22)+NONE,True)
  assert skyactor==21
- skycomponent=add('SkyLightComponent0',skycomponentcls,21,struct.pack('<2i',0,0)+tag('Brightness','FloatProperty',struct.pack('<f',.35))+tag('LowerBrightness','FloatProperty',struct.pack('<f',.35))+tag('LightColor','StructProperty',bytes([235,235,235,255]),'Color')+tag('LowerColor','StructProperty',bytes([235,235,235,255]),'Color')+tag('LightingChannels','StructProperty',channels,'LightingChannelContainer')+boo('bCanAffectDynamicPrimitivesOutsideDynamicChannel',True)+boo('bOnlyAffectSameAndSpecifiedLevels',False)+shadowflags+NONE+struct.pack('<2i',0,0))
+ skycomponent=add('SkyLightComponent0',skycomponentcls,21,struct.pack('<2i',0,0)+tag('Brightness','FloatProperty',struct.pack('<f',sky_brightness))+tag('LowerBrightness','FloatProperty',struct.pack('<f',sky_brightness))+tag('LightColor','StructProperty',bytes([235,235,235,255]),'Color')+tag('LowerColor','StructProperty',bytes([235,235,235,255]),'Color')+tag('LightingChannels','StructProperty',channels,'LightingChannelContainer')+boo('bCanAffectDynamicPrimitivesOutsideDynamicChannel',True)+boo('bOnlyAffectSameAndSpecifiedLevels',False)+shadowflags+NONE+struct.pack('<2i',0,0))
  assert skycomponent==22
  actors.append(skyactor)
  # Five cheap grey panels enclose the horizon. Reuse the observed native
@@ -155,6 +158,14 @@ if args.studio and not args.empty:
   add('SandboxBackdrop'+label,actorcls,2,state(actorcls)+arr('Components',[componentindex])+obj('StaticMeshComponent',componentindex)+vec('Location',location)+rot('Rotation',rotation)+vec('DrawScale3D',(1000,1000,.1))+boo('bWorldGeometry',False)+boo('bBlockActors',False)+NONE,True)
   add('StaticMeshComponent'+label,componentcls,actorindex,struct.pack('<2i',0,0)+obj('StaticMesh',18)+arr('Materials',[20])+boo('BlockActors',False)+boo('BlockZeroExtent',False)+boo('BlockNonZeroExtent',False)+boo('BlockRigidBody',False)+boo('CastShadow',False)+boo('bCastDynamicShadow',False)+boo('HiddenGame',False)+NONE+struct.pack('<I',0))
   actors.append(actorindex)
+ if args.even_lighting:
+  # Native directional fills enter the character's composite lighting from
+  # every azimuth. They cast no shadows; the weak original key grounds feet.
+  for label,yaw in [('NE',8192),('NW',24576),('SW',40960),('SE',57344)]:
+   actorindex=len(exports)+1;componentindex=actorindex+1
+   add('SandboxEvenFill'+label,lightcls,2,state(lightcls)+arr('Components',[componentindex])+obj('LightComponent',componentindex)+rot('Rotation',(-4096,yaw,0))+NONE,True)
+   add('EvenFillComponent'+label,lightcomponentcls,actorindex,struct.pack('<2i',0,0)+tag('Brightness','FloatProperty',struct.pack('<f',.10))+tag('LightColor','StructProperty',bytes([235,235,235,255]),'Color')+tag('LightingChannels','StructProperty',channels,'LightingChannelContainer')+boo('bOnlyAffectSameAndSpecifiedLevels',False)+shadowflags+NONE+struct.pack('<2i',0,0))
+   actors.append(actorindex)
  levelname,levelcls,levelsize,levelpos=base['exports'][1]
  levelprops,levelend=base['props'](levelpos,levelpos+levelsize)
  replace(2,original[levelpos:levelend]+struct.pack('<2i',owner,len(actors))+struct.pack('<'+str(len(actors))+'i',*actors)+tail)
@@ -164,7 +175,7 @@ struct.pack_into('<I',header,21,base['u'](header,21)&~0x02000000)
 struct.pack_into('<2I',header,93,0,0)
 # Freeze the accepted studio layer's package identity for byte-identical
 # regeneration. A future scene revision should use an explicit new GUID.
-packageguid=uuid.UUID(args.guid) if args.guid else uuid.UUID('c558ac4e-fc9a-4380-8c26-66202506cc13') if args.studio and args.name=='jungle1_zone01a' else uuid.uuid5(uuid.NAMESPACE_URL,'https://github.com/gkoogz/XMenOriginsWolverineMaleMod/grey-studio/v1/'+args.name)
+packageguid=uuid.UUID(args.guid) if args.guid else uuid.uuid5(uuid.NAMESPACE_URL,'https://github.com/gkoogz/XMenOriginsWolverineMaleMod/grey-studio/even-v3/'+args.name) if args.even_lighting else uuid.UUID('c558ac4e-fc9a-4380-8c26-66202506cc13') if args.studio and args.name=='jungle1_zone01a' else uuid.uuid5(uuid.NAMESPACE_URL,'https://github.com/gkoogz/XMenOriginsWolverineMaleMod/grey-studio/v1/'+args.name)
 header[53:69]=packageguid.bytes
 nameblob=b''.join(struct.pack('<I',len(n)+1)+n.encode()+b'\0'+struct.pack('<Q',nameflags.get(n,0)) for n in names)
 nameoff=len(header);impoff=nameoff+len(nameblob);expoff=impoff+28*len(imps);depoff=expoff+sum(len(d) for d,b in exports);start=depoff+4*len(exports)
@@ -180,7 +191,8 @@ outdir=Path(args.output_directory).resolve() if args.output_directory else P/'au
 allowed=Path(os.environ['LOCALAPPDATA'])/'MaleMod/WolverineSandbox'
 assert outdir.is_relative_to(P) or outdir.is_relative_to(allowed.resolve()), 'Output must stay in owned sandbox storage'
 out=outdir/(args.name+'.xxx');out.parent.mkdir(parents=True,exist_ok=True);out.write_bytes(output)
-receipt={'nativeVersion':568,'licensee':101,'sourceRoom': 'rgame_p.xxx','sourceFloor':'jungle1_zone01.xxx:floor_stone_03_jun','floorActualTriangles':48,'sourceConvexCollisionPreserved':True,'actorRefs':actors,'actors':['WorldInfo'] if args.empty else ['WorldInfo','StaticMeshActor','DirectionalLight'],'exports':len(exports),'nativeBytes':len(output),'sha256':hashlib.sha256(output).hexdigest(),'sourceHashes':{'rgame_p.xxx':hashlib.sha256(base['raw']).hexdigest(),'jungle1_zone01.xxx':hashlib.sha256(source['raw']).hexdigest()},'installed':False,'observedGameplay':False,'stockMapActorBootstrap':True,'componentsRegistered':True,'topPlaneNativeZ':18.1782,'floorWorldLocation':[0,0,2000],'floorActorScale':[1000,1000,.1],'lightBrightness':.12,'flattenedNativePositionStream':True,'collisionContract':'original convex cache plus conservative kDOP with flattened mesh triangles'}
-receipt.update({'studio':args.studio,'packageGUID':str(packageguid),'softSkyFill':.35 if args.studio else None,'greyBackdropPanels':5 if args.studio else 0,'directionalShadows':True,'fillShadows':False if args.studio else None,'engineLightSourceSHA256':hashlib.sha256(engine['raw']).hexdigest() if args.studio and not args.empty else None})
-if args.studio and not args.empty:receipt['actors']=['WorldInfo','StaticMeshActor','DirectionalLight','SkyLight']+['StaticMeshActorBackdrop']*5
+receipt={'nativeVersion':568,'licensee':101,'sourceRoom': 'rgame_p.xxx','sourceFloor':'jungle1_zone01.xxx:floor_stone_03_jun','floorActualTriangles':48,'sourceConvexCollisionPreserved':True,'actorRefs':actors,'actors':['WorldInfo'] if args.empty else ['WorldInfo','StaticMeshActor','DirectionalLight'],'exports':len(exports),'nativeBytes':len(output),'sha256':hashlib.sha256(output).hexdigest(),'sourceHashes':{'rgame_p.xxx':hashlib.sha256(base['raw']).hexdigest(),'jungle1_zone01.xxx':hashlib.sha256(source['raw']).hexdigest()},'installed':False,'observedGameplay':False,'stockMapActorBootstrap':True,'componentsRegistered':True,'topPlaneNativeZ':18.1782,'floorWorldLocation':[0,0,2000],'floorActorScale':[1000,1000,.1],'lightBrightness':key_brightness,'flattenedNativePositionStream':True,'collisionContract':'original convex cache plus conservative kDOP with flattened mesh triangles'}
+receipt.update({'studio':args.studio,'packageGUID':str(packageguid),'softSkyFill':sky_brightness if args.studio else None,'lightingProfile':'even-v3' if args.even_lighting else 'studio-v1','greyBackdropPanels':5 if args.studio else 0,'directionalShadows':True,'fillShadows':False if args.studio else None,'engineLightSourceSHA256':hashlib.sha256(engine['raw']).hexdigest() if args.studio and not args.empty else None})
+if args.studio and not args.empty:receipt['actors']=['WorldInfo','StaticMeshActor','DirectionalLight','SkyLight']+['StaticMeshActorBackdrop']*5+(['DirectionalFill']*4 if args.even_lighting else [])
+receipt['evenDirectionalFillBrightness']=.10 if args.even_lighting else 0
 (out.parent/(args.name+'.authoring.json')).write_text(json.dumps(receipt,indent=2));print(json.dumps(receipt))

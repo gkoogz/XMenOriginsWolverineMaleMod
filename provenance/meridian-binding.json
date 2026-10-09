@@ -1,0 +1,38 @@
+{
+  "schema": "wolverine.meridian-binding/1",
+  "geometryBindingRevision": 5,
+  "sources": {
+    "surface.xyz": "425adf019baefec470161ef8c4cd8e7e81a72d93378b0d1ee7ca0f7e6339df59",
+    "surface.xyz.indices": "4fcf730c2c66b022dfba3ee37b409ee07302640520abf2ffb60ee0e03d16589b",
+    "rest-native-input.json": "def67c7ca0608ea731d8eb8eca354781eec4d7cb6d99f1d6bb21570f2b944de5",
+    "cloth.npz": "a09850dc83abda5160db5ca4e9718c0028582f4438b9dc2723938337d32b83c7",
+    "collision-model.json": "4457e459a7e505bd0ce1a40bd2bd33a485fcac8f5ff75bce2fda8a013275c6ee",
+    "collision-model.obj": "06c37f1c262e2ee7b29f42b22eb6fe1fd531fb47d17d6f7a9aecbc6ee7392b26",
+    "fixed-straps.obj": "b5ec5aba1683ad0417cc8a36dd0dd993436cf7043d703f27f2c0c8267460cdf7"
+  },
+  "vertices": 2471,
+  "renderSeamAliases": 24,
+  "columns": 32,
+  "rows": 24,
+  "collisionSamples": 4722,
+  "runtimePoseSamples": 1753,
+  "triangles": 4816,
+  "clothTriangles": 1504,
+  "clothVertices": 769,
+  "referenceReconstructionError": 5.638301741500253e-07,
+  "hiddenAnatomyTriangles": 31998,
+  "retainedCollarTriangles": 3002,
+  "dynamics": "Live analytic circular-chain/dome/physics-ovoid wrapping, whole-triangle support certificate and welded render UV aliases; adaptive origin redistribution pending",
+  "installed": false,
+  "header": "src/runtime/meridian_recipe.h",
+  "headerSHA256": "61ddb227041ed58d72694e3243f0b3fc42f2f35b7992a192f4baf561aedeed94",
+  "hashNormalization": "LF",
+  "privateInputsCommitted": false,
+  "omissions": [
+    "raw body/anatomy exports",
+    "render captures",
+    "settings",
+    "stock-derived game packages"
+  ],
+  "regeneration": "tools/author_meridian_runtime.py with licensed private inputs matching source hashes; see docs/MERIDIAN-PRODUCTION.md"
+}

@@ -311,12 +311,15 @@ static void PDBodyCapsule(PDConstraint& c,int s,V3 a,V3 b,V3 oldA,V3 oldB,float 
  float gap=Dot(pdPosition[id]+arm-q,n)-radius;
  PDContact(c,id,arm,-1,{},q,oldA+(oldB-oldA)*t,n,gap,.000002f,dt);
 }
+static bool AnteriorEnvelopeEnabled();
+static bool PDAnteriorOwnsContact(V3,V3,float);
 static void PDRodBody(PDConstraint& c,int s,int j,float dt){
  // The measured radius is a mean barrel radius, not the ventral/raphe extent.
  // Cover the authored bulge (up to 1.35x in posed captures) with modest slack.
  float radius=logicalShaftBodyRadius*(1.20f+.20f*min(1.f,float(j)/4.f));
  if(!PDCapsuleMayContact(c,s,pdPosition[j],pdPosition[j+1],radius))return;
  int id=pdBody0+s;float t;V3 q{},arm{},n=PDContactNormal(c,s,pdPosition[j],pdPosition[j+1],arm,q,t);
+ if(PDAnteriorOwnsContact(q,n,radius)){c.normal=0;c.tangent={};c.anchorReady=false;return;}
  float gap=Dot(pdPosition[id]+arm-q,n)-radius;
  PDRecord(c,id,arm,-1,{},n,{},j,t);
  float w0=pdInvMass[j]*(1-t)*(1-t),w1=pdInvMass[j+1]*t*t,body=PDEffectiveMass(id,arm,n),alpha=.0000001f/(dt*dt);
@@ -344,6 +347,7 @@ static void PDSetInput(const PDInput& a,const PDInput& b,float t){
  for(int i=0;i<shaftRestSampleCount;i++)shaftRestCenters[i]=a.centers[i]+(b.centers[i]-a.centers[i])*t;
  memcpy(pdOldThigh,pdThigh,sizeof(pdThigh));for(int i=0;i<4;i++)pdThigh[i]=a.thigh[i]+(b.thigh[i]-a.thigh[i])*t;
 }
+#include "anterior_envelope_adapter.h"
 static void StepConstraintSolver(float dt,float gait,float side){
  if(!constraintSolverReady)InitializeConstraintSolver();CPEnsure();constraintSolverState=physicsState;StepRootSuspension(dt,gait,side);
  for(int s=0;s<2;s++){
@@ -415,7 +419,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
   for(int s=0;s<2;s++){
    for(int j=0;j<2;j++)PDBodyCapsule(thigh[s][j],s,pdThigh[j*2],pdThigh[j*2+1],pdOldThigh[j*2],pdOldThigh[j*2+1],7.2f,dt);
    PDBodyCapsule(pelvis[s],s,{3.f,0.f,70.f},{5.4f,0.f,86.f},{3.f,0.f,70.f},{5.4f,0.f,86.f},6.4f,dt);
-   for(int j=1;j<shaftNodeCount-2;j++)PDRodBody(rodContact[s][j],s,j,dt);
+   for(int j=1;j<shaftNodeCount-2+int(AnteriorEnvelopeEnabled());j++)PDRodBody(rodContact[s][j],s,j,dt);
   }
   for(int i=2;i<shaftNodeCount;i++)for(int j=0;j<2;j++){
    float t;V3 q=PDClosest(pdPosition[i],pdThigh[j*2],pdThigh[j*2+1],t),n=Unit(pdPosition[i]-q),old=pdOldThigh[j*2]+(pdOldThigh[j*2+1]-pdOldThigh[j*2])*t;
@@ -424,6 +428,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
   }
   PDPair(pair,dt);
   PDKeepPouchVentral(ventralCorrection);
+  PDAnteriorEnvelope(dt);
  }
  pdVelocityPass=false;
  // Exclude underside recovery from reconstructed velocity. A lobe that was
@@ -435,6 +440,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
   V3 spin{};for(int j=0;j<3;j++)spin=spin+Cross(pdOldBasis[s][j],cpBasis[s][j]);cpOmega[s]=spin*(.5f/dt);
  }
  PDSolveContactVelocities(dt);
+ PDAnteriorEnvelopeVelocity();
  if(ventralCorrection[0]<0.f||ventralCorrection[1]<0.f){
   float guideVelocity=(PDVentralHeight(pdPosition)-PDVentralHeight(pdOldPosition))/dt;
   for(int s=0;s<2;s++)if(ventralCorrection[s]<0.f)pdVelocity[pdBody0+s].z=min(pdVelocity[pdBody0+s].z,guideVelocity);

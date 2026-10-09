@@ -30,9 +30,9 @@ static void LoadR14SkinTextures(IDirect3DDevice9* d){
   for(int i=0;i<2;i++){
     char path[MAX_PATH];SiblingPath(path,names[i]);
     PerfScope perf(10);char cached[MAX_PATH];strcpy_s(cached,path);strcpy_s(strrchr(cached,'.'),5,".dds");
-    HRESULT hr=D3DXCreateTextureFromFileExA(d,cached,D3DX_DEFAULT,D3DX_DEFAULT,D3DX_DEFAULT,0,D3DFMT_UNKNOWN,D3DPOOL_MANAGED,D3DX_FILTER_NONE,D3DX_FILTER_NONE,0,nullptr,nullptr,&r14SkinTexture[i]);
+    HRESULT hr=D3DXCreateTextureFromFileExA(d,cached,D3DX_DEFAULT,D3DX_DEFAULT,D3DX_DEFAULT,0,D3DFMT_UNKNOWN,D3DPOOL_DEFAULT,D3DX_FILTER_NONE,D3DX_FILTER_NONE,0,nullptr,nullptr,&r14SkinTexture[i]);
     if(FAILED(hr))hr=D3DXCreateTextureFromFileExA(d,path,D3DX_DEFAULT,D3DX_DEFAULT,D3DX_DEFAULT,0,
-      D3DFMT_UNKNOWN,D3DPOOL_MANAGED,D3DX_FILTER_TRIANGLE,D3DX_FILTER_TRIANGLE,0,nullptr,nullptr,&r14SkinTexture[i]);
+      D3DFMT_UNKNOWN,D3DPOOL_DEFAULT,D3DX_FILTER_TRIANGLE,D3DX_FILTER_TRIANGLE,0,nullptr,nullptr,&r14SkinTexture[i]);
     Log("R14 skin texture %s load=%08X",names[i],hr);
   }
 }
@@ -309,6 +309,8 @@ static bool EnsureR14(IDirect3DDevice9* d){
   return true;
 }
 static HRESULT DrawR14(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original,UINT offset,UINT stride){
+  auto* clothCoveredIB=MeridianAnatomyIndices(d);
+  unsigned anatomyIndices=clothCoveredIB?MeridianAnatomyIndexCount():nrIndexCount;
   IDirect3DIndexBuffer9* ib=nullptr;
   if(FAILED(d->GetIndices(&ib)))return E_FAIL;
   LoadR14SkinTextures(d);
@@ -323,16 +325,16 @@ static HRESULT DrawR14(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original,UINT
     }
   }
   HRESULT hr=d->SetStreamSource(0,r14VB,0,32);
-  if(SUCCEEDED(hr))hr=d->SetIndices(r14IB);
+  if(SUCCEEDED(hr))hr=d->SetIndices(clothCoveredIB?clothCoveredIB:r14IB);
   if(SUCCEEDED(hr)){
     bool capture=captureRemaining>0&&captureDraw<16;
-    if(capture){CaptureDraw(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,nrIndexCount/3,nrPacked,sizeof(nrPacked),nrIndices,sizeof(nrIndices));CaptureSurface(d,"before");}
-    hr=capture?origDIP(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,nrIndexCount/3):DrawSharedSkin(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,nrIndexCount/3,true);
+    if(capture){CaptureDraw(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,anatomyIndices/3,nrPacked,sizeof(nrPacked),nrIndices,sizeof(nrIndices));CaptureSurface(d,"before");}
+    hr=capture?origDIP(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,anatomyIndices/3):DrawSharedSkin(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,anatomyIndices/3,true);
     if(capture)CaptureSurface(d,"after");
   }
   if(replaced){d->SetTexture(2,oldDiffuse);d->SetTexture(10,oldSkin);}
   if(oldDiffuse)oldDiffuse->Release();if(oldSkin)oldSkin->Release();
   d->SetStreamSource(0,original,offset,stride);d->SetIndices(ib);if(ib)ib->Release();
-  if(SUCCEEDED(hr)){if(r14SuccessfulDraws++==0)Log("R14 rounded replacement draw active: %u vertices, %u triangles",nrCount,nrIndexCount/3);}
+  if(SUCCEEDED(hr)){if(r14SuccessfulDraws++==0)Log("R14 rounded replacement draw active: %u vertices, %u triangles",nrCount,anatomyIndices/3);}
   return hr;
 }

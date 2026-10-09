@@ -1,4 +1,4 @@
-param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[Parameter(Mandatory=$true)][ValidateSet('W','A','S','D','TurnLeft','TurnRight','LookUp','LookDown','Zoom','Space','Shift','F6','F8','Up','Down','Left','Right','Capture','Pause','Resume','Defaults','Overall','Naked','Jockstrap')][string]$Key,[ValidateSet('Press','Hold','Release')][string]$Action='Press',[ValidateRange(1,100)][int]$Value=50)
+param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[Parameter(Mandatory=$true)][ValidateSet('J','W','A','S','D','TurnLeft','TurnRight','LookUp','LookDown','Zoom','Space','Shift','F6','F8','Up','Down','Left','Right','Capture','Pause','Resume','Defaults','Overall','Width','Length','Scrotum','Angle','Forward','Vertical','State','Naked','Jockstrap')][string]$Key,[ValidateSet('Press','Hold','Release')][string]$Action='Press',[ValidateRange(1,100)][int]$Value=50)
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path -LiteralPath $Workspace).Path
 $file=Join-Path $root 'owned-game/Binaries/MaleModSandboxControl.ini'
@@ -10,16 +10,24 @@ $old=Get-Content -LiteralPath $file -Raw
 $revision=if ($old -match 'Revision=(\d+)') {[uint32]$Matches[1]+1} else {1}
 if ($revision -gt 1) {
  $previous=$revision-1
+ $acknowledgement="Private (?:command(?: capture)?|native capture) revision=$previous(?: |`r|`n)"
  $log=Join-Path $root 'owned-game/Binaries/WolverineRuntime.log'
  $deadline=(Get-Date).AddSeconds(5)
  do {
   $seen=Get-Content -LiteralPath $log -Raw
-  if ($seen -match "Private command(?: capture)? revision=$previous(?: |`r|`n)") {break}
+  if ($seen -match $acknowledgement) {break}
   Start-Sleep -Milliseconds 100
  } while ((Get-Date) -lt $deadline)
- if ($seen -notmatch "Private command(?: capture)? revision=$previous(?: |`r|`n)") {throw 'Previous private command was not acknowledged; refusing to overwrite it.'}
+ if ($seen -notmatch $acknowledgement) {throw 'Previous private command was not acknowledged; refusing to overwrite it.'}
 }
 $temporary=$file+'.pending'
 [IO.File]::WriteAllText($temporary,"[Control]`nRevision=$revision`nKey=$Key`nAction=$Action`nValue=$Value`n",[Text.Encoding]::ASCII)
-Move-Item -LiteralPath $temporary -Destination $file -Force
+# Replace atomically; the native read handle may briefly deny replacement.
+# Keep the previous complete command intact and retry that short sharing race.
+$replaced=$false
+for($attempt=0;$attempt -lt 40;$attempt++){
+ try{[IO.File]::Replace($temporary,$file,[NullString]::Value,$true);$replaced=$true;break}
+ catch [IO.IOException]{if($attempt -eq 39){throw};Start-Sleep -Milliseconds 50}
+}
+if(!$replaced){throw 'Atomic private command replacement failed.'}
 Write-Output "Private engine command $revision`: $Key $Action"

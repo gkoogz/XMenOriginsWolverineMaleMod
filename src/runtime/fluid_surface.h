@@ -20,10 +20,13 @@ float4 Pixel(O o):COLOR0{
  float opaqueLight=lerp(diffuse,.80+.16*diffuse,tank);
  float3 color=base*opaqueLight+broad*(1-.80*tank)+wet*(1-.90*tank)+.035*edge*(1-.6*tank);
  if(tank>.5)color=min(color,float3(.98,.97,.94));
- // PC UE3 Common.usf EncodeFloatW stores projected device depth in scene
- // color alpha. One is far-plane depth, NOT an opaque/compositor mask.
- float alpha=tank>.5?saturate(o.clip.z/o.clip.w):1;
+ // Captured WStart PS: MinZ_MaxZRatio.x / clip.w + .y = 1 - clip.z/clip.w.
+ // Scene alpha holds inverse device depth, not an opacity/compositor mask.
+ float alpha=tank>.5?saturate(1-o.clip.z/o.clip.w):1;
  if(Material.x>.5){color=(Material.y>.5?float3(.86,.84,.79):float3(.79,.79,.79))+broad*(1-.6*tank)+wet*(1-.75*tank);alpha=saturate(.05+.27*edge+wet*.75+broad*.2);}
+ // Smooth highlight shoulder in the tank's HDR scene. Preserve hue and wet
+ // normal detail instead of pushing a near-one white plateau into bloom.
+ if(tank>.5){float peak=max(color.x,max(color.y,color.z));color*=.65/(.65+peak);}
  return float4(color,alpha);
 }
 )HLSL";

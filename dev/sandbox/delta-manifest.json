@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "dev/sandbox/README.md",
-      "lfSHA256": "cfc927edeade34d812c2b7a7dbe45ec252c50991b1f78510486f90c0ae402791"
+      "lfSHA256": "c27bfd3b0502ac3948ed2e80e50447d0c05946d4770beab91f2accbe862b7d9a"
     },
     {
       "path": "tools/iteration/Apply-PendingSandboxStage.ps1",
@@ -13,7 +13,7 @@
     },
     {
       "path": "tools/iteration/author_native_layer.py",
-      "lfSHA256": "8ae85df659ad1355f5cc6b3c0b7f30f1c4425718b15c7c2956f2b4055b2c8dc3"
+      "lfSHA256": "b0d030a5f740be0ff59f3862ad0f4fc3fdcaec02e1d4be4fd0038555205b1f81"
     },
     {
       "path": "tools/iteration/Build-SandboxDependencies.ps1",
@@ -21,7 +21,7 @@
     },
     {
       "path": "tools/iteration/build_private_runtime.py",
-      "lfSHA256": "b9b44ece06edbaa9b76a5ae6835d1e7dc6f483d9d7d234d35ffde16437f6062f"
+      "lfSHA256": "9c38538a8ef9d07e4ff69f72940f7cd5f65756e0eca4f822b512fe714a2e7a0c"
     },
     {
       "path": "tools/iteration/Close-NativeSandbox.ps1",
@@ -57,7 +57,7 @@
     },
     {
       "path": "tools/iteration/Open-NativeSandbox.ps1",
-      "lfSHA256": "58d06f867a37484df837816da860a28efe7c3db028856d1ea0580fa243614909"
+      "lfSHA256": "cb544e0fd13ac6c5ac6e154e2cf57780a880a4ce40c4b9693393d354b62afdac"
     },
     {
       "path": "tools/iteration/pack_private_layer.py",
@@ -81,7 +81,7 @@
     },
     {
       "path": "tools/iteration/README.md",
-      "lfSHA256": "3e7f82799a4d8aa4baac5cd7ff140ce1a2554113fe5d08671653df3eb528b4d3"
+      "lfSHA256": "ded9c284339fa7ccaec2fc593c0e7ce60f5d053038b3ebb343ec83838fbcf1fa"
     },
     {
       "path": "tools/iteration/Reset-NativeSandbox.ps1",
@@ -89,7 +89,7 @@
     },
     {
       "path": "tools/iteration/sealed_d3d9.hpp",
-      "lfSHA256": "271c78270cde1f76141e923cbbc3db3d2b2e9b7102667b2964a64941052940a9"
+      "lfSHA256": "0bafa2feeccbbe9a4b6bc1bf0cfabb32f017441b92f8fb247e0bb9fe0b0a22f4"
     },
     {
       "path": "tools/iteration/seed_checkpoint.py",
@@ -97,11 +97,11 @@
     },
     {
       "path": "tools/iteration/Set-NativeSandboxInput.ps1",
-      "lfSHA256": "b2e7f0be9f736291b1fff4e979a08021e34d99fba269d288a1dd9cd31d8cead7"
+      "lfSHA256": "b087d85fecffbeef0d917c1d31b3dde7a9ded2c5a879aac84d2ba3b2ad0ba627"
     },
     {
       "path": "tools/iteration/Start-NativeSandbox.ps1",
-      "lfSHA256": "8bc015ce9c63f1035b6f8b79f2b9c706e4935df482244ed644e1b25448c1ee94"
+      "lfSHA256": "34615cdcaf07d397e4812ef5310688454c680fec6d2f3bc8faa8661b1bb76428"
     },
     {
       "path": "tools/iteration/Test-NativeSandbox.ps1",
@@ -110,11 +110,100 @@
     {
       "path": "tools/iteration/verify_recipe.py",
       "lfSHA256": "c8f7af8ad0f3445f737add6df0927bbe926a168390541e9066183c0f5f25f2f2"
+    },
+    {
+      "path": "tools/iteration/Create-MeridianTestRoom.ps1",
+      "lfSHA256": "2776f33fd44346e616ea9b7e75c7074d57eef5c01cfa6fcedce3a4bf6b107a68"
+    },
+    {
+      "path": "tools/iteration/Play-MeridianPrototype.ps1",
+      "lfSHA256": "df1086f0ebc9f589a92ac24b7b98114f6ad8cb00999cc7d96d99bde1835aec7f"
+    },
+    {
+      "path": "tools/iteration/Stage-MeridianLighting.ps1",
+      "lfSHA256": "882c7905f304daf6d563a7e7b967671c764b764765f294f95419258ab967d9dd"
+    },
+    {
+      "path": "tools/iteration/Test-MeridianCandidate.ps1",
+      "lfSHA256": "4357bd243dfe7ec665dc4da325141a3a455a28a95d1b20784c0a5ae147e76fda"
+    },
+    {
+      "path": "tools/iteration/anterior_recovery_fixture.cpp",
+      "lfSHA256": "a9fe5e7390c6776eb93c34856e7ef74f409b848862980fad5aa190d0db6b57e7"
+    },
+    {
+      "path": "tools/iteration/verify_anterior_recovery.py",
+      "lfSHA256": "375884eac74dbc4cae89480278a2277ee843fac11b81423ef9297e1d6dd90e47"
+    },
+    {
+      "path": "tools/iteration/profile_meridian_cpu.py",
+      "lfSHA256": "1e4f9e9d98ee64b231e450586734c59013c94e820ba650810ade3d1d13a4339d"
+    },
+    {
+      "path": "tools/iteration/experiment_meridian_distances.py",
+      "lfSHA256": "5a10ecdf5fc976f25c9ca20676d7a9c08e98aeb114271d75cc527e9129759c02"
+    },
+    {
+      "path": "tools/iteration/compare_meridian_profiles.py",
+      "lfSHA256": "7b49cfe1088d750a3edf8eba9f67a56c622a2526c6a78dbb2ad7cb6b0553c2bc"
+    },
+    {
+      "path": "tools/iteration/Update-MeridianPrototype.ps1",
+      "lfSHA256": "5033ba3d7b3ee029227dd52869cfa51beb79f6119fb35b0f3145d7b4824503db"
+    },
+    {
+      "path": "docs/NATIVE-MATERIAL-REPAIR.md",
+      "lfSHA256": "74d6d5c35b4f560803c55f9d3f8e2c0d36677bf8fea85130ca2ac602992f09cd"
+    },
+    {
+      "path": "docs/NATIVE-CLOTH-FIDELITY.md",
+      "lfSHA256": "04c22ca96e25a0d2b226166b0c07549d8c7b92a52498ab7c3403e2e35e1e83ec"
+    },
+    {
+      "path": "docs/NATIVE-CLOTH-FOLLOW.md",
+      "lfSHA256": "8dc67fa9c67ed6d146f109a6e64c1f5e9edd13cfc9d65bab9662282c1e5c6b6f"
+    },
+    {
+      "path": "src/runtime/meridian_adapter.h",
+      "lfSHA256": "8aea5f0de43cdf05da495cc9a33ffb42e3f059452cc2a81eb14536608cdb9a8a"
     }
   ],
   "retailAssetsShipped": false,
   "privateProfilesShipped": false,
   "externalLzoCommit": "a0bfb468d42be831b126632fd8a0ae6b3614f981",
   "runtimeSourceCommit": "16affd49da5a122df776969574ca62a984b59425",
-  "runtimeBaseCommit": "99ff741ea95f18ed84526c35a6c3f38a37d857b6"
+  "runtimeBaseCommit": "99ff741ea95f18ed84526c35a6c3f38a37d857b6",
+  "nativeMaterialRepair": {
+    "documentation": "docs/NATIVE-MATERIAL-REPAIR.md",
+    "developerRuntimeSHA256": "29ebe88c81e10fd95a26f81ec0e1c9950ab1dd1ae0fe84f0a4ce977b73e4a6c7",
+    "accepted": false,
+    "fullAttachmentGatePassed": false,
+    "sourceOverlays": [
+      "src/runtime/meridian_adapter.h",
+      "src/runtime/meridian_material.h",
+      "src/runtime/meridian_state_audit.h",
+      "src/runtime/shared_skin_material.h",
+      "src/runtime/r14_runtime.h",
+      "src/runtime/fluid_surface.h"
+    ]
+  },
+  "curvatureLightingFollowup": {
+    "documentation": "docs/NATIVE-CLOTH-FIDELITY.md",
+    "developerRuntimeSHA256": "25dc08422d5bc6585d704ccd937a648356d3d0e10b134ba59bd94dbaff6786f9",
+    "accepted": false,
+    "fullAttachmentGatePassed": false,
+    "installedDeveloperPrototype": true,
+    "nativeEvidenceSHA256": "53530c4f867d010dcc03c7cd008aeb4cf55d52d4f1ba9337bed47bd2f5414b97",
+    "normalRuntimeModified": false,
+    "humanPlayObserved": false
+  },
+  "anatomyFollow20261008": {
+    "runtimeSHA256": "7b6cdd573739ea6482b728401cf5c253fab9bdfd7031e3cd0ff9fab9390997df",
+    "sharedHeader": "MaleModBase/include/malemod/garments/meridian_follow.hpp",
+    "nativeGameplayObserved": true,
+    "installedIntoHumanPrototype": true,
+    "attachmentGatePassed": false,
+    "cadenceReduced": false,
+    "newClothSimulation": false
+  }
 }

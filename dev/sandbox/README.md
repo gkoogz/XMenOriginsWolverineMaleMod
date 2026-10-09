@@ -12,3 +12,11 @@ and hashes remain outside Git.
 
 Exclude this directory and tools/iteration from uploaded Install/Source release
 assets. Git tag source snapshots exclude the room through .gitattributes export-ignore.
+
+## Current extensions
+
+The recipe includes the even-lighting option, isolated Meridian stage transaction,
+prototype validation, native regression matrix and SDK-free diagnostics. Run
+`python tools/iteration/verify_recipe.py`; see the main recipe README for commands.
+Performance findings are in `docs/MERIDIAN-PERFORMANCE.md`. Source inventories
+are distinct from native acceptance receipts and runtime dependency pins.
