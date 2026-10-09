@@ -29,7 +29,7 @@ def main():
      mapping[slot]=bone
   mappings.append(mapping);allBones.update(mapping.values())
  for bone in s['palette']:assert bone in allBones
- rows=['#pragma once','// Measured licensed Alkali section. Recipe keeps source UV and face donors.','namespace JeansRecipe {','static constexpr unsigned revision=1;']
+ rows=['#pragma once','// Measured licensed Alkali section. Recipe keeps source UV and face donors.','namespace JeansRecipe {','static constexpr unsigned revision=2;']
  for section,mapping in enumerate(mappings):rows+=['static const unsigned char gameplayPalette'+str(section)+'[]={'+','.join(str(mapping.get(i,0)) for i in range(max(mapping)+1))+'};']
  maxDiscard=0
  for index,r in enumerate(variants):
@@ -53,6 +53,9 @@ def main():
    rows.append('{{'+','.join(f'{v:.9f}f' for v in point)+'},{'+','.join(map(str,bones))+'},{'+','.join(map(str,weights))+'}},')
    uv.append(sum(amount*np.array([struct.unpack('<e',struct.pack('<H',v))[0] for v in original[donor]['uv']]) for donor,amount in zip(d,w)))
   rows+=['};','static const unsigned short triangles'+str(index)+'[][3]={']+['{'+','.join(map(str,f))+'},' for f in faces]+['};','static const float normals'+str(index)+'[][3]={']+['{'+','.join(f'{v:.9f}f' for v in n)+'},' for n in ns]+['};','static const float uv'+str(index)+'[][2]={']+['{'+','.join(f'{v:.9f}f' for v in u)+'},' for u in uv]+['};','static const unsigned sourceDonors'+str(index)+'[][3]={']+['{'+','.join(str(original[j]['id']) for j in d)+'},' for d in r['donors']]+['};','static const float sourceWeights'+str(index)+'[][3]={']+['{'+','.join(f'{v:.9f}f' for v in w)+'},' for w in r['weights']]+['};']
+ for index,r in enumerate(variants):
+  rest=np.einsum('ij,ijk->ik',r['weights'],p[r['donors']])
+  rows+=['static const float restPositions'+str(index)+'[][3]={']+['{'+','.join(f'{v:.9f}f' for v in q)+'},' for q in rest]+['};']
  for section in range(2):
   bt=array(text,f'menuRetargetBodyIndices{section}',np.int64).reshape(-1,3);centers=body[section][bt].mean(axis=1)
   for opened in (0,1):
@@ -60,6 +63,6 @@ def main():
    if opened:keep|=(centers[:,0]>0)&(centers[:,2]>70)&(abs(centers[:,1])<14*(centers[:,2]-70)/27+2)
    selected=bt[keep];rows+=['static const unsigned short body'+str(section)+str(opened)+'[][3]={']+['{'+','.join(map(str,f))+'},' for f in selected]+['};']
  rows+=['}'];a.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt=dict(schema='wolverine.jeans-binding/1',revision=1,stockSHA256=s['packageHash'].lower(),stockSectionFirst=4995,counts=[dict(vertices=len(r['positions']),triangles=len(r['triangles'])) for r in variants],sourceUnits=True,foldDegrees=145,flyLower=70,flyUpper=97,flyHalfWidth=14,restEase=.55,maximumDiscardedSkinWeight=maxDiscard/255,headerSHA256=hashlib.sha256(a.output.read_bytes()).hexdigest(),nativeVerified=False)
+ receipt=dict(schema='wolverine.jeans-binding/1',revision=2,stockSHA256=s['packageHash'].lower(),stockSectionFirst=4995,counts=[dict(vertices=len(r['positions']),triangles=len(r['triangles'])) for r in variants],sourceUnits=True,foldDegrees=145,flyLower=70,flyUpper=97,flyHalfWidth=14,restEase=.55,maximumDiscardedSkinWeight=maxDiscard/255,headerSHA256=hashlib.sha256(a.output.read_bytes()).hexdigest(),nativeVerified=False)
  a.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()
