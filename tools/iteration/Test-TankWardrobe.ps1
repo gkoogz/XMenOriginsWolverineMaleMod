@@ -7,6 +7,7 @@ if((Get-FileHash -LiteralPath (Join-Path $root 'owned-game/Binaries/d3d9.dll')).
 $log=Join-Path $root 'owned-game/Binaries/WolverineRuntime.log'
 $out=Join-Path $run 'tank-wardrobe-cases';New-Item -ItemType Directory -Path $out -ErrorAction Stop|Out-Null
 $records=@()
+$started=$false
 function Command([string]$Key,[int]$Value=50){& (Join-Path $PSScriptRoot 'Set-NativeSandboxInput.ps1') -Workspace $root -Key $Key -Value $Value|Out-Null}
 function Capture([string]$Id){
  Command Capture
@@ -22,9 +23,10 @@ function Capture([string]$Id){
 }
 try{
  $deadline=(Get-Date).AddSeconds(90)
- while((Get-Content -LiteralPath $log -Raw) -notmatch 'menu tank anatomy draw active'){
+ while(!(Test-Path -LiteralPath (Join-Path $run 'previous-runtime.log')) -or !(Test-Path -LiteralPath $log) -or (Get-Content -LiteralPath $log -Raw) -notmatch 'menu tank anatomy draw active'){
   if((Get-Date) -gt $deadline){throw 'Native tank scene did not load'};Start-Sleep -Milliseconds 250
  }
+ $started=$true
  Command Defaults;Command Resume
  foreach($top in @('TopNaked','TankTop')){foreach($bottom in @('Naked','Jockstrap','Jeans','JeansOpen')){
   Command $top;Command $bottom;Start-Sleep -Seconds 2;Capture ($top+'-'+$bottom)
@@ -36,4 +38,4 @@ try{
  Command Overall 50;Command Width 50
  foreach($state in @(1,2,3)){Command State $state;Start-Sleep -Seconds 2;Capture ('open-state-'+$state)}
  Command Defaults;Command TankTop;Command JeansOpen;Start-Sleep -Seconds 2;Capture 'final-default'
-}finally{Command Resume}
+}finally{if($started){Command Resume}}
