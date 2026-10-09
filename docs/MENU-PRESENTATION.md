@@ -41,7 +41,7 @@ and its observed DirectInput keyboard devices. While the visible panel is open,
 arrows, Shift and F8 reach panel polling while the engine receives neutral
 events/state. F6 belongs to the panel. Unrelated keys, mouse devices and closed
 bindings remain available. Background panel polling returns0. No OS keyboard
-hook or host focus operation is used; unload restores owned procedure/patches.
+global hook or host focus operation is used; unload restores owned procedure/patches.
 Buffered events retain count/peek semantics while neutralizing panel presses.
 
 The licensed executable actually imports Win32 message/GetKeyState and
@@ -52,3 +52,13 @@ unrelated keys, shared mouse tables, buffered peek, background and detach withou
 reading hardware keys or changing host focus. The repaired input candidate
 still requires native open/closed title proof. Neither this source nor menu
 observations establish garment or attachment acceptance.
+
+The first input candidate fba369a failed native title isolation: panel arrows
+also moved Continue to Options. Its HWND subclass was bypassed in the actual
+message path, although keyboard creation was observed. A process-owned
+WH_GETMESSAGE fence now rewrites only panel key messages addressed to the exact
+game HWND on its validated owning thread before engine queue inspection.
+The hidden-window test also replaces the window procedure and reads queued
+messages before dispatch: open Down becomes WM_NULL, closed Down and unrelated
+W remain intact. Native confirmation of this additional fence is pending;
+physical DirectInput neutralization is not established by private posted keys.

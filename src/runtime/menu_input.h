@@ -8,14 +8,21 @@
 namespace MenuInput {
 static std::atomic<HWND> window{nullptr};
 static std::atomic<WNDPROC> previousWindowProc{nullptr};
-static std::atomic<bool> panelActive{false};static std::atomic<DWORD> lastPaint{0};
+static std::atomic<bool> panelActive{false};static HHOOK queueHook=nullptr;
 static HWND WINAPI NativeForeground(){return GetForegroundWindow();}
 using Focus=HWND(WINAPI*)();static Focus foreground=NativeForeground;
-static void Publish(bool displayed){if(displayed)lastPaint=GetTickCount();panelActive.store(displayed,std::memory_order_release);}
-static bool Active(){return panelActive.load(std::memory_order_acquire)&&window.load()&&foreground()==window.load()&&DWORD(GetTickCount()-lastPaint.load())<1500u;}
+static void Publish(bool displayed){panelActive.store(displayed,std::memory_order_release);}
+static bool Active(){return panelActive.load(std::memory_order_acquire)&&window.load()&&foreground()==window.load();}
 static SHORT Poll(int key){return window.load()&&foreground()==window.load()?GetAsyncKeyState(key):0;}
 static bool Key(unsigned key,bool open){return key==VK_F6||(open&&(key==VK_F8||key==VK_UP||key==VK_DOWN||key==VK_LEFT||key==VK_RIGHT||key==VK_SHIFT||key==VK_LSHIFT||key==VK_RSHIFT));}
 static bool Scan(unsigned code,bool open){return code==DIK_F6||(open&&(code==DIK_F8||code==DIK_UP||code==DIK_DOWN||code==DIK_LEFT||code==DIK_RIGHT||code==DIK_LSHIFT||code==DIK_RSHIFT));}
+// UE3 can inspect retrieved messages before DispatchMessage, and may replace its
+// window procedure after device creation. Fence the exact owned window's queue
+// on its process-owned thread, never a desktop/global keyboard hook.
+static LRESULT CALLBACK Queue(int code,WPARAM mode,LPARAM payload){
+ if(code>=0&&payload){auto message=reinterpret_cast<MSG*>(payload);if(message->hwnd==window&&(message->message==WM_KEYDOWN||message->message==WM_KEYUP||message->message==WM_SYSKEYDOWN||message->message==WM_SYSKEYUP)&&Key(unsigned(message->wParam),Active())){message->message=WM_NULL;message->wParam=0;message->lParam=0;static LONG reported=0;if(InterlockedCompareExchange(&reported,1,0)==0)Log("Menu input exact HWND thread queue consumed");}}
+ return CallNextHookEx(queueHook,code,mode,payload);
+}
 struct PatchRecord{void** slot=nullptr;void* original=nullptr;void* replacement=nullptr;};
 static PatchRecord patches[64]{};static unsigned patchCount=0;
 static bool PatchSlot(void** slot,void* replacement){if(*slot==replacement)return true;if(patchCount==64)return false;DWORD protection=0;if(!VirtualProtect(slot,sizeof(*slot),PAGE_READWRITE,&protection))return false;patches[patchCount++]={slot,*slot,replacement};*slot=replacement;DWORD ignored=0;VirtualProtect(slot,sizeof(*slot),protection,&ignored);return true;}
@@ -26,9 +33,11 @@ static LRESULT CALLBACK WindowProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
  return old?CallWindowProcW(old,hwnd,message,w,l):DefWindowProcW(hwnd,message,w,l);
 }
 static void Attach(HWND hwnd){
- DWORD process=0;GetWindowThreadProcessId(hwnd,&process);if(!hwnd||process!=GetCurrentProcessId()||hwnd==window)return;
+ DWORD process=0;DWORD thread=GetWindowThreadProcessId(hwnd,&process);if(!hwnd||!thread||process!=GetCurrentProcessId()||hwnd==window)return;
+ if(queueHook){UnhookWindowsHookEx(queueHook);queueHook=nullptr;}
  if(window&&IsWindow(window)&&reinterpret_cast<WNDPROC>(GetWindowLongPtrW(window,GWLP_WNDPROC))==WindowProc)SetWindowLongPtrW(window,GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(previousWindowProc.load()));
  SetLastError(0);auto old=reinterpret_cast<WNDPROC>(GetWindowLongPtrW(hwnd,GWLP_WNDPROC));window=hwnd;previousWindowProc=old;auto replaced=SetWindowLongPtrW(hwnd,GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(WindowProc));if(!replaced&&GetLastError()){window=nullptr;previousWindowProc=nullptr;return;}previousWindowProc=reinterpret_cast<WNDPROC>(replaced);Log("Menu input exact game HWND attached");
+ HMODULE module=nullptr;GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,reinterpret_cast<LPCWSTR>(Queue),&module);queueHook=SetWindowsHookExW(WH_GETMESSAGE,Queue,module,thread);Log("Menu input owned thread queue fence thread=%u installed=%d",thread,queueHook!=nullptr);
 }
 using State=HRESULT(STDMETHODCALLTYPE*)(void*,DWORD,LPVOID);
 using Data=HRESULT(STDMETHODCALLTYPE*)(void*,DWORD,LPDIDEVICEOBJECTDATA,LPDWORD,DWORD);
@@ -61,6 +70,7 @@ using CreateInput=HRESULT(WINAPI*)(HINSTANCE,DWORD,REFIID,LPVOID*,LPUNKNOWN);
 static CreateInput originalCreate=nullptr;
 static HRESULT WINAPI Create(HINSTANCE instance,DWORD version,REFIID iid,LPVOID* output,LPUNKNOWN outer){auto hr=originalCreate(instance,version,iid,output,outer);if(SUCCEEDED(hr)&&output&&*output){auto table=*static_cast<void***>(*output);bool known=false;for(unsigned i=0;i<factoryCount;i++)known|=factories[i].vtable==table;if(!known&&factoryCount<4){factories[factoryCount++]={table,reinterpret_cast<CreateDevice>(table[3])};PatchSlot(table+3,reinterpret_cast<void*>(CreateKeyboard));}}return hr;}
 static void Detach(){
+ if(queueHook){UnhookWindowsHookEx(queueHook);queueHook=nullptr;}
  if(window.load()&&IsWindow(window.load())&&reinterpret_cast<WNDPROC>(GetWindowLongPtrW(window.load(),GWLP_WNDPROC))==WindowProc)SetWindowLongPtrW(window.load(),GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(previousWindowProc.load()));window=nullptr;previousWindowProc=nullptr;Publish(false);
  for(unsigned i=patchCount;i>0;i--){auto& p=patches[i-1];if(*p.slot!=p.replacement)continue;DWORD protection=0;if(VirtualProtect(p.slot,sizeof(*p.slot),PAGE_READWRITE,&protection)){*p.slot=p.original;DWORD ignored=0;VirtualProtect(p.slot,sizeof(*p.slot),protection,&ignored);}}
  patchCount=0;
