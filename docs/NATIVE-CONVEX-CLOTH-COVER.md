@@ -36,3 +36,10 @@ sewn boundary area normal for the cloth pole and includes the actual enclosing
 skin radii plus both pressure transforms in the lobe controls. A chart failure
 can use an unmodified current-pose prediction, never a partial failed repair.
 Retail5df remains installed pending renewed native inspection.
+
+The corrected cloth-only source5fe5e7a/ Base7026455 completed20 sampled native
+room cases without reported draw rejections. Default, width75 and all-max
+clothed/naked native renders were inspected. This isolates the reported spikes
+and missing draws from the body guard. The combined candidate restores the
+bounded rear recovery and requires its own motion and attachment inspection.
+

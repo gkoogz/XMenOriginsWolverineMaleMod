@@ -1,8 +1,8 @@
 #pragma once
 #include <malemod/physics/anterior_capsule.hpp>
-// Keep the restored retail physics while repairing the garment. The rejected
-// posterior guard requires its own continuous-motion acceptance.
-static bool AnteriorBodyEnabled(){return false;}
+// The cloth repair was isolated against restored physics first. Integrate the
+// bounded rear recovery only in the separately tested combined candidate.
+static bool AnteriorBodyEnabled(){return true;}
 static V3 PDAnteriorBodyExtents(int s){
  return {max(PDSkinSupport(s,{1,0,0}).x,-PDSkinSupport(s,{-1,0,0}).x),
          max(PDSkinSupport(s,{0,1,0}).y,-PDSkinSupport(s,{0,-1,0}).y),
