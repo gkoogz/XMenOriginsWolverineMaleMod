@@ -81,7 +81,7 @@
     },
     {
       "path": "tools/iteration/README.md",
-      "lfSHA256": "f0b7e8084e7cd366c5593c952ff45c9fbe2dac03f0e23bca295f32046b01d0a3"
+      "lfSHA256": "e38a52f5ee8743d5f202425805e2f67fd4f37861736ccf58bf40ef08b2d3aa86"
     },
     {
       "path": "tools/iteration/Reset-NativeSandbox.ps1",
@@ -182,6 +182,10 @@
     {
       "path": "tools/iteration/Test-JeansFit.ps1",
       "lfSHA256": "0213c4927478e22fefe0a5a98215f0287cfd151827a9b45e14daa119f4a59541"
+    },
+    {
+      "path": "tools/iteration/Test-JeansMotion.ps1",
+      "lfSHA256": "14e326dd9baec2d7e67dae408276c1bd1c1a6b879d8e51a4167adaacb29e5602"
     }
   ],
   "retailAssetsShipped": false,

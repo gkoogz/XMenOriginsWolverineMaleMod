@@ -148,3 +148,11 @@ Test-JeansFit.ps1 uses the same Workspace/RuntimeProvenance arguments for
 1/25/50/75/100 Overall+Width and maximum open/closed checks. Hide the F6 menu
 before the attachment/size matrix. Block is not a dedicated crouch; inspect
 the actual captured pose and do not infer crouch recovery from that command.
+
+For revision5 open jeans, run `Test-Costumes.ps1 -Jeans` first, then
+`Test-JeansMotion.ps1 -Workspace <room> -RuntimeProvenance <candidate provenance>`.
+It records real walking and subsequent settling, source/runtime identities,
+native frame/time metadata and bounded hinge samples from that sequence only.
+The captures and receipts stay private. Review the frames yourself; scripted
+bounds are not cloth collision or attachment visual acceptance. Then run the
+attachment and jeans-size matrices before considering any retail installation.
