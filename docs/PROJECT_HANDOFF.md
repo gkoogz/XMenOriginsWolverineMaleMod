@@ -1,3 +1,33 @@
+## October 9 - user-selected main menu stamp installed as development update
+
+The user's replacement transparent red BIG DICK EDITION image (SHA-256
+`bed0c75dbfcbb41ca4e6c7dbfc52538adfecb7e59b6f177520f9c676f1a149af`)
+is now used at the saved 1280x720 placement and -4 degree rotation. The
+game-derived title and blood image remains a separate loose layer. The stamp
+pulses about its center over 2.2 seconds (100-102% size, 88-100% opacity).
+See docs/MENU-BRANDING.md for the asset contract. Neither PNG is in Git.
+
+Adapter source commit: `2d144e80fb1e04579e73c521926374ab6ecd8ba3`;
+Base pin: `389f6c04e07b290da34a5261356c745f58f3bb1d`. Clean production
+DLL SHA-256: `ab1f8d8e028a1239474465aa5f98faedea45860e1547aff21ad4db8d4087a1a7`.
+Installed in `C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll` with loose
+assets in `Binaries/MenuBranding`. The previous exact runtime was
+`7095f63042e60295b7316b7a3fe457956fafefbe4f8e88b24dee3df51145cee3`.
+Exact DLL and added-asset rollback:
+`C:/Games/X-Men Origins Wolverine/WGame/ModBackups/Meridian-development-20261009-194250-919fc7/Restore-MenuBranding.ps1`.
+Its ValidateOnly check passed after installation. Prior accepted runtime and
+development backup chain remain retained.
+
+Native evidence is in Base build/title-branding-production-20261009/native-evidence.json:
+title/menu captures show the replacement image and usable options; a matching
+committed-source sealed runtime completed 17 title wardrobe/size/state captures
+and 20 grey-room attachment cases with zero reported draw rejections. Both
+owned runs exited 0 without host input or focus. The production DLL itself
+was installed and hash-verified but retail gameplay was not observed after
+installation. The full attachment gate remains FALSE: all supported LODs,
+states, views, motion and campaign transitions have not been visually accepted.
+This is a development update, not a release or accepted runtime.
+
 ## October 9 - root motion candidate rejected; menu input repair verified
 
 Wolverine source6c05893/Base389f6c0 clean sealed runtime446739b2 ran in owned
