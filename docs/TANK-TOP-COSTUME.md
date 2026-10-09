@@ -1,6 +1,14 @@
 # Independent tank-top costume
 
-Current correction: tank12 uses localized expansion, bounded cut rounding,
+Current correction: tank18 follows the complete measured pec/body surface
+using pinned Base 014e57a and a relaxed displacement field. Original mesh/UV/
+source-pair/skin lineage is retained; cut positions follow the body and measured
+body bindings are regenerated. Tank12's raised pec pockets are rejected;
+the bounded tank13 attempt is superseded. The body mask and native shader fix
+remain. See PROJECT_HANDOFF.md for 57 sampled native captures and exact source/
+build identities; full attachment acceptance remains false and no install ran.
+
+Historical correction: tank12 uses localized expansion, bounded cut rounding,
 posed alias normals and a protected body mask at the neckline/armholes. The
 deferred title dog-tag draw explicitly restores full native shader constants
 to fix black anatomy. See STOCK-CLOTHING-REFIT.md and PROJECT_HANDOFF.md for

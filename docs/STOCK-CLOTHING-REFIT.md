@@ -1,6 +1,20 @@
 # Existing Alkali clothing refit
 
-## Current correction: tank12 and jeans6
+## Current correction: tank18 and jeans6
+
+The tank now follows closest points on the complete measured body surface,
+with 10 passes relaxing its three-dimensional displacement. Original geometry
+topology, fold chart, UVs, normal aliases, source pairs and skin weights remain
+the input; the cut positions follow the body and donor bindings are measured
+again. The offset-envelope fit was rejected for raised pec pockets. Source
+face orientation is preserved; relaxed clearance is not certified. Base pin
+014e57a2d659298cd3126482a2573b2087cabaa6 supplies the shared algorithm.
+Native front/side/moving oblique and tank-scene captures were inspected.
+Jeans6, original maps, protected cut mask and shader state restoration remain.
+See PROJECT_HANDOFF.md for exact identities, 57 samples and acceptance limits.
+No replacement installation, push or publication was performed.
+
+## Historical tank12 and jeans6 attempt
 
 Base pin8f45949f146f1ce866fc8ac35682be3f76ef585a supplies shallow garment
 shells, a localized height/lateral chest offset, bounded stock-cut refinement
