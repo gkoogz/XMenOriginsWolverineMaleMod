@@ -97,10 +97,10 @@ static bool Ensure(IDirect3DDevice9* d){
   float falloff=pow(max(saturate(radius),.0001),light.w)*step(0,radius);
   if(HAS_SPOT){float cone=saturate((dot(l,-spotDirection.xyz)-spotAngles.x)*spotAngles.y);falloff*=cone*cone;}
   float2 screenUV=projected.xy/projected.w*screenBias.xy+screenBias.wz;
-  // The title's native receiver map describes the bare chest. A newly added
+  // The native receiver map describes the bare chest. A newly added
   // cotton surface cannot reuse its fine self-shadow bands as cloth creases.
   float3 shadow=tex2D(attenuation,screenUV).rgb;
-  if(c.x>2.5 && passParams.y>0)shadow=1;
+  if(c.x>2.5)shadow=1;
   illumination+=light.rgb*saturate(dot(n,l))*falloff*shadow;
  }
  // UE3 scene alpha uses the captured inverse-depth coefficients, not opacity.
