@@ -1,6 +1,6 @@
 {
   "schema": "wolverine.tank-top-binding/1",
-  "revision": 16,
+  "revision": 17,
   "roundedCutVertices": 97,
   "maximumCutRounding": 0.22,
   "posedAliasNormals": true,
@@ -26,11 +26,12 @@
   "originalSkinWeightsPreserved": true,
   "maximumNewVertexDiscardedWeight": 0.00784313725490196,
   "bodySHA256": "c4075718353b229faafa3c2a6b558d3a07c74785336b0b0f703f20bbfa818f25",
-  "headerSHA256": "ec0ae5a4613240ddeaa14fc59eb27324b5896843a39ddf70ef320d1ebd367faf",
+  "headerSHA256": "fd7bb35d01960c937d87ec19a11edffbd7bb6f89da511a88a12b348e651b679a",
   "nativeVerified": false,
   "bodyCoverageMasked": true,
   "cutMaskInset": 1.0,
   "coverageChecksDepth": false,
-  "maskedBodyPatch": "measured torso membership",
+  "maskedBodyPatch": "measured torso membership in body resource0 only",
+  "upperBodyResourcePreserved": true,
   "interiorMaskWitnesses": 7
 }
