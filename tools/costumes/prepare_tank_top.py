@@ -12,7 +12,7 @@ def array(text,name,dtype):
 
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);args=ap.parse_args()
- sys.path.insert(0,str(args.base));from malemod_base.torso_garment_fit import refit_radially,refine_triangles,expand_projected_sections
+ sys.path.insert(0,str(args.base));from malemod_base.torso_garment_fit import refit_radially,refine_triangles,smooth_tubular_chart,clear_projected_faces
  repo=Path(__file__).resolve().parents[2];bodyPath=repo/'src/runtime/menu_retarget_body_data.h'
  source=json.loads(args.stock.read_text(encoding='utf-8-sig'));assert source['schema']=='wolverine.stock-tank/1' and source['first']==1722 and source['triangles']==1091
  text=bodyPath.read_text();packed=array(text,'menuRetargetBodyPacked0',np.uint8).reshape(-1,32)
@@ -42,7 +42,8 @@ def main():
    uv.append(struct.unpack('<H',struct.pack('<e',value))[0])
   generated.append({'bone':bones,'weight':weights,'uv':uv,'n':np.array(original[a]['n'])*.5+np.array(original[b]['n'])*.5})
  source['vertices']=generated
- fitted,bindings=refit_radially(stock,p,selected,.32,fallback_distance=3.5)
+ chart=smooth_tubular_chart(stock,faces)
+ fitted,bindings=refit_radially(chart,p,selected,.72,fallback_distance=3.5)
  supports=np.concatenate((p[np.unique(selected)],p[selected].mean(axis=1),(p[selected[:,0]]+p[selected[:,1]])*.5,(p[selected[:,1]]+p[selected[:,2]])*.5,(p[selected[:,2]]+p[selected[:,0]])*.5))
  # UV aliases are separate draw vertices, but must share the fitted position.
  aliases={}
@@ -50,12 +51,7 @@ def main():
  aliasIDs=np.zeros(len(stock),dtype=int)
  for key,group in enumerate(aliases.values()):
   aliasIDs[group]=key;fitted[group]=fitted[group].mean(axis=0)
- # Independent projection supplies measured transport bindings, not the final
- # cloth shape. Expand the original folds through one shared section field.
- fitted=stock.copy()
- ease=np.clip((fitted[:,2]-98)/12,0,1)*np.clip((143-fitted[:,2])/10,0,1)
- fitted[:,1]*=1+.10*ease
- fitted=expand_projected_sections(fitted,faces,supports,.72,side_threshold=3.)
+ fitted=clear_projected_faces(fitted,faces,supports,.72,aliases=aliasIDs)
  normal=np.zeros_like(fitted)
  for t in faces:
   n=np.cross(fitted[t[1]]-fitted[t[0]],fitted[t[2]]-fitted[t[0]])

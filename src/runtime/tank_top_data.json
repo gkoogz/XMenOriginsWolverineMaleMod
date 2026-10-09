@@ -8,13 +8,13 @@
   "triangles": 4364,
   "clearance": 0.32,
   "projectedFaceClearance": 0.72,
-  "maximumDisplacement": 15.695859238687857,
+  "maximumDisplacement": 10.307233626484429,
   "subdivisionLevels": 1,
   "sourcePairLineagePreserved": true,
   "uvAliasesPreserved": true,
   "originalSkinWeightsPreserved": true,
   "maximumNewVertexDiscardedWeight": 0.00784313725490196,
   "bodySHA256": "c4075718353b229faafa3c2a6b558d3a07c74785336b0b0f703f20bbfa818f25",
-  "headerSHA256": "da1c94671100c6baa97c3d9f621bfc2d32709a305bc7d179c0fc6fa7a7ca8b14",
+  "headerSHA256": "bbaf1e4d7802f6ef0f21f89f58059674825d9fd1e42237968eb9081df7e30a1f",
   "nativeVerified": false
 }
