@@ -6,7 +6,7 @@ from prepare_tank_top import array
 
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--stock-psk',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);a=ap.parse_args()
- sys.path.insert(0,str(a.base));from malemod_base.fly_panels import folded_fly,fold_rigid_attachment
+ sys.path.insert(0,str(a.base));from malemod_base.fly_panels import folded_fly,fold_rigid_attachment,fly_motion_bindings
  repo=Path(__file__).resolve().parents[2];s=json.loads(a.stock.read_text(encoding='utf-8-sig'))
  assert s['schema']=='wolverine.stock-jeans/1' and s['first']==4995 and s['triangles']==1478
  original=s['vertices'];p=np.array([v['p'] for v in original]);ids={v['id']:i for i,v in enumerate(original)};tri=np.array([ids[i] for i in s['indices']]).reshape(-1,3)
@@ -14,7 +14,7 @@ def main():
  # Extra rest ease keeps the waistband outside the enlarged neutral pelvis.
  normals=np.array([v['n'] for v in original])/127.5-1;normals/=np.maximum(np.linalg.norm(normals,axis=1)[:,None],1e-12)
  fitted=p+normals*.55
- opened=folded_fly(fitted,tri,front_axis=0,side_axis=1,height_axis=2,front_plane=0,lower=70,upper=97,half_width=14,angle=np.deg2rad(145))
+ opened=folded_fly(fitted,tri,front_axis=0,side_axis=1,height_axis=2,front_plane=0,lower=70,upper=97,half_width=9,angle=np.deg2rad(155))
  variants=[dict(positions=fitted,triangles=tri,donors=np.repeat(np.arange(len(p))[:,None],3,axis=1),weights=np.tile([1.,0,0],(len(p),1)),panels=np.zeros(len(p))),opened]
  from stock_psk import buckle
  accessory,accessoryFaces=buckle(a.stock_psk);base=len(original)
@@ -24,7 +24,13 @@ def main():
   if index:
    # The separate rigid buckle belongs to the right fly flap. Retain it as
    # one piece, applying the same measured envelope transform to all vertices.
-   q=fold_rigid_attachment(q,front_axis=0,side_axis=1,height_axis=2,lower=70,upper=97,half_width=14,angle=np.deg2rad(145))
+   q=fold_rigid_attachment(q,front_axis=0,side_axis=1,height_axis=2,lower=70,upper=97,half_width=9,angle=np.deg2rad(155))
+  if index:
+   rest=np.einsum('ij,ijk->ik',r['weights'],fitted[r['donors']])
+   r['motion']=fly_motion_bindings(rest,r['panels'],lower=70,upper=97,half_width=9,belt_lower=89,belt_upper=92.5)
+   pivot=bp.mean(0);pivot[1]=9*(pivot[2]-70)/27
+   for name,values in dict(hinges=np.tile(pivot,(len(bp),1)),fly=np.ones(len(bp)),belt=np.ones(len(bp)),sides=np.ones(len(bp),int)).items():
+    r['motion'][name]=np.concatenate((r['motion'][name],values))
   count=len(r['positions']);r['positions']=np.concatenate((r['positions'],q));r['triangles']=np.concatenate((r['triangles'],accessoryFaces+count))
   r['donors']=np.concatenate((r['donors'],np.repeat((np.arange(len(bp))+base)[:,None],3,axis=1)))
   r['weights']=np.concatenate((r['weights'],np.tile([1.,0,0],(len(bp),1))));r['panels']=np.r_[r['panels'],np.ones(len(bp))*index]
@@ -42,8 +48,25 @@ def main():
      mapping[slot]=bone
   mappings.append(mapping);allBones.update(mapping.values())
  for bone in s['palette']:assert bone in allBones
- rows=['#pragma once','// Measured licensed Alkali section. Recipe keeps source UV and face donors.','namespace JeansRecipe {','static constexpr unsigned revision=4;']
+ rows=['#pragma once','// Measured licensed Alkali section. Recipe keeps source UV and face donors.','namespace JeansRecipe {','static constexpr unsigned revision=5;']
  for section,mapping in enumerate(mappings):rows+=['static const unsigned char gameplayPalette'+str(section)+'[]={'+','.join(str(mapping.get(i,0)) for i in range(max(mapping)+1))+'};']
+ motion=variants[1]['motion']
+ for name in ('hinges','fly','belt','sides'):
+  values=motion[name]
+  if values.ndim==2:
+   rows+=['static const float motionHinges[][3]={']+['{'+','.join(f'{v:.9f}f' for v in q)+'},' for q in values]+['};']
+  else:
+   typ='signed char' if name=='sides' else 'float'
+   vals=','.join(str(int(v)) if name=='sides' else f'{v:.9f}f' for v in values)
+   rows+=['static const '+typ+' motion'+name.title()+'[]={'+vals+'};']
+ # Coincident cut/source aliases share a shading normal while UVs stay separate.
+ groups={};labels=[]
+ for q,d in zip(variants[1]['positions'],variants[1]['donors']):
+  key=(*np.round(q,5),int(original[d[0]].get('sourceResource',0)))
+  labels.append(groups.setdefault(key,len(groups)))
+ rows+=['static constexpr unsigned normalGroups='+str(len(groups))+';', 'static const unsigned short normalAliases[]={'+','.join(map(str,labels))+'};']
+ rows+=['static constexpr unsigned motionBone='+str(accessory[0]['bone'][0])+';']
+ assert all(v['bone'][0]==accessory[0]['bone'][0] for v in accessory)
  maxDiscard=0
  for index,r in enumerate(variants):
   q=r['positions'];faces=r['triangles'];ns=np.zeros_like(q)
@@ -75,9 +98,9 @@ def main():
   bt=array(text,f'menuRetargetBodyIndices{section}',np.int64).reshape(-1,3);centers=body[section][bt].mean(axis=1)
   for opened in (0,1):
    keep=centers[:,2]>96
-   if opened:keep|=(centers[:,0]>0)&(centers[:,2]>70)&(abs(centers[:,1])<14*(centers[:,2]-70)/27+2)
+   if opened:keep|=(centers[:,0]>0)&(centers[:,2]>70)&(abs(centers[:,1])<9*(centers[:,2]-70)/27+2)
    selected=bt[keep];rows+=['static const unsigned short body'+str(section)+str(opened)+'[][3]={']+['{'+','.join(map(str,f))+'},' for f in selected]+['};']
  rows+=['}'];a.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt=dict(schema='wolverine.jeans-binding/1',revision=4,rigidBuckleShapePreserved=True,stockSHA256=s['packageHash'].lower(),stockPSKSHA256=hashlib.sha256(a.stock_psk.read_bytes()).hexdigest(),stockSectionFirst=4995,stockBuckleVertices=len(accessory),stockBuckleTriangles=len(accessoryFaces),counts=[dict(vertices=len(r['positions']),triangles=len(r['triangles'])) for r in variants],sourceUnits=True,foldDegrees=145,flyLower=70,flyUpper=97,flyHalfWidth=14,restEase=.55,maximumDiscardedSkinWeight=maxDiscard/255,headerSHA256=hashlib.sha256(a.output.read_bytes()).hexdigest(),nativeVerified=False)
+ receipt=dict(schema='wolverine.jeans-binding/1',revision=5,rigidBuckleShapePreserved=True,stockSHA256=s['packageHash'].lower(),stockPSKSHA256=hashlib.sha256(a.stock_psk.read_bytes()).hexdigest(),stockSectionFirst=4995,stockBuckleVertices=len(accessory),stockBuckleTriangles=len(accessoryFaces),counts=[dict(vertices=len(r['positions']),triangles=len(r['triangles'])) for r in variants],sourceUnits=True,foldDegrees=155,flyLower=70,flyUpper=97,flyHalfWidth=9,restEase=.55,maximumDiscardedSkinWeight=maxDiscard/255,headerSHA256=hashlib.sha256(a.output.read_bytes()).hexdigest(),motionBindingRevision=1,flyTravelDegrees=3,beltTravelDegrees=2,beltBandBlend=[89,92.5],originalBeltUVRetained=True,nativeVerified=False)
  a.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()

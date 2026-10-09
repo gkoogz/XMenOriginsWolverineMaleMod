@@ -1,6 +1,6 @@
 {
   "schema": "wolverine.jeans-binding/1",
-  "revision": 4,
+  "revision": 5,
   "rigidBuckleShapePreserved": true,
   "stockSHA256": "90385a8b1734c3f4b1e1697734d2b6b98a319fec6c6ea27ea906d626f3a06cf6",
   "stockPSKSHA256": "3074ccb3a7d2f7fa900f78cd4f27c8111e9afbe1b3eaba01f8b64b9f86cf2f29",
@@ -13,17 +13,25 @@
       "triangles": 1764
     },
     {
-      "vertices": 6153,
-      "triangles": 2478
+      "vertices": 6141,
+      "triangles": 2472
     }
   ],
   "sourceUnits": true,
-  "foldDegrees": 145,
+  "foldDegrees": 155,
   "flyLower": 70,
   "flyUpper": 97,
-  "flyHalfWidth": 14,
+  "flyHalfWidth": 9,
   "restEase": 0.55,
-  "maximumDiscardedSkinWeight": 2.2291536808160006e-16,
-  "headerSHA256": "280ae68a6eb2015e26ceca376ac113f0009423da118d895f2e9819989f92fcb2",
+  "maximumDiscardedSkinWeight": 1.1145768404080003e-16,
+  "headerSHA256": "83de725b46595e97ed066d48878488925cb099b29328085a48575f0445cb0b46",
+  "motionBindingRevision": 1,
+  "flyTravelDegrees": 3,
+  "beltTravelDegrees": 2,
+  "beltBandBlend": [
+    89,
+    92.5
+  ],
+  "originalBeltUVRetained": true,
   "nativeVerified": false
 }
