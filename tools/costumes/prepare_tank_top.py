@@ -12,7 +12,7 @@ def array(text,name,dtype):
 
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);args=ap.parse_args()
- sys.path.insert(0,str(args.base));from malemod_base.torso_garment_fit import refit_radially
+ sys.path.insert(0,str(args.base));from malemod_base.torso_garment_fit import refit_radially,clear_projected_faces
  repo=Path(__file__).resolve().parents[2];bodyPath=repo/'src/runtime/menu_retarget_body_data.h'
  source=json.loads(args.stock.read_text(encoding='utf-8-sig'));assert source['schema']=='wolverine.stock-tank/1' and source['first']==1722 and source['triangles']==1091
  text=bodyPath.read_text();packed=array(text,'menuRetargetBodyPacked0',np.uint8).reshape(-1,32)
@@ -23,6 +23,8 @@ def main():
  slots0={13,14,30,31,32,33};slots1={6,7,23,24,30};membership=np.r_[np.sum(np.isin(packed[:,20:24],list(slots0))*packed[:,24:28]/255.,axis=1),np.sum(np.isin(p1[:,20:24],list(slots1))*p1[:,24:28]/255.,axis=1)];mask=np.all((p[tri][:,:,2]>89)&(p[tri][:,:,2]<146)&(membership[tri]>.7),axis=1)
  selected=tri[mask];stock=np.array([v['p'] for v in source['vertices']]);fitted,bindings=refit_radially(stock,p,selected,.32,fallback_distance=3.5)
  ids={v['id']:i for i,v in enumerate(source['vertices'])};faces=np.array([ids[i] for i in source['indices']]).reshape(-1,3)
+ supports=np.concatenate((p[np.unique(selected)],p[selected].mean(axis=1),(p[selected[:,0]]+p[selected[:,1]])*.5,(p[selected[:,1]]+p[selected[:,2]])*.5,(p[selected[:,2]]+p[selected[:,0]])*.5))
+ fitted=clear_projected_faces(fitted,faces,supports,.72)
  normal=np.zeros_like(fitted)
  for t in faces:
   n=np.cross(fitted[t[1]]-fitted[t[0]],fitted[t[2]]-fitted[t[0]])

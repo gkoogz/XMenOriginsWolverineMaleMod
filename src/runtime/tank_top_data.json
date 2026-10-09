@@ -7,11 +7,11 @@
   "vertices": 625,
   "triangles": 1091,
   "clearance": 0.32,
-  "maximumDisplacement": 9.70648975467076,
+  "maximumDisplacement": 10.00649315870683,
   "topologyPreserved": true,
   "uvAliasesPreserved": true,
   "originalSkinWeightsPreserved": true,
   "bodySHA256": "c4075718353b229faafa3c2a6b558d3a07c74785336b0b0f703f20bbfa818f25",
-  "headerSHA256": "d6d955b94e91baa78b9392f04a56529227e10f7f9faef7b694b30fbd2d718ceb",
+  "headerSHA256": "af217160af07c95583d88ae3ed4faa4ef9a34833028936771fb763d07047cba9",
   "nativeVerified": false
 }
