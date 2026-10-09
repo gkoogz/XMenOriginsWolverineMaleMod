@@ -1747,7 +1747,10 @@ static void ApplyShape(){PerfScope perf(8);
   auto* p=fullBuffer+graftFirstVertex*graftStride;
   float written[3];memcpy(written,p,12);graftBuffer->Unlock();shapeDirty=false;if(report)Log("live controls, recruited pelvis collar, and dynamic tangent basis applied state=%d collar=%.3f shape=%.2f %.2f %.2f %.2f %.1f %.2f %.2f shaft=%.0f %.0f %.0f %.0f balls=%.0f %.0f %.0f %.0f first=(%.4f %.4f %.4f)",physicsState,PelvisCollarGrowth(),sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6],physValues[0],physValues[1],physValues[2],physValues[3],physValues[4],physValues[5],physValues[6],physValues[7],written[0],written[1],written[2]);
 }
-static bool KeyEdge(int vk){static bool old[256]{};bool now=(GetAsyncKeyState(vk)&0x8000)!=0;bool edge=now&&!old[vk];old[vk]=now;return edge;}
+
+#include "menu_input.h"
+static bool KeyEdge(int vk){static bool old[256]{};bool now=(MenuInput::Poll(vk)&0x8000)!=0;bool edge=now&&!old[vk];old[vk]=now;return edge;}
+
 struct OV {float x,y,z,rhw;D3DCOLOR color;};
 static std::vector<OV> hudVertices;
 static float hudScale=1.f;
@@ -1826,7 +1829,7 @@ static void OverlayFrame(IDirect3DDevice9* d){PerfScope perf(1);
   if(inOverlay)return;inOverlay=true;
   bool visible=anatomyVisibleFrame==renderFrameSerial;
   InterlockedIncrement(&renderFrameSerial);
-  if(!visible){
+  if(!visible){MenuInput::Publish(false);
     JockstrapAdapter::Suspend();
     physicsLastTick=throbLastTick=0;teachingLastTick=GetTickCount();
      if(GetTickCount()-anatomyLastSeenTick>3000u&&(teachingTimeline.active||teachingFluid.passiveMode))CancelTeaching("anatomy render absent for 3 seconds");
@@ -1834,7 +1837,7 @@ static void OverlayFrame(IDirect3DDevice9* d){PerfScope perf(1);
   }
   TeachingInput(d);
   UpdateTankCameraCycle();
-  if(KeyEdge(VK_F6))menuOpen=!menuOpen;
+  if(KeyEdge(VK_F6))menuOpen=!menuOpen;MenuInput::Publish(menuOpen);
   CaptureFinish(d);CapturePoll();
   if(KeyEdge(VK_F9)){captureComplete=false;lightingDirectionsEnabled=!lightingDirectionsEnabled;Log("R28 layered physics lighting F9: %s",lightingDirectionsEnabled?"ON":"ORIGINAL");}
   if(menuOpen){
@@ -1849,7 +1852,7 @@ static void OverlayFrame(IDirect3DDevice9* d){PerfScope perf(1);
     }
   }
   if(shapeDirty&&settingsLoaded)QueueSettingsSave();UpdateThrob();UpdatePhysics();UpdateActiveAnatomySurface();FlushSettingsIfDue();
-  IDirect3DStateBlock9* state=nullptr;if(FAILED(d->CreateStateBlock(D3DSBT_ALL,&state))||!state){inOverlay=false;return;}
+  IDirect3DStateBlock9* state=nullptr;if(FAILED(d->CreateStateBlock(D3DSBT_ALL,&state))||!state){MenuInput::Publish(false);inOverlay=false;return;}
   hudVertices.clear();MenuHud::vertices.clear();if(hudVertices.capacity()<65536)hudVertices.reserve(65536);
   namespace Theme=malemod::controls::menu;
   const D3DCOLOR bg=Theme::ARGB(Theme::Background),fg=Theme::ARGB(Theme::Text),dim=Theme::ARGB(Theme::Muted),accent=Theme::ARGB(Theme::Accent),track=Theme::ARGB(Theme::Track),selection=Theme::ARGB(Theme::Selection);
@@ -1913,7 +1916,7 @@ static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const R
   if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}menuTankDrawnThisFrame=false;frameRendered=false;d->Release();}
   return origSwapPresent(sc,src,dst,wnd,dirty,flags);
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){MenuHud::Release();anatomyVisibleFrame=-3;anatomyScene=-1;tankCameraSceneTick=0;MenuNecklace::Release();TankTopAdapter::Release();JeansAdapter::Release();MeridianAdapter::Release();JockstrapAdapter::Release();clothingEpoch++;surfaceGarmentEnabled=false;ReleaseTeaching();ReleaseFluidSpaceDiagnostics();ResetFluidCollision();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseSharedSkin();ReleaseR14SkinTextures();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;shaderLayoutIndex.clear();motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);shapeDirty=true;return hr;}
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){MenuHud::Release();MenuInput::Publish(false);anatomyVisibleFrame=-3;anatomyScene=-1;tankCameraSceneTick=0;MenuNecklace::Release();TankTopAdapter::Release();JeansAdapter::Release();MeridianAdapter::Release();JockstrapAdapter::Release();clothingEpoch++;surfaceGarmentEnabled=false;ReleaseTeaching();ReleaseFluidSpaceDiagnostics();ResetFluidCollision();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseSharedSkin();ReleaseR14SkinTextures();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;shaderLayoutIndex.clear();motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);if(SUCCEEDED(hr)&&pp&&pp->hDeviceWindow)MenuInput::Attach(pp->hDeviceWindow);shapeDirty=true;return hr;}
 static void Log(const char* fmt, ...) {
   static volatile LONG lines=0;LONG line=InterlockedIncrement(&lines);if(line>12000)return;
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);
@@ -2290,7 +2293,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
 
 static HRESULT STDMETHODCALLTYPE HookCreateDevice(IDirect3D9* self,UINT adapter,D3DDEVTYPE type,HWND wnd,DWORD flags,D3DPRESENT_PARAMETERS* pp,IDirect3DDevice9** out) {
   HRESULT hr=origCreateDevice(self,adapter,type,wnd,flags,pp,out);
-  if(SUCCEEDED(hr)&&out&&*out){LoadSettings();LoadIdlePool();teachingAudio.Load();LoadTankCameraPoses();void** vt=*(void***)*out;Patch(&vt[16],(void*)HookReset,(void**)&origReset);Patch(&vt[17],(void*)HookPresent,(void**)&origPresent);Patch(&vt[42],(void*)HookEndScene,(void**)&origEndScene);Patch(&vt[82],(void*)HookDIP,(void**)&origDIP);IDirect3DSwapChain9* sc=nullptr;if(SUCCEEDED((*out)->GetSwapChain(0,&sc))&&sc){void** svt=*(void***)sc;Patch(&svt[3],(void*)HookSwapPresent,(void**)&origSwapPresent);sc->Release();}Log("CreateDevice hooked %ux%u windowed=%d",pp->BackBufferWidth,pp->BackBufferHeight,pp->Windowed);}
+  if(SUCCEEDED(hr)&&out&&*out){LoadSettings();MenuInput::Attach(wnd?wnd:pp->hDeviceWindow);LoadIdlePool();teachingAudio.Load();LoadTankCameraPoses();void** vt=*(void***)*out;Patch(&vt[16],(void*)HookReset,(void**)&origReset);Patch(&vt[17],(void*)HookPresent,(void**)&origPresent);Patch(&vt[42],(void*)HookEndScene,(void**)&origEndScene);Patch(&vt[82],(void*)HookDIP,(void**)&origDIP);IDirect3DSwapChain9* sc=nullptr;if(SUCCEEDED((*out)->GetSwapChain(0,&sc))&&sc){void** svt=*(void***)sc;Patch(&svt[3],(void*)HookSwapPresent,(void**)&origSwapPresent);sc->Release();}Log("CreateDevice hooked %ux%u windowed=%d",pp->BackBufferWidth,pp->BackBufferHeight,pp->Windowed);}
   return hr;
 }
 static void LoadReal(){
@@ -2300,4 +2303,4 @@ static void LoadReal(){
 IDirect3D9* WINAPI Direct3DCreate9(UINT sdk){LoadReal();IDirect3D9* d=realCreate9(sdk);if(d){void** vt=*(void***)d;Patch(&vt[16],(void*)HookCreateDevice,(void**)&origCreateDevice);}return d;}
 int WINAPI D3DPERF_BeginEvent(D3DCOLOR c,LPCWSTR n){LoadReal();return realBegin?realBegin(c,n):-1;}
 int WINAPI D3DPERF_EndEvent(){LoadReal();return realEnd?realEnd():-1;}
-BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");HookBinkImport();HookAudioFactory();}return TRUE;}
+BOOL APIENTRY DllMain(HMODULE h,DWORD reason,LPVOID reserved){if(reason==DLL_PROCESS_ATTACH){DisableThreadLibraryCalls(h);LoadReal();Log("proxy loaded");MenuInput::Install();HookBinkImport();HookAudioFactory();}else if(reason==DLL_PROCESS_DETACH&&!reserved)MenuInput::Detach();return TRUE;}

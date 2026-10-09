@@ -26,3 +26,29 @@ sealed grey-room run. Native F6/selection/adjustment/collapsed views, device
 reset and the mandatory combined attachment regression remain acceptance
 requirements. No retail installation, publication or full visual pass is
 claimed by this source checkpoint.
+
+## Scoped input isolation
+
+Final typography source6158957 was observed in two sealed runs: 22 gameplay
+rows at1920x1440 and24 title rows at1280x720. Ten reviewed captures show clean
+text, one/five-step adjustment, reset and collapse. The rejected garment
+solver was not accepted by this menu test; Jeans/Naked views isolate the UI.
+Both children exited0; no owned audio sessions were muted. Retail was intact.
+
+The title run exposed the existing arrows reaching the stock menu behind the
+F6 panel. `menu_input.h` now intercepts only this process's exact game HWND
+and its observed DirectInput keyboard devices. While the visible panel is open,
+arrows, Shift and F8 reach panel polling while the engine receives neutral
+events/state. F6 belongs to the panel. Unrelated keys, mouse devices and closed
+bindings remain available. Background panel polling returns0. No OS keyboard
+hook or host focus operation is used; unload restores owned procedure/patches.
+Buffered events retain count/peek semantics while neutralizing panel presses.
+
+The licensed executable actually imports Win32 message/GetKeyState and
+DirectInput8Create paths; it does not import GetAsyncKeyState directly. Native
+diagnostics identify keyboard creation and which intercepted state/buffered
+paths execute. The scoped hidden-window/fake-device test verifies open/closed,
+unrelated keys, shared mouse tables, buffered peek, background and detach without
+reading hardware keys or changing host focus. The repaired input candidate
+still requires native open/closed title proof. Neither this source nor menu
+observations establish garment or attachment acceptance.
