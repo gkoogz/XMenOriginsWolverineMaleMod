@@ -176,6 +176,7 @@ static void Draw(IDirect3DDevice9* d){
    if(attempts%120==1)Log("Meridian chart fallback frame=%ld transported=%d certified=%d: %s",renderFrameSerial,continuity.Ready(),certified,e.what());
   }
   }
+  if(!wrapped)M::FairMeridianReversals(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,4);
   std::vector<M::Vec> seamDelta(MeridianRecipe::columns);
   for(unsigned i=0;i<MeridianRecipe::columns;i++)seamDelta[i]=M::Sub(points[i],raw[i]);
   if(attempts%120==1)Log("Meridian continuity attempts=%u wrapped=%u followed=%u transported=%u uncertified=%u frame=%ld",attempts,wraps,followed,transported,uncertified,renderFrameSerial);

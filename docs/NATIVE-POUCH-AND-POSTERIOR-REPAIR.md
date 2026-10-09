@@ -1,6 +1,6 @@
 # Pouch spikes and large-size posterior trapping
 
-Wolverine adopts Base ee4a684671405084e32800040173e2fd2670e2b9.
+Wolverine adopts Base 2909474bfe838c5c298abcef23f484e0229938a9.
 Shared longitude alignment, re-tautening/fairing and one-sided anterior capsule
 queries live in Base. Binding revision5,32 rays,24 rows and full-rate following
 remain unchanged. `anterior_body_adapter.h` uses current ovoid support extents
@@ -24,7 +24,7 @@ the Beta2 manifest remain protected. No published release is created here.
 
 Offline evidence: five assertion-enabled source tests, eight clean x86 CTest
 cases and import/provenance verification. Sixteen discontinuous private pose
-samples reduce worst local-return measure62.3%; this is not FPS or complete
+samples reduce worst local-return measure75.3%; this is not FPS or complete
 spike elimination. Full-solver synthetic crouch plus forced-trap replay recovers
 forward with the guard enabled and remains posterior with it disabled. Neither
 synthetic fixture establishes graceful native motion or full attachment parity.

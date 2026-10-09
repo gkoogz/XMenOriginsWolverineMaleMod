@@ -1,4 +1,4 @@
-param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[ValidateRange(20,1800)][int]$Seconds=600,[switch]$AcceptanceControls,[switch]$Active,[switch]$TitleOnly,[ValidateRange(640,3840)][int]$RenderWidth=640,[ValidateRange(480,2160)][int]$RenderHeight=480)
+param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[ValidateRange(20,1800)][int]$Seconds=600,[switch]$AcceptanceControls,[switch]$Active,[switch]$TitleOnly,[switch]$NoSound,[ValidateRange(640,3840)][int]$RenderWidth=640,[ValidateRange(480,2160)][int]$RenderHeight=480)
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path -LiteralPath $Workspace).Path
 $exe=Join-Path $root 'owned-game/Binaries/Wolverine.exe'
@@ -10,6 +10,7 @@ $argsList=@('-NoProfile','-File',('"'+(Join-Path $PSScriptRoot 'Start-NativeSand
 if ($AcceptanceControls) {$argsList+='-AcceptanceControls'}
 if ($Active) {$argsList+='-Active'}
 if ($TitleOnly) {$argsList+='-TitleOnly'}
+if ($NoSound) {$argsList+='-NoSound'}
 $worker=Start-Process -FilePath $shell -ArgumentList $argsList -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $run 'worker.txt') -RedirectStandardError (Join-Path $run 'worker-error.txt')
 @{schema=1;run=$run;workerPID=$worker.Id;workerCreatedUTC=$worker.StartTime.ToUniversalTime().ToString('o');ownedExecutable=$exe;seconds=$Seconds} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'active-run.json')
 Write-Output "Opened isolated native sandbox: $run"

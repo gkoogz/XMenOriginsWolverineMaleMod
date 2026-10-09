@@ -34,7 +34,9 @@ try {
  foreach($case in $cases){
   $before=(Get-Content -LiteralPath $logPath).Count
   Command Overall $case.overall;Command Width $case.width;Command Angle $case.restAngle
-  Command Length $(if($null -ne $case.length){[int]$case.length}else{50})
+  # PowerShell supplies an intrinsic Length=1 on scalar objects. Check the
+  # authored property itself, or an omitted length silently becomes minimum.
+  Command Length $(if($null -ne $case.PSObject.Properties['length']){[int]$case.length}else{50})
   Command Scrotum $(if($null -ne $case.scrotum){[int]$case.scrotum}else{50})
   if($null -ne $case.state){Command State ([int]$case.state+1)}else{Command State 3}
   if($case.naked){Command Naked}else{Command Jockstrap}

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Workspace,[ValidateRange(20,1800)][int]$Seconds=600,[switch]$AcceptanceControls,[switch]$Active,[switch]$TitleOnly,[ValidateRange(640,3840)][int]$RenderWidth=640,[ValidateRange(480,2160)][int]$RenderHeight=480,[string]$RunDirectory,[string]$LauncherPath=(Join-Path $env:LOCALAPPDATA 'MaleMod/WolverineSandbox/launch_capability_restore.exe'))
+param([Parameter(Mandatory=$true)][string]$Workspace,[ValidateRange(20,1800)][int]$Seconds=600,[switch]$AcceptanceControls,[switch]$Active,[switch]$TitleOnly,[switch]$NoSound,[ValidateRange(640,3840)][int]$RenderWidth=640,[ValidateRange(480,2160)][int]$RenderHeight=480,[string]$RunDirectory,[string]$LauncherPath=(Join-Path $env:LOCALAPPDATA 'MaleMod/WolverineSandbox/launch_capability_restore.exe'))
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path -LiteralPath $Workspace).Path
 if(!$PSBoundParameters.ContainsKey('LauncherPath') -and (Test-Path -LiteralPath (Join-Path $root 'launch_capability_restore.exe'))){$LauncherPath=Join-Path $root 'launch_capability_restore.exe'}
@@ -36,11 +36,12 @@ Copy-Item -LiteralPath $sourceProfile -Destination (Join-Path $root 'owned-game/
 # Invocation is synchronous and bounded; the native launcher creates only a
 # noninteractive station, handles its exact child, and captures its own output.
 Write-Output "Native captures and diagnostics: $run"
-& $launcher (Join-Path $run 'engine.dmp') $exe '-windowed' ('-ResX='+$RenderWidth) ('-ResY='+$RenderHeight) '-unattended' '-nohomedir' '-seekfreeloading' *> (Join-Path $run 'guard.txt')
+$audioArgs=if ($NoSound) {@('-nosound')} else {@()}
+& $launcher (Join-Path $run 'engine.dmp') $exe @audioArgs '-windowed' ('-ResX='+$RenderWidth) ('-ResY='+$RenderHeight) '-unattended' '-nohomedir' '-seekfreeloading' *> (Join-Path $run 'guard.txt')
 $launcherStatus=$LASTEXITCODE
 $guard=Get-Content -LiteralPath (Join-Path $run 'guard.txt') -Raw
 $exitMatches=[regex]::Matches($guard,'\{"exitCode":(\d+)\}')
 $status=if ($exitMatches.Count) {[int]$exitMatches[$exitMatches.Count-1].Groups[1].Value} else {$launcherStatus}
 Copy-Item -LiteralPath (Join-Path $root 'owned-game/Binaries/WolverineRuntime.log') -Destination (Join-Path $run 'runtime.log') -ErrorAction SilentlyContinue
-@{schema=1;exitCode=$status;boundedTimeout=($status -eq 124);seconds=$Seconds;hostInput=$false;hostFocus=$false;audio='exact owned process sessions only'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run 'run.json')
+@{schema=1;exitCode=$status;boundedTimeout=($status -eq 124);seconds=$Seconds;hostInput=$false;hostFocus=$false;audio='exact owned process sessions only';noSound=[bool]$NoSound} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run 'run.json')
 if ($status -ne 0 -and $status -ne 124) { throw "Native child failed with status $status; see guard.txt." }

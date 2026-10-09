@@ -57,7 +57,7 @@
     },
     {
       "path": "tools/iteration/Open-NativeSandbox.ps1",
-      "lfSHA256": "cb544e0fd13ac6c5ac6e154e2cf57780a880a4ce40c4b9693393d354b62afdac"
+      "lfSHA256": "893803e0b2ce8b47747ddc22f165e3d06c29faf44fe1eb14badd9c027b3b5dcb"
     },
     {
       "path": "tools/iteration/pack_private_layer.py",
@@ -101,7 +101,7 @@
     },
     {
       "path": "tools/iteration/Start-NativeSandbox.ps1",
-      "lfSHA256": "34615cdcaf07d397e4812ef5310688454c680fec6d2f3bc8faa8661b1bb76428"
+      "lfSHA256": "de115a35b0dfa32a5b30d7e1df7ab08dba9675113db86b4e2c18c2039d1a070e"
     },
     {
       "path": "tools/iteration/Test-NativeSandbox.ps1",
@@ -125,7 +125,7 @@
     },
     {
       "path": "tools/iteration/Test-MeridianCandidate.ps1",
-      "lfSHA256": "cada31673a4a5f66cd2e4b24bff219e78c71e4ac8e038a23646383a8d72feabe"
+      "lfSHA256": "a0ccf5f61db00182fdf6ace4adb925bd66efce766fa7c8124ded44ce98ec0cea"
     },
     {
       "path": "tools/iteration/anterior_recovery_fixture.cpp",
@@ -165,7 +165,11 @@
     },
     {
       "path": "src/runtime/meridian_adapter.h",
-      "lfSHA256": "6ab57d69991abfe640845fdc04d9f6206f45933631adb1026ee309b28cdf8e99"
+      "lfSHA256": "ca59872bb3e6fc8ee97f0353571a47076430a0e3ffa92afad7509c394bbd8130"
+    },
+    {
+      "path": "tools/iteration/Test-AnteriorBodyMotion.ps1",
+      "lfSHA256": "408f66dda3426cc09098704dd40ff96227990b5956b407cc845191b3160fab41"
     }
   ],
   "retailAssetsShipped": false,
