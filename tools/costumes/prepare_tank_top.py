@@ -12,7 +12,7 @@ def array(text,name,dtype):
 
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--stock',type=Path,required=True);ap.add_argument('--base',type=Path,required=True);ap.add_argument('--output',type=Path,required=True);args=ap.parse_args()
- sys.path.insert(0,str(args.base));from malemod_base.torso_garment_fit import refit_radially,clear_projected_faces,refine_triangles
+ sys.path.insert(0,str(args.base));from malemod_base.torso_garment_fit import refit_radially,refine_triangles,expand_projected_sections
  repo=Path(__file__).resolve().parents[2];bodyPath=repo/'src/runtime/menu_retarget_body_data.h'
  source=json.loads(args.stock.read_text(encoding='utf-8-sig'));assert source['schema']=='wolverine.stock-tank/1' and source['first']==1722 and source['triangles']==1091
  text=bodyPath.read_text();packed=array(text,'menuRetargetBodyPacked0',np.uint8).reshape(-1,32)
@@ -44,20 +44,29 @@ def main():
  source['vertices']=generated
  fitted,bindings=refit_radially(stock,p,selected,.32,fallback_distance=3.5)
  supports=np.concatenate((p[np.unique(selected)],p[selected].mean(axis=1),(p[selected[:,0]]+p[selected[:,1]])*.5,(p[selected[:,1]]+p[selected[:,2]])*.5,(p[selected[:,2]]+p[selected[:,0]])*.5))
- fitted=clear_projected_faces(fitted,faces,supports,.72)
+ # UV aliases are separate draw vertices, but must share the fitted position.
+ aliases={}
+ for i,q in enumerate(stock):aliases.setdefault(tuple(np.round(q,5)),[]).append(i)
+ aliasIDs=np.zeros(len(stock),dtype=int)
+ for key,group in enumerate(aliases.values()):
+  aliasIDs[group]=key;fitted[group]=fitted[group].mean(axis=0)
+ # Independent projection supplies measured transport bindings, not the final
+ # cloth shape. Expand the original folds through one shared section field.
+ fitted=stock.copy()
+ ease=np.clip((fitted[:,2]-98)/12,0,1)*np.clip((143-fitted[:,2])/10,0,1)
+ fitted[:,1]*=1+.10*ease
+ fitted=expand_projected_sections(fitted,faces,supports,.72,side_threshold=3.)
  normal=np.zeros_like(fitted)
  for t in faces:
   n=np.cross(fitted[t[1]]-fitted[t[0]],fitted[t[2]]-fitted[t[0]])
   for i in t:normal[i]+=n
- aliases={}
- for i,q in enumerate(stock):aliases.setdefault(tuple(np.round(q,5)),[]).append(i)
  for group in aliases.values():normal[group]=np.sum(normal[group],axis=0)
  normal/=np.maximum(np.linalg.norm(normal,axis=1)[:,None],1e-12)
  originalNormal=np.array([v['n'] for v in source['vertices']])/127.5-1
  if np.median(np.sum(normal*originalNormal,axis=1))<0:normal=-normal
  # Preserve each measured original vertex and UV alias. The normals are
  # recomputed from the fitted topology rather than stretched stock tangents.
- rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=2;','static const NcVertex vertices[]={']
+ rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=3;','static const NcVertex vertices[]={']
  for v,q in zip(source['vertices'],fitted):rows.append('{{'+','.join(f'{x:.9f}f' for x in q)+'},{'+','.join(map(str,v['bone']))+'},{'+','.join(map(str,v['weight']))+'}},')
  rows+=['};','static const unsigned short triangles[][3]={']+[ '{'+','.join(map(str,t))+'},' for t in faces]+['};','static const float uv[][2]={']
  rows+=['{'+','.join(f'{struct.unpack("<e",struct.pack("<H",int(x)))[0]:.9f}f' for x in v['uv'])+'},' for v in source['vertices']]+['};','static const float normals[][3]={']
@@ -67,6 +76,6 @@ def main():
  # Compact donor base for a cheap current-body displacement update.
  rows+=['{'+','.join(f'{x:.9f}f' for x in p[i])+'},' for i in donors]+['};','static const unsigned donorIDs[]={'+','.join(map(str,sourceIDs[donors]))+'};','static const unsigned sourcePairs[][2]={']+['{'+str(original[a]['id'])+','+str(original[b]['id'])+'},' for a,b in lineage]+['};','}']
  args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt={'schema':'wolverine.tank-top-binding/1','revision':2,'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.32,'projectedFaceClearance':.72,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False}
+ receipt={'schema':'wolverine.tank-top-binding/1','revision':3,'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.32,'projectedFaceClearance':.72,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False}
  args.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()
