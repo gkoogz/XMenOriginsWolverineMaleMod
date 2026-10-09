@@ -95,6 +95,24 @@ Closed-panel, background and unrelated queries preserve the original SHORT,
 including pressed and toggle bits. The proxy's raw GetAsyncKeyState panel
 polling and other processes/modules remain untouched. The hidden-window test
 uses a fake import/state returning0x8001, verifies all three cases and restores
-the import on detach without reading hardware state. Native import/call
-receipts for this added path remain pending; physical host input is prohibited
-and is not claimed as observed.
+the import on detach without reading hardware state.
+
+Native source9b9e2f5782dcce4a42305b3fcc9dcf4fb1eb1d70 / Base2c15479 clean
+archive built runtime SHA256
+`4747dbb4d7a82006a26c2ab600bfea07de6d245b9247f66fa30066ae57e6e370`.
+Run20261009-173408-d75f4f reviewed six title720 captures: panel navigation,
+Overall50/51/56/reset50 and collapse retain the stock Continue selection;
+closed Down selects Replay Mission. All24 rows/footer retain the reviewed
+styling and fit. The actual executable logs its GetKeyState import hook, a
+closed key1/open0 original query, and open-panel neutralization of key37
+(VK_LEFT). This establishes native invocation of the added path; physical
+host input remains prohibited and unobserved. The owned child exited0 with no
+muted private audio sessions; retail hash7095f630 remains unchanged. The
+mandatory combined attachment gate remains unaccepted.
+
+Witcher coordination: parity's source/compiler/cache checkpoint d4f5943 does
+not yet provide a safe isolated combined candidate; its baseline39 driver has
+no exact-panel key/command interface. No installed Witcher runtime is modified
+solely for this menu check. Native appearance/input confirmation waits for an
+isolated candidate and scoped panel probe; existing offline panel evidence
+remains qualified as renderer-only.
