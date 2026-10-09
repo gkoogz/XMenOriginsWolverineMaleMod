@@ -8,7 +8,9 @@ struct MotionCase {
  std::string name;int state;float glans,hang,controls[7],physics[8];V3 thighs[4];
 };
 int main(int argc,char** argv){
- if(argc!=5){puts("usage: root-motion-replay cases.txt body.bin report.csv enabled(0|1)");return 2;}
+ if(argc!=5&&argc!=6){puts("usage: root-motion-replay cases.txt body.bin report.csv enabled(0|1) [report-stride:1..960]");return 2;}
+ unsigned reportStride=16;
+ if(argc==6){char* end=nullptr;const auto value=strtoul(argv[5],&end,10);if(!end||*end||value<1||value>960)return 2;reportStride=unsigned(value);}
  const bool enabled=atoi(argv[4])!=0;
 #if ROOT_JOINT_ADAPTER
  SetEnvironmentVariableA("MALEMOD_ROOT_CONTACTS",enabled?"1":"0");
@@ -52,7 +54,7 @@ int main(int argc,char** argv){
    if(fabsf(shaftSpring.pitch)>=1.5707963268f||fabsf(shaftSpring.yaw)>=1.5707963268f)reversed++;
    maximumPitch=max(maximumPitch,fabsf(shaftSpring.pitch));maximumYaw=max(maximumYaw,fabsf(shaftSpring.yaw));
    maximumAngularSpeed=max(maximumAngularSpeed,max(fabsf(shaftSpring.pitchVelocity),fabsf(shaftSpring.yawVelocity)));maximumStationSpeed=max(maximumStationSpeed,speed);
-   if(step%16==0||step==959){const auto first=shaftNodes[1],tip=shaftNodes[shaftNodeCount-1];fprintf(report,"%s,%u,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",c.name.c_str(),step,shaftSpring.pitch,shaftSpring.yaw,shaftSpring.pitchVelocity,shaftSpring.yawVelocity,ModeValue(.42f,.62f,.92f),rootDriveAngle,first.x,first.y,first.z,tip.x,tip.y,tip.z,speed,rootError,lengthError);}
+   if(step%reportStride==0||step==959){const auto first=shaftNodes[1],tip=shaftNodes[shaftNodeCount-1];fprintf(report,"%s,%u,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",c.name.c_str(),step,shaftSpring.pitch,shaftSpring.yaw,shaftSpring.pitchVelocity,shaftSpring.yawVelocity,ModeValue(.42f,.62f,.92f),rootDriveAngle,first.x,first.y,first.z,tip.x,tip.y,tip.z,speed,rootError,lengthError);}
   }
   previous=target;havePrevious=true;
   printf("EPISODE %s pitch=%.9g yaw=%.9g pitchRate=%.9g yawRate=%.9g\n",c.name.c_str(),shaftSpring.pitch,shaftSpring.yaw,shaftSpring.pitchVelocity,shaftSpring.yawVelocity);

@@ -81,3 +81,29 @@ are excluded from Git. Reproduce numerical tests with a locally measured license
 body buffer and adapter-exported contact/control cases; do not invent game units
 or skeleton names. Other spokes consume a tested shared revision through their
 own pins and native integration rather than maintaining an independent copy.
+
+## Dense private helper trial
+
+The continuous fixture accepts an optional report stride from 1 to 960, with
+the original stride16 unchanged when omitted. A private staged adapter trial
+consumes the shared tangent-root helper now committed in Base4d5ef52; it keeps
+the reference native function closure separate. Its measured disabled CSV is
+exactly the previous d93611f baseline. This adapter glue is still private and
+has not replaced the canonical runtime or its pinned Base389 headers.
+
+Stride1 recorded every step of eight measured episodes and an expanded
+37-episode sequence. The additional numerical cases reuse measured default
+capsules; they are not additional native pose observations. All previously
+sampled rows match the dense report exactly. Invalid stride arguments reject
+before loading inputs. Dense proof and licensed reports are private in
+`D:/MaleModBuilds/wolverine-tangent-isolated-20261009/dense-trace-proof.json`.
+
+The enabled path remains rejected. Its largest rate is112.653rad/s at
+matrix-mode1-all-shapes-min step108. The accepted relative pitch decreases
+from .44519335 to .391867906rad, but the final velocity reports a positive
+112.653rad/s. This identifies the post-position contact velocity stage as
+the source of that burst. The measured angle-max episode also reaches
+2.03182rad/s late in settling, missed by the old stride16 sampling. Finite,
+welded-root and exact-link checks still pass; they do not certify stability.
+No clamp, installation, release, native or attachment acceptance follows
+these numerical results.
