@@ -177,6 +177,10 @@ static void Draw(IDirect3DDevice9* d){
    hulls.push_back(std::move(hull));
   }
   const auto raw=points;std::vector<M::Vec> anchors;
+  if(DiagnosticRequested("MeridianGeometry.request")){
+   char path[MAX_PATH]{};SiblingPath(path,"MeridianContact.bin");FILE* file=nullptr;
+   if(!fopen_s(&file,path,"wb")&&file){fwrite(raw.data(),sizeof(raw[0]),raw.size(),file);fclose(file);}
+  }
   for(unsigned k=0;k<10;k++)anchors.push_back(points[k*MeridianRecipe::columns/10]);
   for(auto ring:rings)anchors.push_back(ring.center);
   for(auto& lobe:lobeControls)anchors.push_back(M::Mul(M::Add(lobe[0],lobe[1]),.5f));anchors.push_back(apex);
@@ -203,7 +207,7 @@ static void Draw(IDirect3DDevice9* d){
    auto taut=points;for(unsigned i=0;i<MeridianRecipe::clothCount;i++)taut[i]=chart.Inverse(taut[i]);
    static std::vector<unsigned> certificates;
    // This measured rig's last two solids are the moving testicle ovoïds.
-   receipt=M::ClearMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,chartHulls,liveAxis,.04f,12,&certificates,7);
+   receipt=M::ClearMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,chartHulls,liveAxis,.04f,12,&certificates,7,true);
    fromChart();
    if(!M::WithinMeridianSampling(points,taut,MeridianRecipe::columns,MeridianRecipe::rows))throw std::runtime_error("Contact correction exceeds physical sampling spacing");
    for(unsigned i=0;i<MeridianRecipe::columns;i++){auto delta=M::Sub(points[i],raw[i]);if(M::Dot(delta,delta)>36.f)throw std::runtime_error("Sewn edge exceeds physical repair allowance");}
