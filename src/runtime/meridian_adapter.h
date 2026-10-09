@@ -7,9 +7,10 @@
 #include <malemod/garments/meridian_rig.hpp>
 #include <malemod/garments/meridian_continuity.hpp>
 #include <malemod/garments/meridian_follow.hpp>
+#include <malemod/garments/taut_contact.hpp>
 namespace MeridianAdapter {
 namespace M=malemod::garments::meridian;
-static_assert(MeridianRecipe::contractRevision==5,"Meridian geometry/binding contract mismatch");
+static_assert(MeridianRecipe::contractRevision==6,"Meridian geometry/binding contract mismatch");
 static IDirect3DVertexBuffer9* vb=nullptr;
 static IDirect3DIndexBuffer9* ib=nullptr,*uncovered=nullptr;
 static bool ready=false;
@@ -194,7 +195,7 @@ static void Draw(IDirect3DDevice9* d){
   ++attempts;
   bool moved=follower.Move(points,followRig,MeridianRecipe::columns);
   certified=moved&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
-  if(certified||(moved&&(refitInterior()||follower.DisplayWithinBudget(points,raw,followRig,MeridianRecipe::columns,interiorFaces.data(),unsigned(interiorFaces.size()))))){++followed;if(!certified)++uncertified;}else{
+  if(certified){++followed;}else{
   points=raw;
   std::vector<M::Hull> chartHulls;for(const auto& hull:hulls)chartHulls.push_back(chart.Transform(hull));
   std::vector<M::Hull> coverHulls{M::ConvexCover(chartHulls,liveAxis,.04f)};
@@ -203,11 +204,9 @@ static void Draw(IDirect3DDevice9* d){
   try{
    toChart();
    M::FitSeam(points,MeridianRecipe::columns,points[MeridianRecipe::clothCount-1],liveAxis,chartHulls,.12f,6.f);
-   M::WalkMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,coverHulls,liveAxis,.04f);
-   auto taut=points;for(unsigned i=0;i<MeridianRecipe::clothCount;i++)taut[i]=chart.Inverse(taut[i]);
-   static std::vector<unsigned> certificates;
-   // This measured rig's last two solids are the moving testicle ovoïds.
-   receipt=M::ClearMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,chartHulls,liveAxis,.04f,12,&certificates,7,true);
+   std::vector<M::Vec> taut;float padding=0;
+   receipt=M::WalkCertifiedTautEnvelope(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,chartHulls,liveAxis,.04f,&padding,&taut);
+   for(unsigned i=0;i<MeridianRecipe::clothCount;i++)taut[i]=chart.Inverse(taut[i]);
    fromChart();
    if(!M::WithinMeridianSampling(points,taut,MeridianRecipe::columns,MeridianRecipe::rows))throw std::runtime_error("Contact correction exceeds physical sampling spacing");
    for(unsigned i=0;i<MeridianRecipe::columns;i++){auto delta=M::Sub(points[i],raw[i]);if(M::Dot(delta,delta)>36.f)throw std::runtime_error("Sewn edge exceeds physical repair allowance");}
@@ -223,9 +222,8 @@ static void Draw(IDirect3DDevice9* d){
    catch(const std::exception&){points=raw;if(!follower.Move(points,followRig,MeridianRecipe::columns))continuity.Transport(points,anchors,MeridianRecipe::columns);}
    ++transported;
    certified=M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,repairCertificates);
-   if(!certified)refitInterior();
+   if(!certified){++uncertified;if(attempts%120==1)Log("Meridian rejected uncertified display frame=%ld: %s",renderFrameSerial,e.what());return;}
    continuity.Remember(points,raw,anchors,MeridianRecipe::columns,MeridianRecipe::clothCount);follower.Remember(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothCount);
-   if(!certified)++uncertified;
    if(attempts%120==1)Log("Meridian chart fallback frame=%ld transported=%d certified=%d: %s",renderFrameSerial,continuity.Ready(),certified,e.what());
   }
   }

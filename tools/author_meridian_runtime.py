@@ -24,6 +24,7 @@ def main():
     ap.add_argument('--inspection',type=Path,required=True);ap.add_argument('--lod',type=Path,required=True)
     ap.add_argument('--body-input',type=Path,required=True);ap.add_argument('--anatomy',type=Path,required=True)
     ap.add_argument('--columns',type=int,default=80)
+    ap.add_argument('--contract-revision',type=int,choices=(5,6),default=5)
     ap.add_argument('--output',type=Path,required=True);args=ap.parse_args()
     sys.path.insert(0,str(args.base.resolve()))
     from malemod_base.surface_guides import project_surface,fixed_ribbon,bezier
@@ -99,7 +100,7 @@ def main():
         ids=np.array([int(x) for x in re.findall(r'\d+',chunk)]);mask[ids]=True
     visible=af[~mask[af].all(1)]
     header=['#pragma once','#include <malemod/garments/meridian_runtime.hpp>','namespace MeridianRecipe {',
-        f'static constexpr unsigned contractRevision=5,columns={columns},rows={rows},aliasStart={alias_start},count={render_count},sampleCount={len(p)},faceCount={len(f)},clothCount={cloth_count},clothFaceCount={len(lod["faces"])};',
+        f'static constexpr unsigned contractRevision={args.contract_revision},columns={columns},rows={rows},aliasStart={alias_start},count={render_count},sampleCount={len(p)},faceCount={len(f)},clothCount={cloth_count},clothFaceCount={len(lod["faces"])};',
         'static const malemod::garments::meridian::Binding bindings[]={']
     band_vertices=j['trim']['bandVertices']
     if band_vertices%14:raise ValueError('Expected observed two-layer seven-row waistband')
@@ -164,7 +165,7 @@ def main():
     (args.output/'meridian_recipe.h').write_text('\n'.join(header)+'\n')
     (args.output/'binding.json').write_text(json.dumps(recipe)+'\n')
     np.savez(args.output/'reference.npz',points=p,faces=f,anatomy=av,body=bv,bodyIds=body_ids)
-    record=dict(schema=2,geometryBindingRevision=5,sources={str(path.resolve()):hashlib.sha256(path.read_bytes()).hexdigest() for path in [args.anatomy,Path(str(args.anatomy)+'.indices'),args.body_input,args.lod,args.inspection/'collision-model.json',args.inspection/'collision-model.obj',args.inspection/'fixed-straps.obj']},vertices=render_count,renderSeamAliases=rows,columns=columns,rows=rows,collisionSamples=sum(count for _,count in proxy_ranges),runtimePoseSamples=len(samples),triangles=len(f),clothTriangles=len(lod['faces']),clothVertices=cloth_count,
+    record=dict(schema=2,geometryBindingRevision=args.contract_revision,sources={str(path.resolve()):hashlib.sha256(path.read_bytes()).hexdigest() for path in [args.anatomy,Path(str(args.anatomy)+'.indices'),args.body_input,args.lod,args.inspection/'collision-model.json',args.inspection/'collision-model.obj',args.inspection/'fixed-straps.obj']},vertices=render_count,renderSeamAliases=rows,columns=columns,rows=rows,collisionSamples=sum(count for _,count in proxy_ranges),runtimePoseSamples=len(samples),triangles=len(f),clothTriangles=len(lod['faces']),clothVertices=cloth_count,
         referenceReconstructionError=max_error,hiddenAnatomyTriangles=len(af)-len(visible),retainedCollarTriangles=len(visible),
         dynamics='Live analytic circular-chain/dome/physics-ovoid wrapping, whole-triangle support certificate and welded render UV aliases; adaptive origin redistribution pending',installed=False)
     (args.output/'recipe-checks.json').write_text(json.dumps(record,indent=2));print(json.dumps(record))
