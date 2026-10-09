@@ -56,7 +56,11 @@ static HRESULT DrawSharedSkin(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base
  if(LoadSharedSkin(d)){bind(layout.normal,sharedSkinMaps[0]);bind(layout.specular,sharedSkinMaps[1]);}
  bind(layout.diffuse,color);bind(layout.subsurface,color);
  if(layout.tiling>=0&&SUCCEEDED(d->GetPixelShaderConstantF(layout.tiling,tiling,1))){const float canonicalTiling[4]={16,16,0,1};tilingSaved=true;d->SetPixelShaderConstantF(layout.tiling,canonicalTiling,1);}
+ // Sealed diagnostic: compare title skin against its native depth prepass.
+ DWORD oldDepth=0;char depthProbe[8]{};bool probe=anatomy&&index>0&&GetEnvironmentVariableA("MALEMOD_TANK_DEPTH_PROBE",depthProbe,8)==1&&depthProbe[0]=='1';
+ if(probe&&SUCCEEDED(d->GetRenderState(D3DRS_ZFUNC,&oldDepth)))d->SetRenderState(D3DRS_ZFUNC,D3DCMP_LESSEQUAL);else probe=false;
  HRESULT hr=anatomy&&layout.correctedBasis?DrawWithLightingDirections(d,type,base,minv,nv,start,count):origDIP(d,type,base,minv,nv,start,count);
+ if(probe)d->SetRenderState(D3DRS_ZFUNC,oldDepth);
  for(int i=0;i<16;i++)if(saved[i]){d->SetTexture(i,previous[i]);if(previous[i])previous[i]->Release();}
  if(tilingSaved)d->SetPixelShaderConstantF(layout.tiling,tiling,1);
  return hr;
