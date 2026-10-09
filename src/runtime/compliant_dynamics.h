@@ -305,9 +305,13 @@ static void PDPair(PDConstraint& c,float dt){
  c.geometryNormal=n;ra=CPSupport(0,n);rb=CPSupport(1,n*-1.f);float gap=Dot(pdPosition[pdBody0+1]+rb-pdPosition[pdBody0]-ra,n);
  PDContact(c,pdBody0+1,rb,pdBody0,ra,{},{},n,gap-.025f,0.f,dt);
 }
+static bool PDAnteriorBodyOwnsContact(int,V3,V3,float);
 static void PDBodyCapsule(PDConstraint& c,int s,V3 a,V3 b,V3 oldA,V3 oldB,float radius,float dt){
  if(!PDCapsuleMayContact(c,s,a,b,radius))return;
  int id=pdBody0+s;float t;V3 q{},arm{},n=PDContactNormal(c,s,a,b,arm,q,t);
+ // The rear branch can pin large contents behind the thighs after a fold.
+ // The one-sided recovery owns that branch, including its friction history.
+ if(n.x<0&&PDAnteriorBodyOwnsContact(s,a,b,radius)){c.normal=0;c.tangent={};c.anchorReady=false;return;}
  float gap=Dot(pdPosition[id]+arm-q,n)-radius;
  PDContact(c,id,arm,-1,{},q,oldA+(oldB-oldA)*t,n,gap,.000002f,dt);
 }
@@ -348,6 +352,7 @@ static void PDSetInput(const PDInput& a,const PDInput& b,float t){
  memcpy(pdOldThigh,pdThigh,sizeof(pdThigh));for(int i=0;i<4;i++)pdThigh[i]=a.thigh[i]+(b.thigh[i]-a.thigh[i])*t;
 }
 #include "anterior_envelope_adapter.h"
+#include "anterior_body_adapter.h"
 static void StepConstraintSolver(float dt,float gait,float side){
  if(!constraintSolverReady)InitializeConstraintSolver();CPEnsure();constraintSolverState=physicsState;StepRootSuspension(dt,gait,side);
  for(int s=0;s<2;s++){
@@ -429,6 +434,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
   PDPair(pair,dt);
   PDKeepPouchVentral(ventralCorrection);
   PDAnteriorEnvelope(dt);
+  PDAnteriorBodyRecovery(dt);
  }
  pdVelocityPass=false;
  // Exclude underside recovery from reconstructed velocity. A lobe that was
@@ -441,6 +447,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
  }
  PDSolveContactVelocities(dt);
  PDAnteriorEnvelopeVelocity();
+ PDAnteriorBodyRecovery(dt,true);
  if(ventralCorrection[0]<0.f||ventralCorrection[1]<0.f){
   float guideVelocity=(PDVentralHeight(pdPosition)-PDVentralHeight(pdOldPosition))/dt;
   for(int s=0;s<2;s++)if(ventralCorrection[s]<0.f)pdVelocity[pdBody0+s].z=min(pdVelocity[pdBody0+s].z,guideVelocity);

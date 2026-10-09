@@ -2,6 +2,7 @@ param(
  [string]$GamePath='C:/Games/X-Men Origins Wolverine',
  [Parameter(Mandatory=$true)][string]$CandidateBuild,
  [Parameter(Mandatory=$true)][string]$NativeEvidence,
+ [string]$PreviousDevelopmentBackup,
  [switch]$Development,
  [switch]$ValidateOnly
 )
@@ -22,7 +23,17 @@ if($production.schema -ne 'wolverine.production-build/1' -or $production.dirtySo
 if((Hash $candidate) -ne $production.runtimeSHA256 -or $production.baseCommit -ne $pin.commit){throw 'Production runtime or Base pin mismatch.'}
 if($native.sourceCommit -ne $production.sourceCommit -or $native.baseCommit -ne $production.baseCommit -or !$native.nativeGameplayObserved -or !$native.completeSampledMatrix -or $native.reportedDrawRejections -ne 0){throw 'Matching sampled native source evidence is required.'}
 if(!$native.fullAttachmentGatePassed -and !$Development){throw 'Full attachment acceptance is incomplete. Only an explicitly selected development installation can proceed, retaining the accepted runtime.'}
-if((Hash $target) -ne $release.runtimeSHA256){throw 'Expected the accepted retail baseline; preserve and reconcile an unknown runtime before upgrading.'}
+$currentHash=Hash $target;$previous=$null
+if($currentHash -ne $release.runtimeSHA256){
+ if(!$PreviousDevelopmentBackup){throw 'Supply the exact prior development backup to reconcile this installed runtime.'}
+ $previous=(Resolve-Path -LiteralPath $PreviousDevelopmentBackup).Path
+ $backupRoot=(Resolve-Path -LiteralPath (Join-Path $game 'WGame/ModBackups')).Path.TrimEnd('\')+'\'
+ if(!$previous.StartsWith($backupRoot,[StringComparison]::OrdinalIgnoreCase)){throw 'Previous development receipt must belong to this game.'}
+ $prior=Get-Content -LiteralPath (Join-Path $previous 'state.json') -Raw | ConvertFrom-Json
+ if($prior.status -ne 'Installed' -or $prior.mode -ne 'user-requested-development-update' -or $prior.target -ne $target -or $prior.installedSHA256 -ne $currentHash){throw 'Previous development receipt does not identify the installed runtime.'}
+ if((Hash (Join-Path $previous 'd3d9.dll')) -ne $prior.originalSHA256){throw 'Previous exact rollback has changed.'}
+ if($prior.originalSHA256 -ne $release.runtimeSHA256 -and $prior.acceptedBaselineSHA256 -ne $release.runtimeSHA256){throw 'Previous update is not tied to the accepted release.'}
+}
 foreach($pair in @(
  @('WGame/CookedPC/CH_Wolverine_Natural_SF.xxx',$release.installedPackageSHA256),
  @('WGame/CookedPC/WGame.xxx',$release.installedWGameSHA256),
@@ -49,7 +60,7 @@ Copy-Item -LiteralPath $target -Destination (Join-Path $backup 'd3d9.dll')
 $oldHash=Hash $target;$readOnly=(Get-Item -LiteralPath $target).IsReadOnly
 Copy-Item -LiteralPath (Join-Path $build 'provenance.json') -Destination (Join-Path $backup 'production-provenance.json')
 Copy-Item -LiteralPath $NativeEvidence -Destination (Join-Path $backup 'native-evidence.json')
-$state=[ordered]@{schema=1;mode='user-requested-development-update';target=$target;originalSHA256=$oldHash;installedSHA256=$production.runtimeSHA256;sourceCommit=$production.sourceCommit;baseCommit=$production.baseCommit;originalReadOnly=$readOnly;fullAttachmentGatePassed=[bool]$native.fullAttachmentGatePassed;acceptedRelease=$false;status='Pending';protectedFiles=$protected}
+$state=[ordered]@{schema=1;mode='user-requested-development-update';target=$target;originalSHA256=$oldHash;installedSHA256=$production.runtimeSHA256;sourceCommit=$production.sourceCommit;baseCommit=$production.baseCommit;originalReadOnly=$readOnly;fullAttachmentGatePassed=[bool]$native.fullAttachmentGatePassed;acceptedRelease=$false;acceptedBaselineSHA256=$release.runtimeSHA256;previousDevelopmentBackup=$previous;status='Pending';protectedFiles=$protected}
 $statePath=Join-Path $backup 'state.json'
 $state | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $statePath
 @'
@@ -68,7 +79,7 @@ Copy-Item -LiteralPath $backup -Destination $state.target -Force
 (Get-Item -LiteralPath $state.target).IsReadOnly=[bool]$state.originalReadOnly
 if((Hash $state.target) -ne $state.originalSHA256){throw 'Restored checksum mismatch.'}
 $state.status='Restored';$state | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $statePath
-Write-Output 'Accepted retail runtime restored exactly. Saves, settings and audio preserved.'
+Write-Output 'Previous runtime restored exactly. Saves, settings and audio preserved.'
 '@ | Set-Content -LiteralPath (Join-Path $backup 'Restore.ps1')
 $pending=$target+'.meridian-pending'
 try{

@@ -21,7 +21,7 @@
     },
     {
       "path": "tools/iteration/build_private_runtime.py",
-      "lfSHA256": "9c38538a8ef9d07e4ff69f72940f7cd5f65756e0eca4f822b512fe714a2e7a0c"
+      "lfSHA256": "5c5bf29c8f484ea42b2b5127e190233ace03c08578a7e855edd8d58dce74e46d"
     },
     {
       "path": "tools/iteration/Close-NativeSandbox.ps1",
@@ -89,7 +89,7 @@
     },
     {
       "path": "tools/iteration/sealed_d3d9.hpp",
-      "lfSHA256": "0bafa2feeccbbe9a4b6bc1bf0cfabb32f017441b92f8fb247e0bb9fe0b0a22f4"
+      "lfSHA256": "45563525b061b192f414603519c8192abc2ef50bcb30e7249293b2f4dcb75d2d"
     },
     {
       "path": "tools/iteration/seed_checkpoint.py",
@@ -97,7 +97,7 @@
     },
     {
       "path": "tools/iteration/Set-NativeSandboxInput.ps1",
-      "lfSHA256": "b087d85fecffbeef0d917c1d31b3dde7a9ded2c5a879aac84d2ba3b2ad0ba627"
+      "lfSHA256": "d8f607f3f80b2b0b6254173d5266b3a558c4ab3bcd382a451f57093fa066604f"
     },
     {
       "path": "tools/iteration/Start-NativeSandbox.ps1",
@@ -125,7 +125,7 @@
     },
     {
       "path": "tools/iteration/Test-MeridianCandidate.ps1",
-      "lfSHA256": "4357bd243dfe7ec665dc4da325141a3a455a28a95d1b20784c0a5ae147e76fda"
+      "lfSHA256": "cada31673a4a5f66cd2e4b24bff219e78c71e4ac8e038a23646383a8d72feabe"
     },
     {
       "path": "tools/iteration/anterior_recovery_fixture.cpp",
@@ -165,7 +165,7 @@
     },
     {
       "path": "src/runtime/meridian_adapter.h",
-      "lfSHA256": "8aea5f0de43cdf05da495cc9a33ffb42e3f059452cc2a81eb14536608cdb9a8a"
+      "lfSHA256": "6ab57d69991abfe640845fdc04d9f6206f45933631adb1026ee309b28cdf8e99"
     }
   ],
   "retailAssetsShipped": false,

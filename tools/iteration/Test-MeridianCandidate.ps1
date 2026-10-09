@@ -34,6 +34,8 @@ try {
  foreach($case in $cases){
   $before=(Get-Content -LiteralPath $logPath).Count
   Command Overall $case.overall;Command Width $case.width;Command Angle $case.restAngle
+  Command Length $(if($null -ne $case.length){[int]$case.length}else{50})
+  Command Scrotum $(if($null -ne $case.scrotum){[int]$case.scrotum}else{50})
   if($null -ne $case.state){Command State ([int]$case.state+1)}else{Command State 3}
   if($case.naked){Command Naked}else{Command Jockstrap}
   Command Resume;Start-Sleep -Seconds $SettleSeconds;Command Pause;Command Capture
@@ -52,6 +54,6 @@ try {
 } finally {
  Command S 50 Release;Command W 50 Release
  # Leave this owned candidate paused at the neutral, clothed state for review.
- Command Overall 50;Command Width 50;Command Angle 50;Command State 3;Command Jockstrap;Command Resume
+ Command Overall 50;Command Width 50;Command Length 50;Command Scrotum 50;Command Angle 50;Command State 3;Command Jockstrap;Command Resume
  Start-Sleep -Seconds 2;Command Pause
 }
