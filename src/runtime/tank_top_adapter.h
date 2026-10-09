@@ -1,5 +1,6 @@
 #pragma once
 #include "tank_top_data.h"
+#include "meridian_state_audit.h"
 #define FABRIC_MATERIAL_NAMESPACE TankTopMaterial
 #include "fabric_material.inl"
 #undef FABRIC_MATERIAL_NAMESPACE
@@ -13,7 +14,8 @@ static IDirect3DIndexBuffer9* ib=nullptr;
 static IDirect3DVertexDeclaration9* declaration=nullptr;
 static IDirect3DStateBlock9* state=nullptr;
 static LONG prepared=-3;
-static std::vector<JockstrapAdapter::RenderVertex> vertices;
+struct RenderVertex {float p[3],n[3],uv[2],color[4];};
+static std::vector<RenderVertex> vertices;
 static void Refit(){
  EnsureSharedBody();if(bodyRevision==sharedBodyRevision)return;
  memcpy(fitted,TankTopRecipe::vertices,sizeof(fitted));
@@ -35,7 +37,7 @@ static void Release(){
  vb=nullptr;ib=nullptr;declaration=nullptr;state=nullptr;prepared=-3;bodyRevision=~0u;TankTopMaterial::Release();
 }
 static bool Ensure(IDirect3DDevice9* d){
- if(!vb&&FAILED(d->CreateVertexBuffer(count*sizeof(JockstrapAdapter::RenderVertex),D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY,0,D3DPOOL_DEFAULT,&vb,nullptr)))return false;
+ if(!vb&&FAILED(d->CreateVertexBuffer(count*sizeof(RenderVertex),D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY,0,D3DPOOL_DEFAULT,&vb,nullptr)))return false;
  if(!ib){
   if(FAILED(d->CreateIndexBuffer(sizeof(TankTopRecipe::triangles),D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_DEFAULT,&ib,nullptr)))return false;
   void* raw=nullptr;if(FAILED(ib->Lock(0,0,&raw,0))){ib->Release();ib=nullptr;return false;}memcpy(raw,TankTopRecipe::triangles,sizeof(TankTopRecipe::triangles));ib->Unlock();
