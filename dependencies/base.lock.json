@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/gkoogz/MaleModBase.git",
-  "commit": "e42147c75d854a8666bc40d0ccd71b29b0ebd1a8",
+  "commit": "389f6c04e07b290da34a5261356c745f58f3bb1d",
   "modules": [
     "surface/pelvic_frame",
     "surface/root_contact",
