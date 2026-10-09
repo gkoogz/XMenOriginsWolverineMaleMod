@@ -144,7 +144,11 @@ static void Draw(IDirect3DDevice9* d){
    auto* frame=MeridianRecipe::proxyFrames[h];M::Vec e=M::Unit(M::Sub(points[frame[1]],points[frame[0]])),n=M::Unit(M::Cross(e,M::Sub(points[frame[2]],points[frame[0]]))),v=M::Cross(n,e);
    auto* range=MeridianRecipe::normalRanges[h];std::vector<M::Vec> normals;normals.reserve(range[1]+2);normals.push_back(liveAxis);normals.push_back(M::Mul(liveAxis,-1));
    for(unsigned k=0;k<range[1];k++){auto q=MeridianRecipe::supportNormals[range[0]+k];normals.push_back(M::Add(M::Mul(e,q[0]),M::Add(M::Mul(v,q[1]),M::Mul(n,q[2]))));}
-   auto* proxy=MeridianRecipe::proxyRanges[h];M::Hull hull;hull.reserve(normals.size());for(auto normal:normals){normal=M::Unit(normal);float support=h<6?M::LinkSupport(rings[h],rings[h+1],normal):(h==6?M::DomeSupport(rings[6],apex,normal):M::OvoidSupport(lobeControls[h-7],normal));hull.push_back({normal,support+.0002f});}hulls.push_back(std::move(hull));
+   auto* proxy=MeridianRecipe::proxyRanges[h];M::Hull hull;hull.reserve(normals.size());for(auto normal:normals){normal=M::Unit(normal);float support=h<6?M::LinkSupport(rings[h],rings[h+1],normal):(h==6?M::DomeSupport(rings[6],apex,normal):M::OvoidSupport(lobeControls[h-7],normal));hull.push_back({normal,support+.0002f});}
+   if(h<6){auto a=rings[h],b=rings[h+1];hull.support=[a,b](M::Vec n){return M::LinkSupport(a,b,n)+.0002f;};}
+   else if(h==6){auto rim=rings[6];hull.support=[rim,apex](M::Vec n){return M::DomeSupport(rim,apex,n)+.0002f;};}
+   else{std::array<M::Vec,6> controls;std::copy(lobeControls[h-7],lobeControls[h-7]+6,controls.begin());hull.support=[controls](M::Vec n){return M::OvoidSupport(controls.data(),n)+.0002f;};}
+   hulls.push_back(std::move(hull));
   }
   const auto raw=points;std::vector<M::Vec> anchors;
   for(unsigned k=0;k<10;k++)anchors.push_back(points[k*MeridianRecipe::columns/10]);
@@ -159,9 +163,10 @@ static void Draw(IDirect3DDevice9* d){
   certified=follower.Move(points,followRig,MeridianRecipe::columns)&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
   if(certified){++followed;}else{
   points=raw;
+  std::vector<M::Hull> coverHulls{M::ConvexCover(hulls,liveAxis,.04f)};
   try{
    M::FitSeam(points,MeridianRecipe::columns,points[MeridianRecipe::clothCount-1],liveAxis,hulls,.12f,6.f);
-   M::SeedMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,liveAxis);
+   M::WalkMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,coverHulls,liveAxis,.04f);
    static std::vector<unsigned> certificates;
    // This measured rig's last two solids are the moving testicle ovoïds.
    receipt=M::ClearMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,liveAxis,.04f,12,&certificates,7);
@@ -169,9 +174,11 @@ static void Draw(IDirect3DDevice9* d){
    follower.Remember(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothCount);
    wrapped=certified=true;++wraps;
   }catch(const std::exception& e){
+   // Failed triangle projection cannot become render geometry. Reconstruct
+   // from the current pose instead of distorting a transported old chart.
    points=raw;
-   if(continuity.Transport(points,anchors,MeridianRecipe::columns))++transported;
-   certified=M::RepairTransportedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,4,&repairCertificates);
+   M::WalkMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,coverHulls,liveAxis,.04f);++transported;
+   certified=M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,repairCertificates);
    if(!certified)++uncertified;
    if(attempts%120==1)Log("Meridian chart fallback frame=%ld transported=%d certified=%d: %s",renderFrameSerial,continuity.Ready(),certified,e.what());
   }
