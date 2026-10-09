@@ -8,6 +8,7 @@ struct Vertex {float x,y,z,rhw;D3DCOLOR color;float u,v;};
 static IDirect3DTexture9* atlas=nullptr;
 static std::vector<Vertex> vertices;
 static float advances[95]{},fontHeight=48.f;
+static constexpr int rasterEm=40;
 static bool failed=false;
 static void Release(){if(atlas)atlas->Release();atlas=nullptr;failed=false;vertices.clear();}
 static int CALLBACK FindFont(const LOGFONTW*,const TEXTMETRICW*,DWORD,LPARAM found){*reinterpret_cast<bool*>(found)=true;return 0;}
@@ -20,7 +21,7 @@ static bool Ensure(IDirect3DDevice9* d){
  if(atlas)return true;if(failed)return false;failed=true;
  HDC dc=CreateCompatibleDC(nullptr);if(!dc)return false;
  BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=1024;info.bmiHeader.biHeight=-512;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;
- void* pixels=nullptr;auto bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&pixels,nullptr,0);auto font=Font(dc,40);
+ void* pixels=nullptr;auto bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&pixels,nullptr,0);auto font=Font(dc,rasterEm);
  if(!bitmap||!font||!pixels){if(font)DeleteObject(font);if(bitmap)DeleteObject(bitmap);DeleteDC(dc);return false;}
  auto oldBitmap=SelectObject(dc,bitmap),oldFont=SelectObject(dc,font);memset(pixels,0,1024*512*4);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(255,255,255));
  TEXTMETRICW metric{};GetTextMetricsW(dc,&metric);fontHeight=float(metric.tmHeight);wchar_t actual[LF_FACESIZE]{};GetTextFaceW(dc,LF_FACESIZE,actual);
@@ -33,7 +34,8 @@ static bool Ensure(IDirect3DDevice9* d){
 }
 static void Text(const char* text,RECT r,D3DCOLOR color,DWORD flags,float scale){
  float rawWidth=0;for(auto p=text;*p;p++)rawWidth+=advances[unsigned(*p)>=32&&unsigned(*p)<127?unsigned(*p)-32:0];
- float size=malemod::controls::menu::TextHeight/fontHeight;
+ // TextHeight is the native font's em size; line metrics include leading.
+ float size=malemod::controls::menu::TextHeight/rasterEm;
  if(rawWidth*size>r.right-r.left)size=float(r.right-r.left)/max(1.f,rawWidth);
  float x=(flags&DT_RIGHT)?r.right-rawWidth*size:float(r.left),y=r.top+((r.bottom-r.top)-fontHeight*size)*.5f;
  for(auto p=text;*p;p++){unsigned i=unsigned(*p)>=32&&unsigned(*p)<127?unsigned(*p)-32:0;float gw=advances[i]+2.f;float l=(x-1.f*size)*scale-.5f,t=y*scale-.5f,rr=l+gw*size*scale,b=t+fontHeight*size*scale;
