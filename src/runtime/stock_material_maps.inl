@@ -1,7 +1,9 @@
 // Original licensed maps are generated into the build and embedded as resources.
 static IDirect3DTexture9* stockMaps[5]{};
-static void ReleaseStockMaps(){for(auto& p:stockMaps){if(p)p->Release();p=nullptr;}}
+static bool stockMapsFailed=false;
+static void ReleaseStockMaps(){for(auto& p:stockMaps){if(p)p->Release();p=nullptr;}stockMapsFailed=false;}
 static bool EnsureStockMaps(IDirect3DDevice9* d){
+ if(stockMapsFailed)return false;
  static const int anchor=0;HMODULE module=nullptr;
  if(!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)&anchor,&module))return false;
 #ifdef FABRIC_COTTON_TOP
@@ -13,8 +15,8 @@ static bool EnsureStockMaps(IDirect3DDevice9* d){
   auto r=FindResourceA(module,MAKEINTRESOURCEA(ids[i]),RT_RCDATA);if(!r)return false;
   auto memory=LoadResource(module,r);auto bytes=SizeofResource(module,r);auto data=memory?LockResource(memory):nullptr;if(!data)return false;
   // Generate all lower levels once. Full source resolution is retained.
-  HRESULT hr=D3DXCreateTextureFromFileInMemoryEx(d,data,bytes,D3DX_DEFAULT,D3DX_DEFAULT,0,0,D3DFMT_UNKNOWN,D3DPOOL_MANAGED,D3DX_FILTER_NONE,D3DX_FILTER_BOX,0,nullptr,nullptr,&stockMaps[i]);
-  if(FAILED(hr)){Log("Stock garment map %u failed=%08x",ids[i],hr);ReleaseStockMaps();return false;}
+  HRESULT hr=D3DXCreateTextureFromFileInMemoryEx(d,data,bytes,D3DX_DEFAULT,D3DX_DEFAULT,0,0,D3DFMT_UNKNOWN,D3DPOOL_DEFAULT,D3DX_FILTER_NONE,D3DX_FILTER_BOX,0,nullptr,nullptr,&stockMaps[i]);
+  if(FAILED(hr)){Log("Stock garment map %u failed=%08x",ids[i],hr);ReleaseStockMaps();stockMapsFailed=true;return false;}
   D3DSURFACE_DESC desc{};stockMaps[i]->GetLevelDesc(0,&desc);Log("Stock garment map %u loaded %ux%u levels=%u",ids[i],desc.Width,desc.Height,stockMaps[i]->GetLevelCount());
  }
  return true;
