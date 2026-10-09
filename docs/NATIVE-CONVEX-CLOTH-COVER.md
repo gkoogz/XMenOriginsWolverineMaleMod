@@ -11,8 +11,9 @@ seeds the walk from the shared cover and rebuilds a fresh smooth display envelop
 on failure. Failed partial repair is never rendered. Uncertified display
 envelopes remain separately logged and do not count as a collision pass.
 
-The posterior-body guard from the rejected update is disabled. Existing shaft,
-suspension and body physics otherwise remain; this isolates the garment repair.
+The posterior-body guard was disabled for the cloth-only isolation pass, then
+restored for the combined candidate. Existing shaft and suspension physics
+otherwise remain.
 Topology, fixed trim, UVs, material,32rays and full cadence are preserved.
 
 Fresh all-four-size-controls100 native motion capture furnished28 coherent
@@ -42,4 +43,11 @@ room cases without reported draw rejections. Default, width75 and all-max
 clothed/naked native renders were inspected. This isolates the reported spikes
 and missing draws from the body guard. The combined candidate restores the
 bounded rear recovery and requires its own motion and attachment inspection.
+
+Fixed sewn-edge/terminal contact and movable interior contact have separate
+certificates. The follower may reuse a certified movable interior while the
+whole mesh remains reported as uncertified. No fixed-edge failure is hidden or
+used to justify an unbounded correction. The source-only Test-PouchMotion.ps1
+captures unpaused jump, landing and run samples at default and maximum sizes
+through the owned station; it never drives the host input or focus.
 

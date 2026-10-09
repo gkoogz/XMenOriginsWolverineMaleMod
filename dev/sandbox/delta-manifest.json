@@ -165,11 +165,15 @@
     },
     {
       "path": "src/runtime/meridian_adapter.h",
-      "lfSHA256": "904cd7ddb95036881effc92e31503a22faa2e38b40394dee8cf1104218d1d480"
+      "lfSHA256": "a5bbd5176ebd8210ec7137e2724c6b3ffd6918080ca6341a9f87d1bd0d29da72"
     },
     {
       "path": "tools/iteration/Test-AnteriorBodyMotion.ps1",
       "lfSHA256": "d769d6e25fb0de4b7f5a32ec98f0526dc00e1e2fb1a17964becdd44492f79a8c"
+    },
+    {
+      "path": "tools/iteration/Test-PouchMotion.ps1",
+      "lfSHA256": "2527353a47f3ad7ffff07e401a688a87b92c87dedaf9c39c61400cc554d2c819"
     }
   ],
   "retailAssetsShipped": false,

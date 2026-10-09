@@ -17,6 +17,8 @@ static M::SurfaceContinuity continuity;
 static M::SurfaceFollower follower;
 static std::vector<unsigned> followCertificates;
 static std::vector<unsigned> repairCertificates;
+static std::vector<unsigned> interiorCertificates;
+static std::vector<M::Face> interiorFaces;
 static LONG drawn=-3,prepared=-3;
 static unsigned drawnPass=~0u;
 static std::vector<JockstrapAdapter::RenderVertex> vertices;
@@ -32,9 +34,9 @@ static bool CaptureRaw(){static bool value=[](){char s[8]{};return GetEnvironmen
 static void CheckFollowEpoch(){
  static float controls[9]{};static int state=-1,scene=-2;static unsigned long long epoch=~0ull;bool changed=state!=physicsState||scene!=anatomyScene||epoch!=clothingEpoch;
  for(unsigned k=0;k<9;k++){float value=k<7?sliderUI[k]:(k==7?hangUI:glansUI);changed|=controls[k]!=value;controls[k]=value;}
- state=physicsState;scene=anatomyScene;epoch=clothingEpoch;if(changed){follower.Reset();followCertificates.clear();}
+ state=physicsState;scene=anatomyScene;epoch=clothingEpoch;if(changed){follower.Reset();followCertificates.clear();interiorCertificates.clear();}
 }
-static void Release(){for(auto* p:{ib,uncovered})if(p)p->Release();ib=uncovered=nullptr;if(vb)vb->Release();vb=nullptr;for(auto& t:sectionTarget){if(t)t->Release();t=nullptr;}MeridianMaterial::Release();continuity.Reset();follower.Reset();followCertificates.clear();repairCertificates.clear();ready=false;drawn=prepared=-3;drawnPass=~0u;}
+static void Release(){for(auto* p:{ib,uncovered})if(p)p->Release();ib=uncovered=nullptr;if(vb)vb->Release();vb=nullptr;for(auto& t:sectionTarget){if(t)t->Release();t=nullptr;}MeridianMaterial::Release();continuity.Reset();follower.Reset();followCertificates.clear();repairCertificates.clear();interiorCertificates.clear();ready=false;drawn=prepared=-3;drawnPass=~0u;}
 static void Update(const unsigned char* body){
  if(!Active()||!body)return;
  CheckFollowEpoch();
@@ -165,10 +167,13 @@ static void Draw(IDirect3DDevice9* d){
   for(auto ring:rings)followRig.push_back({ring.center,M::Mul(ring.u,ring.radius),M::Mul(ring.v,ring.radius),M::Mul(M::Cross(ring.u,ring.v),ring.radius)});
   for(auto& lobe:lobeControls)followRig.push_back({M::Mul(M::Add(lobe[0],lobe[1]),.5f),M::Mul(M::Sub(lobe[2],lobe[3]),.5f),M::Mul(M::Sub(lobe[4],lobe[5]),.5f),M::Mul(M::Sub(lobe[0],lobe[1]),.5f)});
   M::WrapReceipt receipt{};bool wrapped=false,certified=false;
+  if(interiorFaces.empty())M::MovableClothFaces(MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,MeridianRecipe::columns,MeridianRecipe::clothCount,interiorFaces);
+  auto refitInterior=[&](){return !interiorFaces.empty()&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,interiorFaces.data(),unsigned(interiorFaces.size()),hulls,interiorCertificates);};
   static unsigned attempts=0,wraps=0,transported=0,uncertified=0,followed=0;
   ++attempts;
-  certified=follower.Move(points,followRig,MeridianRecipe::columns)&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
-  if(certified){++followed;}else{
+  bool moved=follower.Move(points,followRig,MeridianRecipe::columns);
+  certified=moved&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
+  if(certified||(moved&&refitInterior())){++followed;if(!certified)++uncertified;}else{
   points=raw;
   std::vector<M::Hull> coverHulls{M::ConvexCover(hulls,liveAxis,.04f)};
   try{
@@ -188,6 +193,7 @@ static void Draw(IDirect3DDevice9* d){
    catch(const std::exception&){points=raw;if(!follower.Move(points,followRig,MeridianRecipe::columns))continuity.Transport(points,anchors,MeridianRecipe::columns);}
    ++transported;
    certified=M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,repairCertificates);
+   if(!certified&&refitInterior()){continuity.Remember(points,raw,anchors,MeridianRecipe::columns,MeridianRecipe::clothCount);follower.Remember(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothCount);}
    if(!certified)++uncertified;
    if(attempts%120==1)Log("Meridian chart fallback frame=%ld transported=%d certified=%d: %s",renderFrameSerial,continuity.Ready(),certified,e.what());
   }
