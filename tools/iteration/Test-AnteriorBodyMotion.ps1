@@ -13,7 +13,12 @@ function Capture([string]$Label){
  $control=Get-Content -LiteralPath (Join-Path $root 'owned-game/Binaries/MaleModSandboxControl.ini') -Raw
  if($control -notmatch 'Revision=(\d+)'){throw 'Missing command identity.'}
  $revision=$Matches[1]
- $source=Get-ChildItem -LiteralPath $run -Filter "*-command-$revision.png" | Select-Object -First 1
+ $deadline=(Get-Date).AddSeconds(5);$source=$null
+ do{
+  $complete=(Get-Content -LiteralPath (Join-Path $root 'owned-game/Binaries/WolverineRuntime.log') -Raw) -match "Private native capture revision=$revision result=00000000"
+  if($complete){$source=Get-ChildItem -LiteralPath $run -Filter "*-command-$revision.png" | Select-Object -First 1}
+  if(!$source){Start-Sleep -Milliseconds 100}
+ }while(!$source -and (Get-Date) -lt $deadline)
  if(!$source){throw 'Missing acknowledged native capture.'}
  $path=Join-Path $out ($Label+'.png');Copy-Item -LiteralPath $source.FullName -Destination $path
  $script:records+=[ordered]@{label=$Label;capture=$path;sha256=(Get-FileHash -LiteralPath $path).Hash;visualAccepted=$false}
