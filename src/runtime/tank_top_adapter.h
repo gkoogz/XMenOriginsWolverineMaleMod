@@ -42,7 +42,7 @@ static bool Ensure(IDirect3DDevice9* d){
   if(FAILED(d->CreateIndexBuffer(sizeof(TankTopRecipe::triangles),D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_DEFAULT,&ib,nullptr)))return false;
   void* raw=nullptr;if(FAILED(ib->Lock(0,0,&raw,0))){ib->Release();ib=nullptr;return false;}memcpy(raw,TankTopRecipe::triangles,sizeof(TankTopRecipe::triangles));ib->Unlock();
  }
- if(!declaration){D3DVERTEXELEMENT9 elements[]={{0,0,D3DDECLTYPE_FLOAT3,0,D3DDECLUSAGE_POSITION,0},{0,12,D3DDECLTYPE_FLOAT3,0,D3DDECLUSAGE_NORMAL,0},{0,24,D3DDECLTYPE_FLOAT2,0,D3DDECLUSAGE_TEXCOORD,0},{0,32,D3DDECLTYPE_FLOAT4,0,D3DDECLUSAGE_COLOR,0},D3DDECL_END()};if(FAILED(d->CreateVertexDeclaration(elements,&declaration)))return false;}
+ if(!declaration){D3DVERTEXELEMENT9 elements[]={{0,0,D3DDECLTYPE_FLOAT3,0,D3DDECLUSAGE_POSITION,0},{0,12,D3DDECLTYPE_FLOAT3,0,D3DDECLUSAGE_NORMAL,0},{0,24,D3DDECLTYPE_FLOAT2,0,D3DDECLUSAGE_TEXCOORD,0},{0,32,D3DDECLTYPE_FLOAT4,0,D3DDECLUSAGE_TEXCOORD,1},D3DDECL_END()};if(FAILED(d->CreateVertexDeclaration(elements,&declaration)))return false;}
  if(!state&&FAILED(d->CreateStateBlock(D3DSBT_ALL,&state)))return false;
  return true;
 }

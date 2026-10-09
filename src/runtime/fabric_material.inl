@@ -64,7 +64,7 @@ static bool Ensure(IDirect3DDevice9* d){
  D3DXMACRO defines[]={{"HAS_DIRECTION",flags[0]>.5f?"1":"0"},{"HAS_SH",flags[1]>.5f?"1":"0"},{"HAS_LOCAL",flags[2]>.5f?"1":"0"},{"HAS_SPOT",flags[3]>.5f?"1":"0"},{nullptr,nullptr}};
  const char* vertex=R"(
  float4 L[4]:register(c0);float4 V[4]:register(c4);
- struct I{float3 p:POSITION;float3 n:NORMAL;float2 uv:TEXCOORD0;float4 c:COLOR0;};
+ struct I{float3 p:POSITION;float3 n:NORMAL;float2 uv:TEXCOORD0;float4 c:TEXCOORD1;};
  // Material role and winding are data, including values outside [0,1].
  // D3D9 color interpolators saturate; TEXCOORD retains these values.
  struct O{float4 p:POSITION;float3 n:TEXCOORD1;float3 w:TEXCOORD2;float4 screen:TEXCOORD3;float2 uv:TEXCOORD0;float4 c:TEXCOORD4;};
