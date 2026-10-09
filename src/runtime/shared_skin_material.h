@@ -59,7 +59,12 @@ static HRESULT DrawSharedSkin(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base
  // Sealed diagnostic: compare title skin against its native depth prepass.
  DWORD oldDepth=0;char depthProbe[8]{};bool probe=anatomy&&index>0&&GetEnvironmentVariableA("MALEMOD_TANK_DEPTH_PROBE",depthProbe,8)==1&&depthProbe[0]=='1';
  if(probe&&SUCCEEDED(d->GetRenderState(D3DRS_ZFUNC,&oldDepth)))d->SetRenderState(D3DRS_ZFUNC,D3DCMP_LESSEQUAL);else probe=false;
+ DWORD oldCull=0;char cullProbe[8]{};bool cull=anatomy&&index>0&&GetEnvironmentVariableA("MALEMOD_TANK_CULL_PROBE",cullProbe,8)==1&&cullProbe[0]=='1';
+ if(cull&&SUCCEEDED(d->GetRenderState(D3DRS_CULLMODE,&oldCull)))d->SetRenderState(D3DRS_CULLMODE,D3DCULL_NONE);else cull=false;
+ if(anatomy&&captureTankMaterials)CaptureBoundDraw(d,type,base,minv,nv,start,count);
  HRESULT hr=anatomy&&layout.correctedBasis?DrawWithLightingDirections(d,type,base,minv,nv,start,count):origDIP(d,type,base,minv,nv,start,count);
+ if(anatomy&&captureTankMaterials)CaptureSurface(d,"anatomy-after");
+ if(cull)d->SetRenderState(D3DRS_CULLMODE,oldCull);
  if(probe)d->SetRenderState(D3DRS_ZFUNC,oldDepth);
  for(int i=0;i<16;i++)if(saved[i]){d->SetTexture(i,previous[i]);if(previous[i])previous[i]->Release();}
  if(tilingSaved)d->SetPixelShaderConstantF(layout.tiling,tiling,1);
