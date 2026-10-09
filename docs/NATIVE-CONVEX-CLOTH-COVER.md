@@ -28,3 +28,11 @@ then the repository-owned native room matrix and unpaused jump/run/landing
 captures. Record installed runtime/source/pins separately from derived sealed
 test runtimes. Keep the exact restored retail runtime and rollback until native
 inspection; preserve saves/settings/audio and unrelated dirty worker work.
+
+The first native candidate was rejected: folded-tip polar coordinates exceeded
+the seam repair allowance and dropped draws; inner support-only guides also
+allowed visible skin through the pouch. The revised candidate uses the current
+sewn boundary area normal for the cloth pole and includes the actual enclosing
+skin radii plus both pressure transforms in the lobe controls. A chart failure
+can use an unmodified current-pose prediction, never a partial failed repair.
+Retail5df remains installed pending renewed native inspection.

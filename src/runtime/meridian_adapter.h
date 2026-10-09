@@ -49,7 +49,14 @@ static void Update(const unsigned char* body){
   for(unsigned i:sampleIDs){
    if(i>=MeridianRecipe::columns&&i<MeridianRecipe::clothCount-1&&follower.Ready()&&!CaptureRaw())continue;
    auto point=M::Transport(MeridianRecipe::bindings[i],fetch);auto& dst=posed[i];auto b=MeridianRecipe::bindings[i];
-   for(unsigned side=0;side<2;side++)for(unsigned control=0;control<6;control++)if(i==MeridianRecipe::lobeControls[side][control]){auto center=CPCenter(side),r=CPRadii(side);unsigned axis=control<2?2:(control<4?0:1);float radius=axis==2?r.z:(axis==0?r.x:r.y);float sign=control%2? -1.f:1.f;auto p=center+cpBasis[side][axis]*(radius*1.03f*sign);point={p.x,p.y,p.z};b=MeridianRecipe::bindings[MeridianRecipe::lobeControls[side][0]];}
+   for(unsigned side=0;side<2;side++)for(unsigned control=0;control<6;control++)if(i==MeridianRecipe::lobeControls[side][control]){
+    auto center=CPCenter(side),r=CPRadii(side),scale=CPDiv(r,side?V3{5.724f,4.86f,7.81f}:V3{5.724f,4.86f,7.93f});
+    // Enclose the rendered skin, including both current pressure transforms,
+    // rather than the smaller internal physics support.
+    V3 outer=r+CPMul({.80f,.95f,.65f},scale);unsigned axis=control<2?2:(control<4?0:1);float sign=control%2?-1.f:1.f;
+    V3 local=axis==0?V3{outer.x,0,0}:axis==1?V3{0,outer.y,0}:V3{0,0,outer.z};
+    auto p=center+CPTransform(local*(1.03f*sign),side);point={p.x,p.y,p.z};b=MeridianRecipe::bindings[MeridianRecipe::lobeControls[side][0]];
+   }
    dst.binding=b;
    M::Vec bary{};for(unsigned k=0;k<3;k++)bary=M::Add(bary,M::Mul(fetch(b.surface,b.source[k]),b.weights[k]));
    auto offset=M::Sub(point,bary);
@@ -138,7 +145,7 @@ static void Draw(IDirect3DDevice9* d){
   for(unsigned h=0;h<6;h++)M::WriteLink(points.data()+MeridianRecipe::proxyRanges[h][0],rings[h],rings[h+1],64);
   M::WriteDome(points.data()+MeridianRecipe::proxyRanges[6][0],rings[6],apex,24,64);
   for(unsigned h=0;h<2;h++){auto c=lobeControls[h];M::WriteOvoid(points.data()+MeridianRecipe::proxyRanges[h+7][0],c[0],c[1],c[2],c[3],c[4],c[5],24,48);}
-  auto liveAxis=M::PreparePole(points,MeridianRecipe::clothCount-1,MeridianRecipe::count,MeridianRecipe::sampleCount-1,M::AttachmentCentroid(points,MeridianRecipe::columns));
+  auto liveAxis=M::PrepareEnvelopePole(points,MeridianRecipe::columns,MeridianRecipe::clothCount-1,MeridianRecipe::count,MeridianRecipe::sampleCount-1);
   std::vector<M::Hull> hulls;hulls.reserve(9);
   for(unsigned h=0;h<9;h++){
    auto* frame=MeridianRecipe::proxyFrames[h];M::Vec e=M::Unit(M::Sub(points[frame[1]],points[frame[0]])),n=M::Unit(M::Cross(e,M::Sub(points[frame[2]],points[frame[0]]))),v=M::Cross(n,e);
@@ -177,7 +184,9 @@ static void Draw(IDirect3DDevice9* d){
    // Failed triangle projection cannot become render geometry. Reconstruct
    // from the current pose instead of distorting a transported old chart.
    points=raw;
-   M::WalkMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,coverHulls,liveAxis,.04f);++transported;
+   try{M::WalkMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,coverHulls,liveAxis,.04f);}
+   catch(const std::exception&){points=raw;if(!follower.Move(points,followRig,MeridianRecipe::columns))continuity.Transport(points,anchors,MeridianRecipe::columns);}
+   ++transported;
    certified=M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,repairCertificates);
    if(!certified)++uncertified;
    if(attempts%120==1)Log("Meridian chart fallback frame=%ld transported=%d certified=%d: %s",renderFrameSerial,continuity.Ready(),certified,e.what());
