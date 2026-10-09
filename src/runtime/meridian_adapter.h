@@ -29,6 +29,21 @@ static IDirect3DSurface9* sectionTarget[3]{};
 static bool Enabled(){return true;}
 static bool Active(){return Enabled()&&clothingStyle==1;}
 static bool CaptureRaw(){static bool value=[](){char s[8]{};return GetEnvironmentVariableA("MALEMOD_MERIDIAN_RAW_CAPTURE",s,sizeof(s))==1&&s[0]=='1';}();return value;}
+// Sealed diagnostics use explicit request files and the opt-in light trace.
+// Neither capture nor geometry freezing is available during ordinary play.
+static bool DiagnosticRequested(const char* name){
+ static bool trace=[](){char value[8]{};return GetEnvironmentVariableA("MALEMOD_MERIDIAN_LIGHT_TRACE",value,8)==1&&value[0]=='1';}();
+ if(!trace)return false;char path[MAX_PATH]{};SiblingPath(path,name);return GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES;
+}
+static void CaptureRenderMesh(){
+ if(!DiagnosticRequested("MeridianGeometry.request"))return;
+ char path[MAX_PATH]{};SiblingPath(path,"MeridianRender.bin");FILE* file=nullptr;
+ if(!fopen_s(&file,path,"wb")&&file){
+  const unsigned header[]={MeridianRecipe::count,unsigned(sizeof(vertices[0])),unsigned(prepared)};
+  fwrite(header,sizeof(header),1,file);fwrite(sectionLocal[2],sizeof(float),16,file);
+  fwrite(vertices.data(),sizeof(vertices[0]),MeridianRecipe::count,file);fclose(file);
+ }
+}
 // UI morphology/state and scene transitions invalidate material bindings;
 // ordinary motion of the existing rig does not.
 static void CheckFollowEpoch(){
@@ -124,7 +139,8 @@ static void Draw(IDirect3DDevice9* d){
  for(unsigned k=0;k<3;k++)if(JockstrapAdapter::paletteFrame[k]!=renderFrameSerial||!sectionTarget[k]||sectionTarget[k]!=sectionTarget[2])return;
  IDirect3DSurface9* target=nullptr;d->GetRenderTarget(0,&target);bool same=target==sectionTarget[2];if(target)target->Release();if(!same)return;
  auto began=std::chrono::steady_clock::now();
- bool preparedNow=prepared!=renderFrameSerial;
+ const bool frozen=prepared>=0&&DiagnosticRequested("MeridianFreeze.request");
+ bool preparedNow=prepared!=renderFrameSerial&&!frozen;
  if(preparedNow){
  D3DXMATRIX inverse,maps[3];if(!D3DXMatrixInverse(&inverse,nullptr,reinterpret_cast<D3DXMATRIX*>(sectionLocal[2])))return;
  for(unsigned k=0;k<3;k++)D3DXMatrixMultiply(&maps[k],reinterpret_cast<D3DXMATRIX*>(sectionLocal[k]),&inverse);
@@ -230,6 +246,7 @@ static void Draw(IDirect3DDevice9* d){
  }
  void* raw=nullptr;if(FAILED(vb->Lock(0,0,&raw,D3DLOCK_DISCARD)))return;memcpy(raw,vertices.data(),MeridianRecipe::count*sizeof(vertices[0]));if(FAILED(vb->Unlock()))return;
  prepared=renderFrameSerial;
+ CaptureRenderMesh();
  }
  auto audit=MeridianStateSnapshot(d);
  auto* state=JockstrapAdapter::stateBlock;if(FAILED(state->Capture()))return;

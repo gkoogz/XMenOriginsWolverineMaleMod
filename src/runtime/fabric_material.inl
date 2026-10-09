@@ -154,7 +154,7 @@ static bool Ensure(IDirect3DDevice9* d){
   // The native receiver map describes the bare chest. A newly added
   // cotton surface cannot reuse its fine self-shadow bands as cloth creases.
   float3 shadow=tex2D(attenuation,screenUV).rgb;
-  if(c.x>2.5)shadow=1;
+  if(c.x>2.5||white.w< -1.5)shadow=1;
 #if COTTON_TOP
   shadow=1;
 #endif
@@ -169,7 +169,8 @@ static bool Ensure(IDirect3DDevice9* d){
 #if STOCK_MAPS
  radiance+=shine;
 #endif
- if(white.w<0)radiance=float3(.8,.01,.6); // sealed flat-color visibility probe
+ if(white.w<-.5&&white.w> -1.5)radiance=float3(.8,.01,.6); // sealed visibility probe
+ if(white.w< -2.5)radiance=n*.5+.5; // sealed normal-field probe
  // The tank's blue key exceeds 17 in linear HDR. A smooth, hue-preserving
  // shoulder keeps white cotton readable without a hard clip or an ambient floor.
  if(passParams.y>0){float peak=max(radiance.x,max(radiance.y,radiance.z));radiance*=passParams.y/(passParams.y+peak);}
@@ -186,7 +187,7 @@ static void Apply(IDirect3DDevice9* d){
 #else
  auto s=malemod::garments::meridian::classicFabric;
 #endif
- float values[8][4]={{s.white[0],s.white[1],s.white[2],1},{s.red[0],s.red[1],s.red[2],1},{s.blue[0],s.blue[1],s.blue[2],1},{s.ribCount,s.ribSlope,0,0},{s.redCenter,s.blueCenter,s.stripeHalfWidth,0}};memcpy(values[5],light,16);memcpy(values[6],ambient,16);memcpy(values[7],direction,16);static const bool probe=[](){char v[8]{};return GetEnvironmentVariableA("MALEMOD_MERIDIAN_LIGHT_TRACE",v,8)==1&&v[0]=='1';}();if(probe){char path[MAX_PATH]{};SiblingPath(path,"MeridianFlat.request");if(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES)values[0][3]=-1;}d->SetPixelShaderConstantF(0,values[0],8);d->SetPixelShaderConstantF(8,incident,7);d->SetPixelShaderConstantF(15,flags,1);d->SetPixelShaderConstantF(16,position,1);d->SetPixelShaderConstantF(17,spotDirection,1);d->SetPixelShaderConstantF(18,spotAngles,1);d->SetPixelShaderConstantF(19,screen,1);float passParams[4]={additive?0.f:1.f,TankCameraSceneActive()?.22f:0.f,depth[0],depth[1]};d->SetPixelShaderConstantF(20,passParams,1);
+ float values[8][4]={{s.white[0],s.white[1],s.white[2],1},{s.red[0],s.red[1],s.red[2],1},{s.blue[0],s.blue[1],s.blue[2],1},{s.ribCount,s.ribSlope,0,0},{s.redCenter,s.blueCenter,s.stripeHalfWidth,0}};memcpy(values[5],light,16);memcpy(values[6],ambient,16);memcpy(values[7],direction,16);static const bool probe=[](){char v[8]{};return GetEnvironmentVariableA("MALEMOD_MERIDIAN_LIGHT_TRACE",v,8)==1&&v[0]=='1';}();if(probe){char path[MAX_PATH]{};SiblingPath(path,"MeridianFlat.request");if(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES)values[0][3]=-1;SiblingPath(path,"MeridianProbe.request");FILE* file=nullptr;if(!fopen_s(&file,path,"rb")&&file){int mode=0;if(fscanf_s(file,"%d",&mode)==1&&mode>=1&&mode<=3)values[0][3]=-float(mode);fclose(file);}}d->SetPixelShaderConstantF(0,values[0],8);d->SetPixelShaderConstantF(8,incident,7);d->SetPixelShaderConstantF(15,flags,1);d->SetPixelShaderConstantF(16,position,1);d->SetPixelShaderConstantF(17,spotDirection,1);d->SetPixelShaderConstantF(18,spotAngles,1);d->SetPixelShaderConstantF(19,screen,1);float passParams[4]={additive?0.f:1.f,TankCameraSceneActive()?.22f:0.f,depth[0],depth[1]};d->SetPixelShaderConstantF(20,passParams,1);
 #ifdef FABRIC_STOCK_MAPS
  ApplyStockMaps(d);d->SetPixelShaderConstantF(21,stockCamera,1);
 #endif
