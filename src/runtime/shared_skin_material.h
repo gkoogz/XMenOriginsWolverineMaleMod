@@ -47,7 +47,7 @@ static bool LoadSharedSkin(IDirect3DDevice9* d){
 static HRESULT DrawSharedSkin(IDirect3DDevice9* d,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count,bool anatomy,IDirect3DTexture9* color=nullptr){
  IDirect3DVertexShader9* vs=nullptr;IDirect3DPixelShader9* ps=nullptr;d->GetVertexShader(&vs);d->GetPixelShader(&ps);
  int index=FindSkinMaterial(vs,ps);if(vs)vs->Release();if(ps)ps->Release();
- if(index<0)return origDIP(d,type,base,minv,nv,start,count);
+ if(index<0){char earlyProbe[8]{};if(anatomy&&GetEnvironmentVariableA("MALEMOD_TANK_EARLY_PROBE",earlyProbe,8)==1&&earlyProbe[0]=='1')return D3D_OK;return origDIP(d,type,base,minv,nv,start,count);}
  const auto& layout=skinMaterialLayouts[index];IDirect3DBaseTexture9* previous[16]{};bool saved[16]{};float tiling[4]{};bool tilingSaved=false;
  static bool traced[3]{};char trace[8]{};if(!traced[index]&&GetEnvironmentVariableA("MALEMOD_MERIDIAN_LIGHT_TRACE",trace,8)==1&&trace[0]=='1'){
   traced[index]=true;IDirect3DVertexDeclaration9* decl=nullptr;if(SUCCEEDED(d->GetVertexDeclaration(&decl))&&decl){D3DVERTEXELEMENT9 elements[MAXD3DDECLLENGTH]{};UINT n=MAXD3DDECLLENGTH;if(SUCCEEDED(decl->GetDeclaration(elements,&n)))for(UINT i=0;i<n;i++){auto e=elements[i];Log("Skin declaration layout=%d stream=%u offset=%u type=%u usage=%u index=%u",index,e.Stream,e.Offset,e.Type,e.Usage,e.UsageIndex);}decl->Release();}

@@ -190,7 +190,7 @@ static HRESULT DrawMenuTank(IDirect3DDevice9* d,IDirect3DVertexBuffer9* original
   LoadR14SkinTextures(d);
   IDirect3DTexture9* chosen=r14SkinTexture[physicsState==0?1:0];
   HRESULT hr=d->SetStreamSource(0,menuTankVB,0,32);if(SUCCEEDED(hr))hr=d->SetIndices(clothCoveredIB?clothCoveredIB:r14IB);
-  if(SUCCEEDED(hr)&&captureTankMaterials&&IsHdrSceneColorPass(d))CaptureDraw(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,anatomyIndices/3,menuTankPacked,sizeof(menuTankPacked),nrIndices,sizeof(nrIndices));
+  if(SUCCEEDED(hr)&&captureTankMaterials)CaptureDraw(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,anatomyIndices/3,menuTankPacked,sizeof(menuTankPacked),nrIndices,sizeof(nrIndices));
   if(SUCCEEDED(hr))hr=DrawSharedSkin(d,D3DPT_TRIANGLELIST,0,0,nrCount,0,anatomyIndices/3,true,chosen);
   d->SetStreamSource(0,original,offset,stride);d->SetIndices(originalIB);if(originalIB)originalIB->Release();
   if(SUCCEEDED(hr)){menuTankDrawnThisFrame=true;if(menuTankSuccessfulDraws++==0)Log("menu tank anatomy draw active; WStart body/electrodes retained");}
