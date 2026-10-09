@@ -78,24 +78,69 @@ def main():
  originalNormal=np.array([v['n'] for v in source['vertices']])/127.5-1
  winding=-1 if np.median(np.sum(normal*originalNormal,axis=1))<0 else 1
  normal*=winding
+ # Folded lower hem: measured boundary strip, original fabric UVs and exact
+ # interpolated cloth donors. The existing sheet/cut remains underneath.
+ from malemod_base.garment_shell import boundary_band,thin_shell
+ sheetCount=len(fitted);sheetFaces=faces.copy();sheetFitted=fitted.copy()
+ maximumSourceDisplacement=float(np.linalg.norm(fitted-stock,axis=1).max())
+ hem=boundary_band(fitted,faces,fitted[:,2]<100.,1.15)
+ if not len(hem['triangles']):raise ValueError('Measured bottom hem is empty')
+ hemNormal=np.einsum('ij,ijk->ik',hem['weights'],normal[hem['donors']])
+ shell=thin_shell(hem['positions'],hem['triangles'],hemNormal,.12,offset=.16)
+ hemDonors=hem['donors'][shell['source']];hemWeights=hem['weights'][shell['source']]
+ sheetVertices=list(source['vertices'])
+ for donors,weights in zip(hemDonors,hemWeights):
+  skin={}
+  for donor,amount in zip(donors,weights):
+   for bone,weight in zip(sheetVertices[donor]['bone'],sheetVertices[donor]['weight']):
+    if weight:skin[bone]=skin.get(bone,0)+float(amount)*weight
+  selectedSkin=sorted(skin.items(),key=lambda v:(-v[1],v[0]))[:4]
+  discarded=max(discarded,sum(skin.values())-sum(w for bone,w in selectedSkin))
+  raw=np.array([w for bone,w in selectedSkin])*255/sum(w for bone,w in selectedSkin)
+  integer=np.floor(raw).astype(int)
+  for k in np.argsort(-(raw-integer))[:255-sum(integer)]:integer[k]+=1
+  bones=[bone for bone,w in selectedSkin];ww=integer.tolist()
+  while len(bones)<4:bones.append(bones[-1]);ww.append(0)
+  uv=[]
+  for k in range(2):
+   value=sum(float(amount)*struct.unpack('<e',struct.pack('<H',sheetVertices[donor]['uv'][k]))[0] for donor,amount in zip(donors,weights))
+   uv.append(struct.unpack('<H',struct.pack('<e',value))[0])
+  source['vertices'].append(dict(bone=bones,weight=ww,uv=uv))
+ _,hemBindings=wrap_body_surface(shell['positions'],shell['triangles'],p,selected,.72,smoothing_passes=0)
+ bindings+=hemBindings
+ fitted=np.concatenate((fitted,shell['positions']));faces=np.concatenate((faces,shell['triangles']+sheetCount))
+ hemNormals=np.zeros_like(shell['positions'])
+ for t in shell['triangles']:
+  n=np.cross(shell['positions'][t[1]]-shell['positions'][t[0]],shell['positions'][t[2]]-shell['positions'][t[0]])
+  for i in t:hemNormals[i]+=n
+ hemAliases={}
+ for i,(q,layer) in enumerate(zip(shell['positions'],shell['normal_layers'])):
+  key=(*np.round(q,5),int(layer));hemAliases.setdefault(key,[]).append(i)
+ for key,group in hemAliases.items():
+  hemNormals[group]=hemNormals[group].sum(0);aliases[key]=[sheetCount+i for i in group]
+ hemNormals/=np.maximum(np.linalg.norm(hemNormals,axis=1)[:,None],1e-12)
+ normal=np.concatenate((normal,hemNormals*winding))
  # Preserve each measured original vertex and UV alias. The normals are
  # recomputed from the fitted topology rather than stretched stock tangents.
- rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=19;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
+ rows=['#pragma once','// Measured Alkali tank, refined/refitted by pinned SDK-free Base.','namespace TankTopRecipe {','static constexpr unsigned revision=20;',f'static constexpr float faceNormalSign={winding}.f;','static const NcVertex vertices[]={']
  for v,q in zip(source['vertices'],fitted):rows.append('{{'+','.join(f'{x:.9f}f' for x in q)+'},{'+','.join(map(str,v['bone']))+'},{'+','.join(map(str,v['weight']))+'}},')
  rows+=['};','static const unsigned short triangles[][3]={']+[ '{'+','.join(map(str,t))+'},' for t in faces]+['};','static const float uv[][2]={']
  rows+=['{'+','.join(f'{struct.unpack("<e",struct.pack("<H",int(x)))[0]:.9f}f' for x in v['uv'])+'},' for v in source['vertices']]+['};','static const float normals[][3]={']
  rows+=['{'+','.join(f'{x:.9f}f' for x in n)+'},' for n in normal]+['};']
- labels=np.zeros(len(stock),int)
+ labels=np.zeros(len(fitted),int)
  for group,indices in enumerate(aliases.values()):labels[indices]=group
  rows+=['static constexpr unsigned normalGroups='+str(len(aliases))+';','static const unsigned short normalAliases[]={'+','.join(map(str,labels))+'};','struct Binding {unsigned donor[3]; float weight[3];};','static const Binding bindings[]={']
  rows+=['{{'+','.join(map(str,sourceIDs[selected[j]]))+'},{'+','.join(f'{w:.9f}f' for w in weight)+'}},' for j,weight,gap in bindings]+['};','static const float donorBase[][3]={']
  donors=sorted(set(int(i) for j,w,g in bindings for i in selected[j]))
  # Compact donor base for a cheap current-body displacement update.
  rows+=['{'+','.join(f'{x:.9f}f' for x in p[i])+'},' for i in donors]+['};','static const unsigned donorIDs[]={'+','.join(map(str,sourceIDs[donors]))+'};','static const unsigned sourcePairs[][2]={']+['{'+str(original[a]['id'])+','+str(original[b]['id'])+'},' for a,b in lineage]+['};','}']
+ rows.insert(-1,'static constexpr unsigned sourceSheetVertices='+str(sheetCount)+';')
+ rows.insert(-1,'static const unsigned short hemSourceCorners[][3]={'+','.join('{'+','.join(map(str,d))+'}' for d in hemDonors)+'};')
+ rows.insert(-1,'static const float hemSourceWeights[][3]={'+','.join('{'+','.join(f'{w:.9f}f' for w in weights)+'}' for weights in hemWeights)+'};')
  # Covered body triangles are omitted in every native pass. This prevents
  # later bare-body passes from overwriting the forward cloth surface.
  from malemod_base.radial_garment_coverage import radial_triangle_coverage
- hidden=radial_triangle_coverage(fitted,faces,p,tri,radial_axes=(0,1),height_axis=2,cut_inset=1.,check_depth=False)
+ hidden=radial_triangle_coverage(sheetFitted,sheetFaces,p,tri,radial_axes=(0,1),height_axis=2,cut_inset=1.,check_depth=False)
  # Chart coverage is only a visibility footprint. Remote arms can share its
  # angle/height; only the observed torso skin patch may be omitted.
  hidden &= mask
@@ -112,6 +157,6 @@ def main():
   rows.insert(-1,'static constexpr unsigned hiddenBodyTriangleCount'+str(section)+'='+str(len(selectedHidden))+';')
   rows.insert(-1,'static const unsigned short hiddenBody'+str(section)+'[][3]={'+(','.join('{'+','.join(map(str,f))+'}' for f in selectedHidden) if len(selectedHidden) else '{0,0,0}')+'};')
  args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text('\n'.join(rows)+'\n',encoding='utf-8')
- receipt={'schema':'wolverine.tank-top-binding/1','revision':19,'roundedCutVertices':roundedCutVertices,'maximumCutRounding':.22,'posedAliasNormals':True,'foldTransport':'complete target-body closest surface; original displacement chart relaxed 10 passes','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'triangles':len(faces),'clearance':.72,'clearanceAfterRelaxationCertified':False,'selectedArmholeCutClearance':.30,'cutClearancePlateauSteps':2,'cutClearanceTaperSteps':4,'cutClearanceMaximumDisplacement':cutClearanceMaximum,'cutClearanceChangedVertices':cutClearanceVertices,'displacementSmoothingPasses':10,'cutTopologyPreserved':True,'cutPositionsFollowTorso':True,'maximumFaceNormalRotationDegrees':maximumFaceRotation,'sourceFaceOrientationPreserved':True,'maximumDisplacement':float(np.linalg.norm(fitted-stock,axis=1).max()),'subdivisionLevels':1,'grazingFaceClearanceVerified':False,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True,'cutMaskInset':1.,'coverageChecksDepth':False,'maskedBodyPatch':'measured torso membership in body resource0 only','upperBodyResourcePreserved':True,'upperTorsoKeepHeight':130.,'interiorMaskWitnesses':7}
+ receipt={'schema':'wolverine.tank-top-binding/1','revision':20,'roundedCutVertices':roundedCutVertices,'maximumCutRounding':.22,'posedAliasNormals':True,'foldTransport':'complete target-body closest surface; original displacement chart relaxed 10 passes','sourceBodyPSKSHA256':hashlib.sha256(args.stock_psk.read_bytes()).hexdigest(),'stockSHA256':source['packageHash'].lower(),'stockMesh':'CH_Wolverine_Alkali','stockSectionFirst':1722,'vertices':len(fitted),'sourceSheetVertices':sheetCount,'hemVertices':len(shell['positions']),'hemTriangles':len(shell['triangles']),'hemBoundaryEdges':shell['boundary_edges'],'hemWidth':1.15,'hemThickness':.12,'hemOutset':.16,'hemOriginalTextureDonors':True,'triangles':len(faces),'clearance':.72,'clearanceAfterRelaxationCertified':False,'selectedArmholeCutClearance':.30,'cutClearancePlateauSteps':2,'cutClearanceTaperSteps':4,'cutClearanceMaximumDisplacement':cutClearanceMaximum,'cutClearanceChangedVertices':cutClearanceVertices,'displacementSmoothingPasses':10,'cutTopologyPreserved':True,'cutPositionsFollowTorso':True,'maximumFaceNormalRotationDegrees':maximumFaceRotation,'sourceFaceOrientationPreserved':True,'maximumDisplacement':maximumSourceDisplacement,'subdivisionLevels':1,'grazingFaceClearanceVerified':False,'sourcePairLineagePreserved':True,'uvAliasesPreserved':True,'originalSkinWeightsPreserved':True,'maximumNewVertexDiscardedWeight':discarded/255,'bodySHA256':hashlib.sha256(bodyPath.read_bytes()).hexdigest(),'headerSHA256':hashlib.sha256(args.output.read_bytes()).hexdigest(),'nativeVerified':False,'bodyCoverageMasked':True,'cutMaskInset':1.,'coverageChecksDepth':False,'maskedBodyPatch':'measured torso membership in body resource0 only','upperBodyResourcePreserved':True,'upperTorsoKeepHeight':130.,'interiorMaskWitnesses':7}
  args.output.with_suffix('.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 if __name__=='__main__':main()
