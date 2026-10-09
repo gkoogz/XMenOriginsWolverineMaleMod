@@ -49,8 +49,7 @@ DirectInput8Create paths; it does not import GetAsyncKeyState directly. Native
 diagnostics identify keyboard creation and which intercepted state/buffered
 paths execute. The scoped hidden-window/fake-device test verifies open/closed,
 unrelated keys, shared mouse tables, buffered peek, background and detach without
-reading hardware keys or changing host focus. The repaired input candidate
-still requires native open/closed title proof. Neither this source nor menu
+reading hardware keys or changing host focus. Neither this source nor menu
 observations establish garment or attachment acceptance.
 
 The first input candidate fba369a failed native title isolation: panel arrows
@@ -60,5 +59,31 @@ WH_GETMESSAGE fence now rewrites only panel key messages addressed to the exact
 game HWND on its validated owning thread before engine queue inspection.
 The hidden-window test also replaces the window procedure and reads queued
 messages before dispatch: open Down becomes WM_NULL, closed Down and unrelated
-W remain intact. Native confirmation of this additional fence is pending;
-physical DirectInput neutralization is not established by private posted keys.
+W remain intact. Physical DirectInput neutralization is not established by
+private posted keys; Win32 GetKeyState imports are not masked by this patch.
+
+Native source c65fb9a9310d5e84fc9577541f3a9699acc99856 / Base2c15479 was
+built from a clean archive (no unrelated dirty source) by the canonical private
+builder. Runtime SHA256
+`d11c884eaf72dafc632f6b37b8430f2b2fe344e2f1a0bebad6a1fa4c65a79583`.
+Title720 run20261009-172413-e8f03a: six reviewed captures show all24 rows and
+footer fitting at1280x720; open Down/Right/Shift/F8 retain the stock Continue
+selection while Overall50 changes51 then56 and resets50. F6 collapse retains
+Continue; closed Down moves stock selection to Replay Mission. The exact
+owned thread queue fence logs consuming messages. Room1440
+run20261009-172642-005425: six reviewed captures show all22 rows and footer,
+Length50 to51 to56 to50, selection and collapse at1920x1440 with Jeans/Naked.
+These prove private posted-key title isolation and native menu appearance;
+physical keyboard/DirectInput gameplay input and native game device recreation
+remain unobserved. The actual hidden D3D9 renderer separately passed reset and
+atlas recreation three times.
+
+Startup run20261009-172117-3a80f5 is excluded from menu proof: frame600 reached
+a Bink intro before the title surface. Its child closed cleanly. The final
+title test began only after inspecting the actual Continue menu capture.
+The two final children closed with exit0; no private audio sessions needed
+restoring. No host keyboard/mouse/focus operation, retail installation or
+garment/attachment acceptance is claimed. Ignored self-contained review and
+hash evidence: MaleModBase/build/menu-refresh-20261009/review.html and
+evidence.json. Witcher panel remains source/offline renderer tested; native
+readability and keyboard isolation are unobserved.
