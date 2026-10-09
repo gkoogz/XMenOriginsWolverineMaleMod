@@ -36,6 +36,7 @@ static bool DiagnosticRequested(const char* name){
  static bool trace=[](){char value[8]{};return GetEnvironmentVariableA("MALEMOD_MERIDIAN_LIGHT_TRACE",value,8)==1&&value[0]=='1';}();
  if(!trace)return false;char path[MAX_PATH]{};SiblingPath(path,name);return GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES;
 }
+#include "anatomy_contact_trace.inl"
 static void CaptureRenderMesh(){
  if(!DiagnosticRequested("MeridianGeometry.request"))return;
  char path[MAX_PATH]{};SiblingPath(path,"MeridianRender.bin");FILE* file=nullptr;
@@ -179,6 +180,7 @@ static void Draw(IDirect3DDevice9* d){
   }
   const auto raw=points;std::vector<M::Vec> anchors;
   if(DiagnosticRequested("MeridianGeometry.request")){
+   CaptureAnatomyContactTrace();
    char path[MAX_PATH]{};SiblingPath(path,"MeridianContact.bin");FILE* file=nullptr;
    if(!fopen_s(&file,path,"wb")&&file){fwrite(raw.data(),sizeof(raw[0]),raw.size(),file);fclose(file);}
   }
