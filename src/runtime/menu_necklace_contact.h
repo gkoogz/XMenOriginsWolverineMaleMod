@@ -26,6 +26,13 @@ static void Capture(IDirect3DDevice9* d,int section){
 static void Draw(IDirect3DDevice9* d){
  if(!pending||frame!=renderFrameSerial)return;
  IDirect3DStateBlock9* body=nullptr;if(FAILED(d->CreateStateBlock(D3DSBT_ALL,&body))||!body)return;
+ // WStart's full skin palette and LocalToWorld live above c127. A deferred
+ // shader/state-block switch can leave the tag palette in those registers.
+ // Preserve the complete native constants explicitly, including shadow/view
+ // permutations; a same-shader pointer alone does not prove restoration.
+ float bodyVS[256*4],bodyPS[224*4];
+ if(FAILED(d->GetVertexShaderConstantF(0,bodyVS,256))||FAILED(d->GetPixelShaderConstantF(0,bodyPS,224))){body->Release();return;}
+ auto audit=MeridianStateSnapshot(d);
  HRESULT hr=pending->Apply();auto* layout=GetShaderLayout(d);
  float original[108]{};bool saved=SUCCEEDED(hr)&&layout&&layout->valid&&layout->boneCount>=27&&SUCCEEDED(d->GetVertexShaderConstantF(layout->boneRegister,original,27));
  if(saved){
@@ -39,7 +46,9 @@ static void Draw(IDirect3DDevice9* d){
   }else Log("menu necklace current-pose contact unavailable frame=%ld",renderFrameSerial);
  }
  if(SUCCEEDED(hr))hr=origDIP(d,type,base,minv,nv,start,count);
- HRESULT restored=body->Apply();body->Release();if(FAILED(hr)||FAILED(restored))Log("menu necklace deferred draw failure=%08x restored=%08x",hr,restored);
+ HRESULT restored=body->Apply();HRESULT restoredVS=d->SetVertexShaderConstantF(0,bodyVS,256),restoredPS=d->SetPixelShaderConstantF(0,bodyPS,224);body->Release();
+ if(FAILED(hr)||FAILED(restored)||FAILED(restoredVS)||FAILED(restoredPS))Log("menu necklace deferred draw failure=%08x restored=%08x constants=%08x/%08x",hr,restored,restoredVS,restoredPS);
+ if(!audit.empty()&&audit!=MeridianStateSnapshot(d))Log("menu necklace state audit MISMATCH frame=%ld",renderFrameSerial);
  Release();
 }
 }
