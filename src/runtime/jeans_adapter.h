@@ -6,7 +6,7 @@
 #undef FABRIC_MATERIAL_NAMESPACE
 namespace JeansAdapter {
 static IDirect3DVertexBuffer9* vb=nullptr;
-static IDirect3DIndexBuffer9* ib[2]{},*bodyIB[2][2][2]{};
+static IDirect3DIndexBuffer9* ib[2]{},*bodyIB[2][2][8]{};static unsigned bodyCount[2][2][8]{};
 static IDirect3DVertexDeclaration9* declaration=nullptr;
 static IDirect3DStateBlock9* state=nullptr;
 static LONG rigFrame[2]={-3,-3},prepared=-3;static unsigned preparedStyle=0;
@@ -29,13 +29,22 @@ static void Capture(IDirect3DDevice9* d,unsigned section,bool title){
  for(unsigned i=0;i<count;i++){rig.valid[palette[i]]=true;memcpy(rig.matrix[palette[i]],matrices+i*12,48);}rigFrame[section]=renderFrameSerial;
 }
 static HRESULT Body(IDirect3DDevice9* d,unsigned section,bool title,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count){
- if(!Active())return DrawSharedBodySkin(d,type,base,minv,nv,start,count);
- unsigned open=clothingStyle==3;const unsigned short* data=nullptr;unsigned size=0;
- if(section==0){data=open?&JeansRecipe::body01[0][0]:&JeansRecipe::body00[0][0];size=open?sizeof(JeansRecipe::body01):sizeof(JeansRecipe::body00);}
+ if(!Active()&&topStyle!=1)return DrawSharedBodySkin(d,type,base,minv,nv,start,count);
+ unsigned open=clothingStyle==3,mode=clothingStyle+4*(topStyle==1);const unsigned short* data=nullptr;unsigned size=0;
+ if(!Active()){data=section?menuRetargetBodyIndices1:menuRetargetBodyIndices0;size=section?sizeof(menuRetargetBodyIndices1):sizeof(menuRetargetBodyIndices0);}
+ else if(section==0){data=open?&JeansRecipe::body01[0][0]:&JeansRecipe::body00[0][0];size=open?sizeof(JeansRecipe::body01):sizeof(JeansRecipe::body00);}
  else{data=open?&JeansRecipe::body11[0][0]:&JeansRecipe::body10[0][0];size=open?sizeof(JeansRecipe::body11):sizeof(JeansRecipe::body10);}
- if(!size)return D3D_OK;auto*& target=bodyIB[title?1:0][section][open];
- if(!target){if(FAILED(d->CreateIndexBuffer(size,D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_DEFAULT,&target,nullptr)))return E_FAIL;void* raw=nullptr;if(FAILED(target->Lock(0,0,&raw,0))){target->Release();target=nullptr;return E_FAIL;}auto* out=(unsigned short*)raw;unsigned offset=title?0:(section?41435:17449);for(unsigned i=0;i<size/2;i++)out[i]=data[i]+offset;target->Unlock();}
- IDirect3DIndexBuffer9* original=nullptr;d->GetIndices(&original);HRESULT hr=d->SetIndices(target);if(SUCCEEDED(hr))hr=DrawSharedBodySkin(d,type,title?0:base,minv,nv,0,size/6);d->SetIndices(original);if(original)original->Release();return hr;
+ if(!size)return D3D_OK;auto*& target=bodyIB[title?1:0][section][mode];auto& triangles=bodyCount[title?1:0][section][mode];
+ if(!target){
+  auto key=[](const unsigned short* f){return (unsigned long long)f[0]|((unsigned long long)f[1]<<16)|((unsigned long long)f[2]<<32);};
+  static std::unordered_set<unsigned long long> hidden[2];
+  if(hidden[section].empty()){auto* f=section?&TankTopRecipe::hiddenBody1[0][0]:&TankTopRecipe::hiddenBody0[0][0];unsigned bytes=section?sizeof(TankTopRecipe::hiddenBody1):sizeof(TankTopRecipe::hiddenBody0);for(unsigned i=0;i<bytes/2;i+=3)hidden[section].insert(key(f+i));}
+  std::vector<unsigned short> indices;unsigned offset=title?0:(section?41435:17449);
+  for(unsigned i=0;i<size/2;i+=3)if(topStyle!=1||!hidden[section].count(key(data+i)))for(unsigned k=0;k<3;k++)indices.push_back(data[i+k]+offset);
+  if(indices.empty())return D3D_OK;triangles=unsigned(indices.size()/3);
+  if(FAILED(d->CreateIndexBuffer(unsigned(indices.size()*2),D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_DEFAULT,&target,nullptr)))return E_FAIL;void* raw=nullptr;if(FAILED(target->Lock(0,0,&raw,0))){target->Release();target=nullptr;return E_FAIL;}memcpy(raw,indices.data(),indices.size()*2);target->Unlock();
+ }
+ IDirect3DIndexBuffer9* original=nullptr;d->GetIndices(&original);HRESULT hr=d->SetIndices(target);if(SUCCEEDED(hr))hr=DrawSharedBodySkin(d,type,title?0:base,minv,nv,0,triangles);d->SetIndices(original);if(original)original->Release();return hr;
 }
 static void Draw(IDirect3DDevice9* d){
  if(!Active()||!IsHdrSceneColorPass(d)||rigFrame[0]!=renderFrameSerial||rigFrame[1]!=renderFrameSerial)return;
