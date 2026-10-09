@@ -1,6 +1,7 @@
-param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[Parameter(Mandatory=$true)][ValidateSet('J','W','A','S','D','TurnLeft','TurnRight','LookUp','LookDown','Zoom','Space','Block','Shift','F6','F8','Up','Down','Left','Right','Capture','Pause','Resume','Defaults','Overall','Width','Length','Scrotum','Angle','Forward','Vertical','State','Naked','Jockstrap','TopNaked','TankTop','Jeans','JeansOpen')][string]$Key,[ValidateSet('Press','Hold','Release')][string]$Action='Press',[ValidateRange(1,100)][int]$Value=50)
+param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[Parameter(Mandatory=$true)][ValidateSet('J','W','A','S','D','TurnLeft','TurnRight','LookUp','LookDown','Zoom','Space','Block','Shift','F6','F8','Up','Down','Left','Right','Capture','Pause','Resume','Defaults','Overall','Width','Length','Scrotum','Glans','Hang','Angle','Forward','Vertical','State','Naked','Jockstrap','TopNaked','TankTop','Jeans','JeansOpen')][string]$Key,[ValidateSet('Press','Hold','Release')][string]$Action='Press',[ValidateRange(0,100)][int]$Value=50)
 $ErrorActionPreference='Stop'
-if($Key -eq 'State' -and $Value -gt 3){throw 'State requires 1, 2 or 3; no command was written.'}
+if($Key -eq 'State' -and ($Value -lt 1 -or $Value -gt 3)){throw 'State requires 1, 2 or 3; no command was written.'}
+if($Value -eq 0 -and $Key -notin @('Length','Glans')){throw 'Only Length and Glans support zero; no command was written.'}
 $root=(Resolve-Path -LiteralPath $Workspace).Path
 $file=Join-Path $root 'owned-game/Binaries/MaleModSandboxControl.ini'
 if (!(Test-Path -LiteralPath $file)) { throw 'Start the prepared native sandbox first.' }
