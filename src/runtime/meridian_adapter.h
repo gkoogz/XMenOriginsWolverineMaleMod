@@ -206,7 +206,15 @@ static void Draw(IDirect3DDevice9* d){
   auto fromChart=[&](){for(unsigned i=0;i<MeridianRecipe::clothCount;i++)points[i]=chart.Inverse(points[i]);};
   try{
    toChart();
-   M::FitSeam(points,MeridianRecipe::columns,points[MeridianRecipe::clothCount-1],liveAxis,chartHulls,.12f,6.f);
+   try{M::FitSeam(points,MeridianRecipe::columns,points[MeridianRecipe::clothCount-1],liveAxis,chartHulls,.12f,6.f);}
+   catch(const std::exception& e){
+    // The fallback keeps the raw sewn edge fixed. A failed fit cannot be
+    // repaired by walking or refitting only its interior, so avoid that
+    // full-surface work on a pose that cannot produce a certified garment.
+    ++uncertified;
+    if(attempts%120==1)Log("Meridian fixed seam rejected frame=%ld: %s",renderFrameSerial,e.what());
+    return;
+   }
    std::vector<M::Vec> taut;float padding=0;
    receipt=M::WalkCertifiedTautEnvelope(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,chartHulls,liveAxis,.04f,&padding,&taut);
    for(unsigned i=0;i<MeridianRecipe::clothCount;i++)taut[i]=chart.Inverse(taut[i]);
