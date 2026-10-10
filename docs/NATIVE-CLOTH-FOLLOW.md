@@ -19,6 +19,19 @@ motion does not. Current support-plane certificates and bounded contact refits
 decide whether a new full walk is necessary. A rejected full walk retains the
 previous continuity/repair fallback and reports uncertified contact honestly.
 Every native lighting pass still reuses one current-frame geometry upload.
+
+The current dense revision6 candidate now distinguishes a whole-cloth contact
+certificate from a safe movable-interior follow. When prescribed seam faces
+prevent a whole-cloth certificate, the adapter may use the current rig's cached
+wrap only if every movable face passes current-pose contact projection and the
+relative deformation budget. It keeps the full anatomy draw in that case and
+reports the frame as `interiorOnly`, not certified. Larger motion or failed
+interior checks still rebuild. A followed wrap skips the local four-sweep
+fairing; its reference wrap already passed the full taut solve. The fixed seam,
+pole, UV aliases and trim still update from the current pose each render frame.
+The shared Base contact pass also uses conservative current-pose support bounds
+to reject remote triangle/solid pairs before its full test. Native visual and
+performance acceptance for this candidate remains separate from source tests.
 Once a cached wrap exists, Update/Draw skip the old interior cloth donors that
 neither direct deformation nor rebuilding uses. Private raw capture deliberately
 retains those donors for reproducible CPU inputs.
