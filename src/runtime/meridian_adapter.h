@@ -64,9 +64,10 @@ static void Update(const unsigned char* body){
    if(id>=nrCount)throw std::runtime_error("Meridian anatomy donor out of range");auto p=nrPositions[id];return {p.x,p.y,p.z};
   };
   posed.resize(MeridianRecipe::sampleCount);vertices.resize(MeridianRecipe::sampleCount);
-  static std::vector<unsigned> sampleIDs; if(sampleIDs.empty()){sampleIDs.assign(std::begin(MeridianRecipe::runtimeSamples),std::end(MeridianRecipe::runtimeSamples));for(unsigned i=MeridianRecipe::columns;i<MeridianRecipe::clothCount-1;i++)sampleIDs.push_back(i);}
+  // The walker seeds every interior cloth point. Only the seam, pole, proxy
+  // controls and trim are donor inputs; retain full raw donors for diagnostics.
+  static std::vector<unsigned> sampleIDs; if(sampleIDs.empty()){sampleIDs.assign(std::begin(MeridianRecipe::runtimeSamples),std::end(MeridianRecipe::runtimeSamples));if(CaptureRaw())for(unsigned i=MeridianRecipe::columns;i<MeridianRecipe::clothCount-1;i++)sampleIDs.push_back(i);}
   for(unsigned i:sampleIDs){
-   if(i>=MeridianRecipe::columns&&i<MeridianRecipe::clothCount-1&&follower.Ready()&&!CaptureRaw())continue;
    auto point=M::Transport(MeridianRecipe::bindings[i],fetch);auto& dst=posed[i];auto b=MeridianRecipe::bindings[i];
    for(unsigned side=0;side<2;side++)for(unsigned control=0;control<6;control++)if(i==MeridianRecipe::lobeControls[side][control]){
     auto center=CPCenter(side),r=CPRadii(side),scale=CPDiv(r,side?V3{5.724f,4.86f,7.81f}:V3{5.724f,4.86f,7.93f});
@@ -148,7 +149,7 @@ static void Draw(IDirect3DDevice9* d){
  for(unsigned k=0;k<3;k++)D3DXMatrixMultiply(&maps[k],reinterpret_cast<D3DXMATRIX*>(sectionLocal[k]),&inverse);
  static std::vector<M::Vec> points;points.resize(MeridianRecipe::sampleCount);
  for(unsigned i:MeridianRecipe::runtimeSamples)if(!PoseSample(posed[i],maps,points[i]))return;
- if(!follower.Ready()||CaptureRaw())for(unsigned i=MeridianRecipe::columns;i<MeridianRecipe::clothCount-1;i++)if(!PoseSample(posed[i],maps,points[i]))return;
+ if(CaptureRaw())for(unsigned i=MeridianRecipe::columns;i<MeridianRecipe::clothCount-1;i++)if(!PoseSample(posed[i],maps,points[i]))return;
 
  const bool captureRaw=CaptureRaw();
  static unsigned rawCaptures=0;

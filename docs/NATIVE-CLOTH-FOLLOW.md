@@ -23,6 +23,12 @@ Once a cached wrap exists, Update/Draw skip the old interior cloth donors that
 neither direct deformation nor rebuilding uses. Private raw capture deliberately
 retains those donors for reproducible CPU inputs.
 
+The adapter now skips those interior donors even before a cached wrap exists.
+The walker seeds every interior point from the current outline and pole; only
+the seam, support controls and trim need posed donors. Raw diagnostic capture
+still samples the full recipe. This removes work from frames where a wrap is
+not yet available without changing the solve or its contact acceptance rules.
+
 `profile_meridian_cpu.py` supports both previous and current named builds,
 checks their input hashes, and reports follow/bind/rebuild phases. Optional
 `--interpolate 30` synthesizes intermediate physics inputs; receipts label this
