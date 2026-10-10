@@ -1,4 +1,10 @@
-﻿## October 9 - jockstrap slowdown diagnosed; candidate not installed
+﻿## October 10 - fast garment compromises fail native visual gate
+
+The user authorized reasonable performance and visual compromises. Private 32x24 room trials measured title Draw means of 1.46 ms for unguarded reuse, 2.33 ms for a cached follower, 4.35 ms for the earlier uncertified fallback, 5.39 ms for an adaptive radial shell, and 64.87 ms for local contact repair. None is deployable: native movement showed a side flap, vanishing pouch, anatomy masking gaps, a flat front panel, or another seam-order failure. A direct fabric pass over the current skinned anatomy reached 2.87 ms sampled title Draw, but a native gameplay front capture showed a grey patch on a thigh instead of a pouch; the semantic region mask reproduces the existing covered/retained triangle split. It was rejected. Captured static poses were insufficient to predict those moving failures. Exact run folders and the shared design conclusion are in Base docs/HANDOFF.md.
+
+The runtime source, Base pin and retail installation have not changed in this follow-up. Retail SHA-256 remains ab1f8d8e028a1239474465aa5f98faedea45860e1547aff21ad4db8d4087a1a7. The prior rollback is still C:/Games/X-Men Origins Wolverine/WGame/ModBackups/Meridian-development-20261009-194250-919fc7/Restore-MenuBranding.ps1. Keep the jockstrap replacement uninstalled. Redesign the measured sewn boundary and pouch bindings across body and anatomy, then adopt a shared Base surface/contact method through a new pin. The native attachment, motion, controls, LOD and campaign gate remains false.
+
+## October 9 - jockstrap slowdown diagnosed; candidate not installed
 
 The active 64x40 garment does not walk on every rendered frame, but a failed
 current-pose contact check triggers a complete taut rebuild. In sampled native
