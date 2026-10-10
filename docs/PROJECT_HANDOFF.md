@@ -1,4 +1,10 @@
-﻿## October 10 - fast garment compromises fail native visual gate
+﻿## October 10 - donor and GPU fabric fallbacks rejected
+
+An older donor-driven 80x24 native prototype was fast (1.536 ms Update, .812 ms Draw), but its saved moving-room captures show a hanging flap and exposed center. A corrected private direct-fabric experiment remained a small grey thigh-side patch at about 2.86 ms sampled title Draw. A separate private GPU fabric split reused the game's already posed anatomy buffer, drawing 31,998 covered triangles as cotton and 3,002 as skin. Native front capture in run 20261010-000707-9d5a22 shows a dangling white anatomy-shaped strip without a pouch or waist support. These are rejected visual candidates. Their code and DLLs stay only in D:/MaleModBuilds/jockstrap-cadence-20261009 and D:/MaleModBuilds/jockstrap-cadence-20261010.
+
+No production algorithm or retail file changed. The retail DLL remains SHA-256 ab1f8d8e028a1239474465aa5f98faedea45860e1547aff21ad4db8d4087a1a7, its exact rollback remains intact, and the owned game child was closed. The jockstrap replacement still needs a pose-stable measured sewn edge and fitted front pouch before adoption or installation. See Base docs/HANDOFF.md for the complete trial sequence and evidence boundaries.
+
+## October 10 - fast garment compromises fail native visual gate
 
 The user authorized reasonable performance and visual compromises. Private 32x24 room trials measured title Draw means of 1.46 ms for unguarded reuse, 2.33 ms for a cached follower, 4.35 ms for the earlier uncertified fallback, 5.39 ms for an adaptive radial shell, and 64.87 ms for local contact repair. None is deployable: native movement showed a side flap, vanishing pouch, anatomy masking gaps, a flat front panel, or another seam-order failure. A direct fabric pass over the current skinned anatomy reached 2.87 ms sampled title Draw, but a native gameplay front capture showed a grey patch on a thigh instead of a pouch; the semantic region mask reproduces the existing covered/retained triangle split. It was rejected. Captured static poses were insufficient to predict those moving failures. Exact run folders and the shared design conclusion are in Base docs/HANDOFF.md.
 
