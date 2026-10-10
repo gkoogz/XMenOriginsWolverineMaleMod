@@ -1599,3 +1599,46 @@ resolution and validated previous-chart reuse before proxy-render optimizations.
 Runtime, settings and rollback were not changed by this source/profiling audit.
 The local recipe extensions and diagnostics are pending Git publication; do not
 claim a fresh remote clone contains them until committed/pushed.
+## October 9 - jockstrap slowdown diagnosed; candidate not installed
+
+The active 64x40 garment does not walk on every rendered frame, but a failed
+current-pose contact check triggers a complete taut rebuild. In sampled native
+title play, rebuilding occurred 24 times in the first 121 garment evaluations.
+The current retail game DLL remains SHA-256
+`ab1f8d8e028a1239474465aa5f98faedea45860e1547aff21ad4db8d4087a1a7`,
+with the exact menu-branding rollback recorded below. No retail install, push or
+release was performed.
+
+Canonical adapter source `3fe6ddc` now skips unused interior donor skinning,
+skips repeated fairing on a fully certified follower pose, and returns early
+when fixed sewn-edge fitting fails instead of doing a full fallback walk that
+cannot change that edge. Its Base pin is `608fdb18eb4a7570afb1fd6f777e2d7eb67c86d3`
+on `codex/jockstrap-perf-pin`. Base's current-pose support bounds cull distant
+face/solid pairs from follower and taut-contact scans; no bound is reused after
+motion. The same shared changes are on Base main `d4b00c2` for other spokes.
+The pin is a local commit and branch, not yet pushed to the Base remote.
+
+Clean private candidate DLL
+`70649c9821e633890e9b23078cbd0a9eb303b4981b4fa2f842e034f2cdf0fb4d`
+was built from exact source/Base commits and eight hash-validated original maps,
+excluding unrelated dirty `jockstrap_worker.h`. Native owned-room run
+`D:/MaleModBuilds/jockstrap-cadence-20261009/room32/runs/20261009-214836-62da7c`
+closed normally without host input/focus. First title wrap cost 157.7277 ms;
+the first 121 evaluations had 24 wraps, 97 follows and cumulative Draw mean
+41.8728 ms. This remains too slow. Default gameplay repeatedly reports sewn
+edge nonconvergence and frame 402 shows the pouch absent. The complete
+attachment-integrity gate FAILS; other views, control combinations, states,
+body resources/LODs, motion and campaign are unaccepted. Do not install this
+candidate or claim playable performance.
+
+Source proof: measured binding test passed; four shared x86 meridian tests and
+meridian provenance hashes passed. Seven captured 32-ray poses yielded exact
+byte-identical solved vertex buffers before/after taut bounds. Full Base
+`tools/verify.py` is blocked by unrelated motion/CMake provenance drift.
+Private rejected trials include 32-ray gameplay with missing pouch despite
+7.63 ms title Draw, raw donor rendering at 1.34 ms with pouch buried behind
+the body, an old worker whose first shared solve took 14.7 seconds, larger
+seam allowances that still failed other poses, and a wider bounded contact
+refit that improved some title frames but did not restore gameplay visibility.
+The unresolved work is a robust current-pose sewn boundary and affordable
+rebuild/follow path with full native visual acceptance.
