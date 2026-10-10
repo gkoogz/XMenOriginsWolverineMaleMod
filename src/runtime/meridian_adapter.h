@@ -191,14 +191,14 @@ static void Draw(IDirect3DDevice9* d){
   std::vector<M::FollowFrame> followRig;
   for(auto ring:rings)followRig.push_back({ring.center,M::Mul(ring.u,ring.radius),M::Mul(ring.v,ring.radius),M::Mul(M::Cross(ring.u,ring.v),ring.radius)});
   for(auto& lobe:lobeControls)followRig.push_back({M::Mul(M::Add(lobe[0],lobe[1]),.5f),M::Mul(M::Sub(lobe[2],lobe[3]),.5f),M::Mul(M::Sub(lobe[4],lobe[5]),.5f),M::Mul(M::Sub(lobe[0],lobe[1]),.5f)});
-  M::WrapReceipt receipt{};bool wrapped=false,certified=false;
+  M::WrapReceipt receipt{};bool wrapped=false,certified=false,followedThisFrame=false;
   if(interiorFaces.empty())M::MovableClothFaces(MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,MeridianRecipe::columns,MeridianRecipe::clothCount,interiorFaces);
   auto refitInterior=[&](){return !interiorFaces.empty()&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,interiorFaces.data(),unsigned(interiorFaces.size()),hulls,interiorCertificates);};
   static unsigned attempts=0,wraps=0,transported=0,uncertified=0,followed=0;
   ++attempts;
   bool moved=follower.Move(points,followRig,MeridianRecipe::columns);
   certified=moved&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
-  if(certified){++followed;}else{
+  if(certified){++followed;followedThisFrame=true;}else{
   points=raw;
   std::vector<M::Hull> chartHulls;for(const auto& hull:hulls)chartHulls.push_back(chart.Transform(hull));
   std::vector<M::Hull> coverHulls{M::ConvexCover(chartHulls,liveAxis,.04f)};
@@ -238,7 +238,10 @@ static void Draw(IDirect3DDevice9* d){
    if(attempts%120==1)Log("Meridian chart fallback frame=%ld transported=%d certified=%d: %s",renderFrameSerial,continuity.Ready(),certified,e.what());
   }
   }
-  if(!wrapped)M::FairMeridianReversals(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,4);
+  // A whole-triangle-certified follower already starts from the accepted
+  // material surface. Local fairing here would rewalk thousands of faces on
+  // every rendered pose and can discard the follower's material coordinates.
+  if(!wrapped&&!followedThisFrame)M::FairMeridianReversals(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,4);
   std::vector<M::Vec> seamDelta(MeridianRecipe::columns);
   for(unsigned i=0;i<MeridianRecipe::columns;i++)seamDelta[i]=M::Sub(points[i],raw[i]);
   if(attempts%120==1)Log("Meridian continuity attempts=%u wrapped=%u followed=%u transported=%u uncertified=%u frame=%ld",attempts,wraps,followed,transported,uncertified,renderFrameSerial);
