@@ -35,10 +35,12 @@ meridian provenance hashes passed. Seven captured 32-ray poses yielded exact
 byte-identical solved vertex buffers before/after taut bounds. Full Base
 `tools/verify.py` is blocked by unrelated motion/CMake provenance drift.
 Private rejected trials include 32-ray gameplay with missing pouch despite
-7.63 ms title Draw, raw donor rendering at 1.34 ms with pouch buried behind
-the body, an old worker whose first shared solve took 14.7 seconds, larger
-seam allowances that still failed other poses, and a wider bounded contact
-refit that improved some title frames but did not restore gameplay visibility.
+7.63 ms title Draw, raw donor rendering at 1.34 ms with a large grey front
+wedge, and a 1.6-unit convex-cover/interior-contact trial averaging 3.70 ms
+in sampled title Draw but forming an oversized grey front bulb. The old
+worker's first shared solve took 14.7 seconds. Larger seam allowances failed
+other poses; a wider bounded contact refit improved some title frames but did
+not restore gameplay visibility.
 The unresolved work is a robust current-pose sewn boundary and affordable
 rebuild/follow path with full native visual acceptance.
 
