@@ -14,7 +14,6 @@ static_assert(MeridianRecipe::contractRevision==6,"Meridian geometry/binding con
 static IDirect3DVertexBuffer9* vb=nullptr;
 static IDirect3DIndexBuffer9* ib=nullptr,*uncovered=nullptr;
 static bool ready=false;
-static bool wholeContactCertified=false;
 static M::SurfaceContinuity continuity;
 static M::SurfaceFollower follower;
 static std::vector<unsigned> followCertificates;
@@ -54,7 +53,7 @@ static void CheckFollowEpoch(){
  for(unsigned k=0;k<9;k++){float value=k<7?sliderUI[k]:(k==7?hangUI:glansUI);changed|=controls[k]!=value;controls[k]=value;}
  state=physicsState;scene=anatomyScene;epoch=clothingEpoch;if(changed){follower.Reset();followCertificates.clear();interiorCertificates.clear();}
 }
-static void Release(){for(auto* p:{ib,uncovered})if(p)p->Release();ib=uncovered=nullptr;if(vb)vb->Release();vb=nullptr;for(auto& t:sectionTarget){if(t)t->Release();t=nullptr;}MeridianMaterial::Release();continuity.Reset();follower.Reset();followCertificates.clear();repairCertificates.clear();interiorCertificates.clear();ready=wholeContactCertified=false;drawn=prepared=-3;drawnPass=~0u;}
+static void Release(){for(auto* p:{ib,uncovered})if(p)p->Release();ib=uncovered=nullptr;if(vb)vb->Release();vb=nullptr;for(auto& t:sectionTarget){if(t)t->Release();t=nullptr;}MeridianMaterial::Release();continuity.Reset();follower.Reset();followCertificates.clear();repairCertificates.clear();interiorCertificates.clear();ready=false;drawn=prepared=-3;drawnPass=~0u;}
 static void Update(const unsigned char* body){
  if(!Active()||!body)return;
  CheckFollowEpoch();
@@ -135,7 +134,7 @@ static bool Buffers(IDirect3DDevice9* d){
  auto create=[&](IDirect3DIndexBuffer9*& buffer,const void* data,UINT bytes){if(buffer)return true;if(FAILED(d->CreateIndexBuffer(bytes,D3DUSAGE_WRITEONLY,D3DFMT_INDEX16,D3DPOOL_DEFAULT,&buffer,nullptr)))return false;void* raw=nullptr;if(FAILED(buffer->Lock(0,bytes,&raw,0))){buffer->Release();buffer=nullptr;return false;}memcpy(raw,data,bytes);if(FAILED(buffer->Unlock())){buffer->Release();buffer=nullptr;return false;}return true;};
  return create(ib,MeridianRecipe::faces,sizeof(MeridianRecipe::faces))&&create(uncovered,MeridianRecipe::uncoveredIndices,sizeof(MeridianRecipe::uncoveredIndices));
 }
-static bool HideCovered(){return Active()&&ready&&wholeContactCertified&&drawn==renderFrameSerial&&vb&&ib&&uncovered;}
+static bool HideCovered(){return Active()&&ready&&drawn==renderFrameSerial&&vb&&ib&&uncovered;}
 static void Draw(IDirect3DDevice9* d){
  if(!Enabled()){JockstrapAdapter::Draw(d);return;}if(!Active()||!ready||!MeridianMaterial::valid||MeridianMaterial::frame!=renderFrameSerial||drawnPass==MeridianMaterial::pass||!IsHdrSceneColorPass(d))return;
  if(!JockstrapAdapter::EnsureShaders(d)||!MeridianMaterial::Ensure(d)||!Buffers(d))return;
@@ -191,19 +190,14 @@ static void Draw(IDirect3DDevice9* d){
   std::vector<M::FollowFrame> followRig;
   for(auto ring:rings)followRig.push_back({ring.center,M::Mul(ring.u,ring.radius),M::Mul(ring.v,ring.radius),M::Mul(M::Cross(ring.u,ring.v),ring.radius)});
   for(auto& lobe:lobeControls)followRig.push_back({M::Mul(M::Add(lobe[0],lobe[1]),.5f),M::Mul(M::Sub(lobe[2],lobe[3]),.5f),M::Mul(M::Sub(lobe[4],lobe[5]),.5f),M::Mul(M::Sub(lobe[0],lobe[1]),.5f)});
-  M::WrapReceipt receipt{};bool wrapped=false,certified=false,followedThisFrame=false;
+  M::WrapReceipt receipt{};bool wrapped=false,certified=false;
   if(interiorFaces.empty())M::MovableClothFaces(MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,MeridianRecipe::columns,MeridianRecipe::clothCount,interiorFaces);
   auto refitInterior=[&](){return !interiorFaces.empty()&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,interiorFaces.data(),unsigned(interiorFaces.size()),hulls,interiorCertificates);};
-  static unsigned attempts=0,wraps=0,transported=0,rejected=0,followed=0,interiorOnly=0;
+  static unsigned attempts=0,wraps=0,transported=0,uncertified=0,followed=0;
   ++attempts;
   bool moved=follower.Move(points,followRig,MeridianRecipe::columns);
-  bool within=moved&&follower.DisplayWithinBudget(points,raw,followRig,MeridianRecipe::columns,interiorFaces.data(),unsigned(interiorFaces.size()));
-  if(within){
-   certified=M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
-   if(certified&&follower.DisplayWithinBudget(points,raw,followRig,MeridianRecipe::columns,interiorFaces.data(),unsigned(interiorFaces.size()))){followedThisFrame=true;++followed;}
-   else if(!certified&&refitInterior()&&follower.DisplayWithinBudget(points,raw,followRig,MeridianRecipe::columns,interiorFaces.data(),unsigned(interiorFaces.size()))){followedThisFrame=true;++interiorOnly;}
-  }
-  if(!followedThisFrame){
+  certified=moved&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
+  if(certified){++followed;}else{
   points=raw;
   std::vector<M::Hull> chartHulls;for(const auto& hull:hulls)chartHulls.push_back(chart.Transform(hull));
   std::vector<M::Hull> coverHulls{M::ConvexCover(chartHulls,liveAxis,.04f)};
@@ -230,24 +224,21 @@ static void Draw(IDirect3DDevice9* d){
    catch(const std::exception&){points=raw;if(!follower.Move(points,followRig,MeridianRecipe::columns))continuity.Transport(points,anchors,MeridianRecipe::columns);}
    ++transported;
    certified=M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,repairCertificates);
-   if(!certified){++rejected;if(attempts%120==1)Log("Meridian rejected uncertified display frame=%ld: %s",renderFrameSerial,e.what());return;}
+   if(!certified){++uncertified;if(attempts%120==1)Log("Meridian rejected uncertified display frame=%ld: %s",renderFrameSerial,e.what());return;}
    continuity.Remember(points,raw,anchors,MeridianRecipe::columns,MeridianRecipe::clothCount);follower.Remember(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothCount);
    if(attempts%120==1)Log("Meridian chart fallback frame=%ld transported=%d certified=%d: %s",renderFrameSerial,continuity.Ready(),certified,e.what());
   }
   }
-  // A followed wrap was already faired when it was recorded. Re-running the
-  // expensive local fairing every render frame defeats material-coordinate reuse.
-  if(!wrapped&&!followedThisFrame)M::FairMeridianReversals(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,4);
+  if(!wrapped)M::FairMeridianReversals(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,4);
   std::vector<M::Vec> seamDelta(MeridianRecipe::columns);
   for(unsigned i=0;i<MeridianRecipe::columns;i++)seamDelta[i]=M::Sub(points[i],raw[i]);
-  if(attempts%120==1)Log("Meridian continuity attempts=%u wrapped=%u followed=%u interiorOnly=%u transported=%u rejected=%u frame=%ld",attempts,wraps,followed,interiorOnly,transported,rejected,renderFrameSerial);
+  if(attempts%120==1)Log("Meridian continuity attempts=%u wrapped=%u followed=%u transported=%u uncertified=%u frame=%ld",attempts,wraps,followed,transported,uncertified,renderFrameSerial);
   for(unsigned i=MeridianRecipe::clothCount;i<MeridianRecipe::aliasStart;i++){auto f=MeridianRecipe::trimFollowers[i-MeridianRecipe::clothCount];points[i]=M::Add(points[i],M::Mul(M::Add(M::Mul(seamDelta[f.a],1-f.fraction),M::Mul(seamDelta[f.b],f.fraction)),f.weight));}
   for(unsigned row=0;row<MeridianRecipe::rows;row++){unsigned alias=MeridianRecipe::aliasStart+row;points[alias]=points[row*MeridianRecipe::columns];vertices[alias].uv[0]=1;vertices[alias].uv[1]=float(row)/MeridianRecipe::rows;for(float& c:vertices[alias].color)c=1;}
   for(unsigned i=0;i<MeridianRecipe::count;i++){for(unsigned k=0;k<3;k++){vertices[i].p[k]=points[i][k];vertices[i].n[k]=0;}if(i<MeridianRecipe::clothCount){vertices[i].uv[0]=float(i%MeridianRecipe::columns)/MeridianRecipe::columns;vertices[i].uv[1]=float(i/MeridianRecipe::columns)/MeridianRecipe::rows;for(float& c:vertices[i].color)c=1;}}
   for(auto f:MeridianRecipe::faces){auto n=M::Cross(M::Sub(points[f[1]],points[f[0]]),M::Sub(points[f[2]],points[f[0]]));for(auto id:f)for(unsigned k=0;k<3;k++)vertices[id].n[k]+=n[k];}
   for(unsigned row=0;row<MeridianRecipe::rows;row++){unsigned alias=MeridianRecipe::aliasStart+row,original=row*MeridianRecipe::columns;for(unsigned k=0;k<3;k++){float n=vertices[alias].n[k]+vertices[original].n[k];vertices[alias].n[k]=vertices[original].n[k]=n;}}
   for(unsigned i=0;i<MeridianRecipe::count;i++){auto n=M::Unit({vertices[i].n[0],vertices[i].n[1],vertices[i].n[2]});for(unsigned k=0;k<3;k++)vertices[i].n[k]=n[k];}
-  wholeContactCertified=certified;
   if(wrapped&&renderFrameSerial%120==0)Log("Meridian live clearance frame=%ld passes=%u minimum=%.6f correction=%.4f",renderFrameSerial,receipt.iterations,receipt.minimumSeparation,receipt.maximumDisplacement);
  }catch(const std::exception& e){static LONG reported=-1000;if(renderFrameSerial-reported>60){reported=renderFrameSerial;Log("Meridian live pose rejected frame=%ld: %s",renderFrameSerial,e.what());static unsigned dumps=0;if(CaptureRaw()&&dumps++<3){char path[MAX_PATH]{};SiblingPath(path,"MeridianRejectedPose.bin");FILE* file=nullptr;if(!fopen_s(&file,path,"wb")&&file){fwrite(points.data(),sizeof(points[0]),points.size(),file);fclose(file);}}}return;}
  for(unsigned i=0;i<MeridianRecipe::count;i++){
