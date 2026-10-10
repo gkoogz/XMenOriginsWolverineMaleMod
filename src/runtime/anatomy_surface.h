@@ -9,6 +9,7 @@ static void EvaluateAnatomy(unsigned char* fullBuffer,UINT graftFirstVertex){
   V3 tipSum{};int tipCount=0;
   PrepareShape(controlled,graftFirstVertex,tipSum,tipCount);
   if(!constraintSolverReady)InitializeConstraintSolver();
+  double segmentStart=PerfClock();
   for(UINT i=0;i<graftCount;i++){
     float value[3]={graftDeformedPositions[i].x,graftDeformedPositions[i].y,graftDeformedPositions[i].z};
     float bw=phys_scrotum_weight[i],membership=max(phys_shaft_weight[i],phys_attachment_weight[i]);float motionWeight=membership;if(bw<.05f&&membership>.02f)motionWeight=1.f;
@@ -17,23 +18,29 @@ static void EvaluateAnatomy(unsigned char* fullBuffer,UINT graftFirstVertex){
     graftDeformedPositions[i]=V3{value[0],value[1],value[2]};
   }
   // Reassert the one shaft after every physics state.  This transports the
+  PerfSegment(16,segmentStart);
   // cached complete cross-section through the live centerline and prevents a
   // mixed-weight ring from reappearing in semi/floppy motion.
   ConstructLogicalShaftSurface(true);
+  PerfSegment(17,segmentStart);
   // Keep the distal shaft independent of skin fairing. The proximal .40
   // belongs to the shared pelvic ramp, whose support fades at .40. Restoring
   // the old tube at .04-.10 would undo that ramp and recreate the shelf.
   static V3 solidCore[graftCount];memcpy(solidCore,graftDeformedPositions,sizeof(solidCore));
   FinishScrotalJunction();
+  segmentStart=PerfClock();
   for(UINT i=0;i<graftCount;i++){
     if(suspensionWeight[i]!=0.f||max(phys_shaft_weight[i],phys_attachment_weight[i])<.5f)continue;
     float follow=Smoother01((graftRestFlex[i]-.30f)/.10f);
     graftDeformedPositions[i]=graftDeformedPositions[i]*(1.f-follow)+solidCore[i]*follow;
   }
   SculptVentralContourStudy();
+  PerfSegment(18,segmentStart);
   // Glans Size is evaluated on the approved R14 mesh, not on the donor cage.
   ResolveSuspendedSkinContact();
+  PerfSegment(19,segmentStart);
   PreserveEggSupports();
+  PerfSegment(20,segmentStart);
   // Proximal skin is now owned by UnifiedCollar, including pelvic recruitment.
   // The proxy changes vertex positions after UE3 has prepared the skeletal
   // buffer.  Rebuild the normals from that final deformed surface so lighting
@@ -72,6 +79,7 @@ static void EvaluateAnatomy(unsigned char* fullBuffer,UINT graftFirstVertex){
     packedTangent[0]=PackSigned(tangent.x);packedTangent[1]=PackSigned(tangent.y);packedTangent[2]=PackSigned(tangent.z);
     packedNormal[0]=PackSigned(normal.x);packedNormal[1]=PackSigned(normal.y);packedNormal[2]=PackSigned(normal.z);
   }
+  PerfSegment(21,segmentStart);
   UpdateR14(p);
   ApplyPelvicAttachment(fullBuffer);
   ApplyRoundedShape(fullBuffer);

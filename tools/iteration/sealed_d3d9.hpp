@@ -36,7 +36,7 @@ static void MaleModPrivateCommands(unsigned frame,bool game){
  if(!strcmp(name,"Glans")||!strcmp(name,"Hang")){float current=!strcmp(name,"Glans")?glansUI:hangUI;int index=!strcmp(name,"Glans")?6:8;if(requestedValue>=(!strcmp(name,"Glans")?0:1)&&requestedValue<=100){AdjustStudyControl(index,requestedValue>=current?1:-1,fabsf(requestedValue-current));QueueSettingsSave();Log("Private command revision=%u key=%s value=%d",revision,name,requestedValue);}return;}
  if(!strcmp(name,"State")){if(requestedValue>=1&&requestedValue<=3){while(physicsState!=requestedValue-1)AdjustStudyControl(0,1,1);QueueSettingsSave();Log("Private command revision=%u key=State value=%d",revision,requestedValue-1);}return;}
  if(!strcmp(name,"Capture")){maleModPrivateCaptureRequested=true;Log("Private command capture revision=%u",revision);return;}
- struct NamedKey{const char* name;unsigned key;};const NamedKey allowed[]={{"J",'J'},{"TurnLeft",'R'},{"TurnRight",'T'},{"LookUp",'Y'},{"LookDown",'U'},{"Zoom",'V'},{"W",'W'},{"A",'A'},{"S",'S'},{"D",'D'},{"Space",VK_SPACE},{"Block",'Z'},{"Shift",VK_SHIFT},{"F6",VK_F6},{"F8",VK_F8},{"Up",VK_UP},{"Down",VK_DOWN},{"Left",VK_LEFT},{"Right",VK_RIGHT}};
+ struct NamedKey{const char* name;unsigned key;};const NamedKey allowed[]={{"Enter",VK_RETURN},{"Attack",'X'},{"J",'J'},{"TurnLeft",'R'},{"TurnRight",'T'},{"LookUp",'Y'},{"LookDown",'U'},{"Zoom",'V'},{"W",'W'},{"A",'A'},{"S",'S'},{"D",'D'},{"Space",VK_SPACE},{"Block",'Z'},{"Shift",VK_SHIFT},{"F6",VK_F6},{"F8",VK_F8},{"Up",VK_UP},{"Down",VK_DOWN},{"Left",VK_LEFT},{"Right",VK_RIGHT}};
  unsigned key=0;for(const auto& item:allowed)if(!strcmp(name,item.name)){key=item.key;break;}if(!key)return;
  if(strcmp(action,"Press")&&strcmp(action,"Hold")&&strcmp(action,"Release"))return;
  bool down=strcmp(action,"Release")!=0;maleModPrivateHeldKeys[key]=down;maleModPrivateKeyRelease[key]=!strcmp(action,"Press")?frame+2:0;
@@ -64,6 +64,8 @@ static DWORD WINAPI MaleModPrivatePadState(DWORD index,XINPUT_STATE* state){
  state->Gamepad.sThumbLX=SHORT((held('D')-held('A'))*20000);state->Gamepad.sThumbLY=SHORT((held('W')-held('S'))*20000);
  state->Gamepad.sThumbRX=SHORT((held('T')-held('R'))*16000);state->Gamepad.sThumbRY=SHORT((held('Y')-held('U'))*12000);
  if(held(VK_SPACE))state->Gamepad.wButtons|=XINPUT_GAMEPAD_A;
+ if(held('X'))state->Gamepad.wButtons|=XINPUT_GAMEPAD_X;
+ if(held('V'))state->Gamepad.wButtons|=XINPUT_GAMEPAD_LEFT_THUMB;
  if(held('Z'))state->Gamepad.bLeftTrigger=255;
  return ERROR_SUCCESS;
 }

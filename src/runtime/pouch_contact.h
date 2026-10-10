@@ -44,7 +44,9 @@ static V3 CPSupportLocal(V3 n,V3 r){
   double radial=sqrt(max(1e-24,1.-z*z));
   double derivative=-.13*radial-(1.-.13*z)*z/radial+ratio;
   double curvature=(-1.+.39*z-.26*z*z*z)/(radial*radial*radial);
-  z=max(-.999999999999,min(.999999999999,z-derivative/curvature));
+  double next=max(-.999999999999,min(.999999999999,z-derivative/curvature));
+  if(memcmp(&next,&z,sizeof(z))==0)break;
+  z=next;
  }
  float section=float((1.-.13*z)*sqrt(max(0.,1.-z*z)));
  return {r.x*r.x*n.x/h*section,r.y*r.y*n.y/h*section,float(r.z*z)};

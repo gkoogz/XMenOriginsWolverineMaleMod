@@ -1,5 +1,6 @@
-param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[Parameter(Mandatory=$true)][ValidateSet('J','W','A','S','D','TurnLeft','TurnRight','LookUp','LookDown','Zoom','Space','Block','Shift','F6','F8','Up','Down','Left','Right','Capture','Pause','Resume','Defaults','Overall','Width','Length','Scrotum','Glans','Hang','Angle','Forward','Vertical','State','Naked','Jockstrap','TopNaked','TankTop','Jeans','JeansOpen')][string]$Key,[ValidateSet('Press','Hold','Release')][string]$Action='Press',[ValidateRange(0,100)][int]$Value=50)
+param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[Parameter(Mandatory=$true)][ValidateSet('Enter','Attack','J','W','A','S','D','TurnLeft','TurnRight','LookUp','LookDown','Zoom','Space','Block','Shift','F6','F8','Up','Down','Left','Right','Capture','Pause','Resume','Defaults','Overall','Width','Length','Scrotum','Glans','Hang','Angle','Forward','Vertical','State','Naked','Jockstrap','TopNaked','TankTop','Jeans','JeansOpen')][string]$Key,[ValidateSet('Press','Hold','Release')][string]$Action='Press',[ValidateRange(0,100)][int]$Value=50)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'Read-SharedSandboxLog.ps1')
 if($Key -eq 'State' -and ($Value -lt 1 -or $Value -gt 3)){throw 'State requires 1, 2 or 3; no command was written.'}
 if($Value -eq 0 -and $Key -notin @('Length','Glans')){throw 'Only Length and Glans support zero; no command was written.'}
 $root=(Resolve-Path -LiteralPath $Workspace).Path
@@ -14,9 +15,9 @@ if ($revision -gt 1) {
  $previous=$revision-1
  $acknowledgement="Private (?:command(?: capture)?|native capture) revision=$previous(?: |`r|`n)"
  $log=Join-Path $root 'owned-game/Binaries/WolverineRuntime.log'
- $deadline=(Get-Date).AddSeconds(5)
+ $deadline=(Get-Date).AddSeconds(30)
  do {
-  $seen=Get-Content -LiteralPath $log -Raw
+  $seen=Read-SharedSandboxLog $log
   if ($seen -match $acknowledgement) {break}
   Start-Sleep -Milliseconds 100
  } while ((Get-Date) -lt $deadline)

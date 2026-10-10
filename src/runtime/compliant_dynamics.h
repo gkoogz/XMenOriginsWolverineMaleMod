@@ -259,6 +259,21 @@ static V3 PDSkinSupport(int s,V3 n){
  V3 outer=r+CPMul({.80f,.95f,.65f},scale);
  return CPTransform(CPSupportLocal(CPTranspose(n,s),outer),s);
 }
+// Position-independent extents recur in anterior contact ownership queries.
+// Cache only when every shape/orientation/pressure input is byte-identical;
+// rotations inside the coupled solver invalidate the entry immediately.
+static V3 PDSkinExtents(int s){
+ static float previous[2][20]{};static V3 value[2]{};static bool ready[2]{};
+ float key[20];memcpy(key,&eggRadii[s],12);memcpy(key+3,cpBasis[s],36);
+ memcpy(key+12,&cpNormal,12);key[15]=cpCompression[s];
+ memcpy(key+16,&lobePressureNormal[s],12);key[19]=lobeCompression[s];
+ if(!ready[s]||memcmp(previous[s],key,sizeof(key))){
+  value[s]={max(PDSkinSupport(s,{1,0,0}).x,-PDSkinSupport(s,{-1,0,0}).x),
+            max(PDSkinSupport(s,{0,1,0}).y,-PDSkinSupport(s,{0,-1,0}).y),
+            max(PDSkinSupport(s,{0,0,1}).z,-PDSkinSupport(s,{0,0,-1}).z)};
+  memcpy(previous[s],key,sizeof(key));ready[s]=true;
+ }return value[s];
+}
 static void PDRecoverPouchVentral(){
  float height=PDVentralHeight(pdPosition);
  for(int s=0;s<2;s++){
@@ -389,9 +404,10 @@ static void StepConstraintSolver(float dt,float gait,float side){
  float shaftDrag=.9f+(100.f-physUI[2])*.018f,bodyDrag=1.f+(100.f-physUI[6])*.025f;
  for(int i=2;i<pdCount;i++){
   float response=i<pdBody0?(.65f+physValues[3]*.009f):(.65f+physValues[7]*.009f),gravity=i<pdBody0?ModeValue(5.f,42.f,110.f):72.f;
-  V3 acceleration{0.f,side*86.f*response,gait*86.f*response-gravity};
+  const auto support=malemod::garments::PouchContentsSupport(clothingStyle==1);
+  V3 acceleration{0.f,side*86.f*response*support.motionTransfer,gait*86.f*response*support.motionTransfer-gravity};
   if(surfaceGarmentEnabled&&!surfaceGarmentContactReaction){auto a=i<pdBody0?surfaceGarmentShaft:surfaceGarmentLobes[i-pdBody0];auto bounded=::malemod::surface::BoundGarmentAcceleration({a.x,a.y,a.z},gravity);acceleration=acceleration+V3{bounded.x,bounded.y,bounded.z};}
-  float drag=i<pdBody0?shaftDrag:bodyDrag;
+  float drag=(i<pdBody0?shaftDrag:bodyDrag)+support.linearDrag;
   pdVelocity[i]=(pdVelocity[i]+acceleration*dt)*expf(-drag*dt);pdPosition[i]=pdPosition[i]+pdVelocity[i]*dt;
  }
  for(int s=0;s<2;s++){
@@ -481,6 +497,7 @@ static void StepConstraintSolver(float dt,float gait,float side){
  cpMinimumGap=min(cpMinimumGap,cpLastGap);pdMinimumGap=min(pdMinimumGap,cpLastGap);
 }
 
+#include <malemod/garments/pouch_budget.hpp>
 static void UpdateCompliantDynamics(float dt,float gait,float side){
  // Menus and device resets can draw the overlay before the character's
  // authored rest frame exists. Start only after ApplyShape supplies it.
@@ -488,8 +505,9 @@ static void UpdateCompliantDynamics(float dt,float gait,float side){
  if(!constraintSolverReady)InitializeConstraintSolver();
  PDInput target=PDReadInput(gait,side);
  if(!pdInputReady||!pdReady){pdInput=target;pdInputReady=true;memcpy(pdThigh,target.thigh,sizeof(pdThigh));}
- constraintAccumulator+=min(dt,.10f);const float fixed=1.f/240.f;
- int steps=min(24,int((constraintAccumulator+1e-7f)/fixed));
+ const auto budget=malemod::garments::PouchContentsSimulationBudget(clothingStyle==1);
+ constraintAccumulator+=min(dt,.10f);const float fixed=budget.stepSeconds;
+ int steps=min(int(budget.maximumSteps),int((constraintAccumulator+1e-7f)/fixed));
  for(int i=0;i<steps;i++){
   float t=float(i+1)/steps;PDSetInput(pdInput,target,t);
   StepConstraintSolver(fixed,pdInput.gait+(target.gait-pdInput.gait)*t,pdInput.side+(target.side-pdInput.side)*t);

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/gkoogz/MaleModBase.git",
-  "commit": "608fdb18eb4a7570afb1fd6f777e2d7eb67c86d3",
+  "commit": "47023a7f53d794cff84f2f423ba6a7d1fb98ec0f",
   "modules": [
     "surface/pelvic_frame",
     "surface/root_contact",
@@ -16,7 +16,9 @@
     "garments/fly_panels",
     "garments/radial_garment_coverage",
     "physics/bounded_hinge",
-    "garments/garment_shell"
+    "garments/garment_shell",
+    "garments/pouch_cage",
+    "garments/pouch_budget"
   ],
   "legacySnapshot": "reference-only-immutable",
   "developmentCheckpoint": true

@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <cmath>
 #include <malemod/controls/presentation.hpp>
+#include <malemod/garments/pouch_budget.hpp>
 #include <malemod/surface/garment_support.hpp>
 #include <malemod/surface/garment_impulse.hpp>
 #include "performance_metrics.h"
@@ -55,6 +56,7 @@ static void Log(const char* fmt,...);
 static IDirect3DVertexBuffer9* seenBuffers[256];
 static UINT seenCount;
 static IDirect3DVertexBuffer9* graftBuffer;
+static LONG graftBufferLastSeenFrame=-3;
 static UINT graftOffset;
 static const UINT graftCount=2388, graftStride=32;
 static const UINT graftTriangleIndexStart=249804;
@@ -75,7 +77,10 @@ static const float neutralShape[7]={1.2f,1.6f,1.59f,1.53f,30.f,-.7f,.400001f};
 // and Overall+Scrotum collapses the pouch.  Keep every UI control fully usable,
 // but map UI 1 to coherent anatomical envelopes rather than the destructive
 // legacy extremes.  The neutral and upper halves remain bit-identical.
-static const float coherentShapeLow[7]={.85f,1.0f,.95f,1.0f,-80.f,-2.f,-3.f};
+// The fixed pelvic cuff supports a forward-facing root. The old +120 degree
+// endpoint pointed it back through the body; the calibrated -65..75 arc keeps
+// the same neutral pose and full UI travel without an inside-out attachment.
+static const float coherentShapeLow[7]={.85f,1.0f,.95f,1.0f,-65.f,-2.f,-3.f};
 static float hangUI=50.f;
 static float glansUI=50.f;
 static float sliderUI[7]={50.f,50.f,50.f,50.f,50.f,50.f,50.f};
@@ -370,7 +375,9 @@ static void StepRootSuspension(float dt,float gait,float side){
   shaftMode+=(modeTarget-shaftMode)*(1.f-expf(-2.f*dt));
   float mass=(1.f+physValues[1]*.016f)*max(.65f,sqrtf(constraintRestLength/24.f));
   float k=ModeValue(38.f,22.f,10.f),damping=2.f*sqrtf(k*mass)*ModeValue(.60f,.72f,.86f);
-  float droop=ModeValue(.015f,.11f,.28f),drive=ModeValue(7.f,9.f,12.f);
+  const auto support=malemod::garments::PouchContentsSupport(clothingStyle==1);
+  k*=support.rootStiffness;damping*=support.rootDamping;
+  float droop=ModeValue(.015f,.11f,.28f),drive=ModeValue(7.f,9.f,12.f)*support.motionTransfer;
   shaftSpring.pitchVelocity+=(k*(droop-shaftSpring.pitch)-damping*shaftSpring.pitchVelocity-gait*drive)*dt/mass;
   shaftSpring.yawVelocity+=(-k*.8f*shaftSpring.yaw-damping*shaftSpring.yawVelocity+side*drive)*dt/mass;
   shaftSpring.pitch+=shaftSpring.pitchVelocity*dt;shaftSpring.yaw+=shaftSpring.yawVelocity*dt;
@@ -601,11 +608,14 @@ static void SiblingPath(char* path,const char* name){GetModuleFileNameA((HMODULE
 static bool ReadIniFloat(const char* path,const char* section,const char* key,float lo,float hi,float& value){char text[64]{};GetPrivateProfileStringA(section,key,"",text,sizeof(text),path);if(!text[0])return false;char* end=nullptr;float parsed=strtof(text,&end);if(end==text||!std::isfinite(parsed)||parsed<lo||parsed>hi)return false;value=parsed;return true;}
 static float MapControl100(float ui,float lo,float neutral,float hi){ui=max(1.f,ui);return ui<=50.f?lo+(neutral-lo)*((ui-1.f)/49.f):neutral+(hi-neutral)*((ui-50.f)/50.f);}
 static float UnmapControl100(float value,float lo,float neutral,float hi){value=max(lo,min(hi,value));return value<=neutral?1.f+49.f*(value-lo)/max(1e-6f,neutral-lo):50.f+50.f*(value-neutral)/max(1e-6f,hi-neutral);}
-// Preserve the accepted midpoint and lower range. Above 50, add a smooth
+// Preserve the accepted midpoint. The former .40 lower length extrapolated
+// beyond the authored .60 morph and collapsed combined small controls. Use
+// the established coherent endpoint (1.0), with the same smooth response.
+// Above 50, add a smooth
 // 20-percent extension that starts at zero and reaches its full amount at 100.
 static float MapLength100(float ui){
   ui=max(0.f,ui);
-  if(ui<50.f)return .40f+(neutralShape[1]-.40f)*Smoother01(ui/50.f);
+  if(ui<50.f)return coherentShapeLow[1]+(neutralShape[1]-coherentShapeLow[1])*Smoother01(ui/50.f);
   float t=max(0.f,min(1.f,(ui-50.f)/50.f));
   float baseline=neutralShape[1]+(sliderSpecs[1].hi-neutralShape[1])*t;
   return baseline+sliderSpecs[1].hi*.20f*Smoother01(t);
@@ -686,7 +696,7 @@ static void ApplyControlMapping(){
     // Size pulses may briefly exceed the user slider's 100-point endpoint.
     // The stored sliderUI remains in its ordinary range.
     effectiveShapeUI[i]=max(i==1?0.f:1.f,sliderUI[i]+offset);
-    sliderValues[i]=i==1?MapLength100(effectiveShapeUI[i]):MapControl100(effectiveShapeUI[i],coherentShapeLow[i],neutralShape[i],sliderSpecs[i].hi);
+    sliderValues[i]=i==1?MapLength100(effectiveShapeUI[i]):MapControl100(effectiveShapeUI[i],coherentShapeLow[i],neutralShape[i],i==4?75.f:sliderSpecs[i].hi);
   }
   effectiveGlansUI=max(0.f,min(100.f,glansUI+(size[mode]*combinedSizePulse*(1.f-demo.blend)+4.f*demo.pulse*demo.blend)*sizePoseFactor));
   for(int i=0;i<8;i++)physValues[i]=MapControl100(physUI[i],physSpecs[i].lo,neutralPhysics[i],physSpecs[i].hi);
@@ -1740,13 +1750,29 @@ static void UpdateJockstrapSource(const unsigned char* body){
 static void ApplyShape(){PerfScope perf(8);
   if(!graftBuffer)return;bool report=shapeDirty;void* raw=nullptr;
   const UINT graftFirstVertex=graftOffset/graftStride;
-  const UINT controlledVertexCount=graftFirstVertex+graftCount-pelvisControlFirstVertex;
-  HRESULT hr=graftBuffer->Lock(0,(graftFirstVertex+graftCount)*graftStride,&raw,0);
-  if(FAILED(hr)){Log("live shape lock failed %08X",hr);return;}
-  auto* fullBuffer=(unsigned char*)raw;
+  const size_t vertexCount=size_t(graftFirstVertex)+graftCount,evaluatedBytes=vertexCount*graftStride;
+  static std::vector<unsigned char> staging,before,owned;
+  static IDirect3DVertexBuffer9* sourceBuffer=nullptr;
+  // Native skeletal motion lives in the palette, not this authored VB. Capture
+  // its immutable source once per binding/rest reset, then avoid GPU readback.
+  if(sourceBuffer!=graftBuffer||staging.size()!=evaluatedBytes||!preparedShapeReady){
+    staging.resize(evaluatedBytes);before.resize(evaluatedBytes);owned.assign(vertexCount,0);
+    HRESULT hr=graftBuffer->Lock(0,UINT(evaluatedBytes),&raw,0);
+    if(FAILED(hr)){Log("live shape source lock failed %08X",hr);return;}
+    memcpy(staging.data(),raw,evaluatedBytes);graftBuffer->Unlock();sourceBuffer=graftBuffer;
+  }
+  memcpy(before.data(),staging.data(),evaluatedBytes);
+  auto* fullBuffer=staging.data();
   ResetPelvicAttachmentBody(fullBuffer);
   EvaluateAnatomy(fullBuffer,graftFirstVertex);
   if(MeridianAdapter::DiagnosticRequested("MeridianGeometry.request"))MeridianAdapter::CaptureAnatomyContactTrace();
+  // Track the union of authored vertices changed by the evaluator, including
+  // vertices returning to rest. Never publish cached native UVs, weights or
+  // untouched geometry. Both body resources and the graft use this one result.
+  for(size_t i=0;i<vertexCount;i++)if(memcmp(before.data()+i*graftStride,fullBuffer+i*graftStride,20))owned[i]=1;
+  HRESULT hr=graftBuffer->Lock(0,UINT(evaluatedBytes),&raw,0);
+  if(FAILED(hr)){Log("live shape publish lock failed %08X",hr);return;}
+  for(size_t i=0;i<vertexCount;i++)if(owned[i])memcpy(static_cast<unsigned char*>(raw)+i*graftStride,fullBuffer+i*graftStride,20);
   auto* p=fullBuffer+graftFirstVertex*graftStride;
   float written[3];memcpy(written,p,12);graftBuffer->Unlock();shapeDirty=false;if(report)Log("live controls, recruited pelvis collar, and dynamic tangent basis applied state=%d collar=%.3f shape=%.2f %.2f %.2f %.2f %.1f %.2f %.2f shaft=%.0f %.0f %.0f %.0f balls=%.0f %.0f %.0f %.0f first=(%.4f %.4f %.4f)",physicsState,PelvisCollarGrowth(),sliderValues[0],sliderValues[1],sliderValues[2],sliderValues[3],sliderValues[4],sliderValues[5],sliderValues[6],physValues[0],physValues[1],physValues[2],physValues[3],physValues[4],physValues[5],physValues[6],physValues[7],written[0],written[1],written[2]);
 }
@@ -1827,7 +1853,7 @@ static void AdjustStudyControl(int index,int dir,float mult){
 static void UpdateActiveAnatomySurface(){
  // A retained gameplay buffer is not evidence that gameplay is still visible.
  if(TankCameraSceneActive()){if(settingsLoaded)PrepareMenuTankSurface();}
- else if(graftBuffer)ApplyShape();
+ else if(graftBuffer&&malemod::garments::UpdatePouchCoveredSurface(clothingStyle==1,shapeDirty,teachingTimeline.active,static_cast<unsigned long long>(renderFrameSerial)))ApplyShape();
 }
 static void OverlayFrame(IDirect3DDevice9* d){PerfScope perf(1);
   if(inOverlay)return;inOverlay=true;
@@ -1923,7 +1949,7 @@ static HRESULT STDMETHODCALLTYPE HookSwapPresent(IDirect3DSwapChain9* sc,const R
   if(SUCCEEDED(sc->GetDevice(&d))&&d){if(!frameRendered&&SUCCEEDED(d->BeginScene())){OverlayFrame(d);origEndScene(d);}menuTankDrawnThisFrame=false;frameRendered=false;d->Release();}
   return origSwapPresent(sc,src,dst,wnd,dirty,flags);
 }
-static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){MenuBranding::Release();MenuHud::Release();MenuInput::Publish(false);anatomyVisibleFrame=-3;anatomyScene=-1;tankCameraSceneTick=0;MenuNecklace::Release();TankTopAdapter::Release();JeansAdapter::Release();MeridianAdapter::Release();JockstrapAdapter::Release();clothingEpoch++;surfaceGarmentEnabled=false;ReleaseTeaching();ReleaseFluidSpaceDiagnostics();ResetFluidCollision();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseSharedSkin();ReleaseR14SkinTextures();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;shaderLayoutIndex.clear();motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);if(SUCCEEDED(hr)&&pp&&pp->hDeviceWindow)MenuInput::Attach(pp->hDeviceWindow);shapeDirty=true;return hr;}
+static HRESULT STDMETHODCALLTYPE HookReset(IDirect3DDevice9* d,D3DPRESENT_PARAMETERS* pp){MenuBranding::Release();MenuHud::Release();MenuInput::Publish(false);anatomyVisibleFrame=-3;anatomyScene=-1;tankCameraSceneTick=0;MenuNecklace::Release();TankTopAdapter::Release();JeansAdapter::Release();MeridianAdapter::Release();JockstrapAdapter::Release();clothingEpoch++;surfaceGarmentEnabled=false;ReleaseTeaching();ReleaseFluidSpaceDiagnostics();ResetFluidCollision();captureRemaining=0;necklaceBodyFrame=-2;necklaceRig=NcRig{};ReleaseLightingDirections();ReleaseSharedSkin();ReleaseR14SkinTextures();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}graftBufferLastSeenFrame=-3;for(UINT i=0;i<shaderLayoutCount;i++)if(shaderLayouts[i].shader)shaderLayouts[i].shader->Release();memset(shaderLayouts,0,sizeof(shaderLayouts));shaderLayoutCount=0;shaderLayoutIndex.clear();motionTracked=false;motionBasisReady=false;motionCollisionBonesReady=false;motionSpinSpeed=0;motionLastTick=motionLastCaptureTick=0;motionSamples=0;motionWarmupSamples=motionQuietFrames=0;memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));renderFrameSerial=-1;motionCaptureSerial=-2;motionPassLogged=motionCandidateLogs=motionBoneLogged=0;seenCount=0;physicsLastTick=0;throbLastTick=0;shaftSpring=Spring2{};ballsSpring=Spring2{};constraintSolverReady=false;shaftRestFrameReady=false;constraintAccumulator=0;constraintSolverState=-1;HRESULT hr=origReset(d,pp);if(SUCCEEDED(hr)&&pp&&pp->hDeviceWindow)MenuInput::Attach(pp->hDeviceWindow);shapeDirty=true;return hr;}
 static void Log(const char* fmt, ...) {
   static volatile LONG lines=0;LONG line=InterlockedIncrement(&lines);if(line>12000)return;
   char path[MAX_PATH]; GetModuleFileNameA((HMODULE)&__ImageBase,path,MAX_PATH);
@@ -2186,14 +2212,14 @@ static HRESULT DrawWithIdleGesture(IDirect3DDevice9* dev,D3DPRIMITIVETYPE type,I
   if(InterlockedExchange(&idleGestureDrawSerial,playback.serial)!=playback.serial)Log("idle gesture rendered: custom=%02d style=bored%d serial=%ld",playback.clip+1,playback.clip%4+1,playback.serial);
   return result;
 }
-static void SelectAnatomyScene(bool title){
+static void SelectAnatomyScene(bool title,bool resourceReplaced=false){
  anatomyVisibleFrame=renderFrameSerial;anatomyLastSeenTick=GetTickCount();
  const int next=title?1:0;
  tankCameraSceneTick=title?GetTickCount():0;
- if(anatomyScene==next)return;
+ if(anatomyScene==next&&!resourceReplaced)return;
  int previous=anatomyScene;anatomyScene=next;
  MenuNecklace::Release();TankTopAdapter::Release();JeansAdapter::Release();MeridianAdapter::Release();JockstrapAdapter::Release();clothingEpoch++;surfaceGarmentEnabled=false;ReleaseTeaching();ResetFluidCollision();ReleaseMenuTank();ReleaseTankSetExtension();ReleaseR14();
- if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}
+ if(graftBuffer){graftBuffer->Release();graftBuffer=nullptr;}graftBufferLastSeenFrame=-3;
  menuTankSurfaceReady=false;menuRetargetBodyDynamicReady=false;r14Ready=false;
  preparedShapeReady=false;constraintSolverReady=false;shaftRestFrameReady=false;eggRestReady=false;
  constraintAccumulator=0;constraintSolverState=-1;physicsLastTick=throbLastTick=0;
@@ -2202,7 +2228,7 @@ static void SelectAnatomyScene(bool title){
  motionLastTick=motionLastCaptureTick=0;motionCaptureSerial=-2;motionWarmupSamples=motionQuietFrames=0;
  memset(motionPrevVelocity,0,sizeof(motionPrevVelocity));memset(motionFilteredAccel,0,sizeof(motionFilteredAccel));memset(motionPrevAngularVelocity,0,sizeof(motionPrevAngularVelocity));
  necklaceBodyFrame=-2;necklaceRig=NcRig{};tankCameraCycleTick=0;
- Log("anatomy scene transition %d -> %d: cleared old simulation, collision and mesh ownership",previous,next);
+ Log("anatomy scene transition %d -> %d resourceReplaced=%d: cleared old simulation, collision and mesh ownership",previous,next,resourceReplaced?1:0);
 }
 static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE type,INT base,UINT minv,UINT nv,UINT start,UINT count) {
   if(inOverlay)return origDIP(dev,type,base,minv,nv,start,count);
@@ -2211,7 +2237,16 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
   D3DVERTEXBUFFER_DESC probeDesc{};bool haveDesc=vb&&stride==32&&SUCCEEDED(vb->GetDesc(&probeDesc));
   if(haveDesc&&stride==32){
     if(probeDesc.Size==12082u*32u)SelectAnatomyScene(true);
-    else if(probeDesc.Size==50915u*32u)SelectAnatomyScene(false);
+    else if(probeDesc.Size==50915u*32u){
+      // Reloading a checkpoint replaces the native buffer without changing
+      // scene kind. Release the stale owner only for an observed character
+      // section and after its previous buffer stopped drawing. This avoids
+      // switching ownership between simultaneous passes/actors.
+      bool section=type==D3DPT_TRIANGLELIST&&((start==85446u&&count==28536u)||(start==219414u&&count==10130u)||(start==graftTriangleIndexStart&&count==graftTriangleIndexCount/3u));
+      bool replaced=graftBuffer&&vb!=graftBuffer&&section&&renderFrameSerial-graftBufferLastSeenFrame>1;
+      SelectAnatomyScene(false,replaced);
+      if(vb==graftBuffer)graftBufferLastSeenFrame=renderFrameSerial;
+    }
   }
   TankCameraDrawOverride cameraOverride(dev);
   if(FluidWorkActive()||JockstrapAdapter::GetStyle()==1){CaptureFluidWorldGeometry(dev,type,base,minv,nv,start,count,vb,offset,stride,FluidWorkActive());CaptureFluidCamera(dev);}
@@ -2271,7 +2306,7 @@ static HRESULT STDMETHODCALLTYPE HookDIP(IDirect3DDevice9* dev,D3DPRIMITIVETYPE 
         bool drawSignature=start==graftTriangleIndexStart&&count==graftTriangleIndexCount/3u;
         LONG candidate=InterlockedIncrement(&motionCandidateLogs);
         if(candidate<=16)Log("candidate Wolverine VB=%p size=%u offset=%u stride=%u lock=%08X fingerprint=%d drawSignature=%d start=%u count=%u",vb,desc.Size,offset,stride,lk,match?1:0,drawSignature?1:0,start,count);
-        if(match||drawSignature){graftBuffer=vb;graftBuffer->AddRef();graftOffset=47050u*graftStride;InterlockedExchange(&logged,1);preparedShapeReady=false;constraintSolverReady=false;shapeDirty=true;ApplyShape();Log("graft buffer solidly connected at vertex %u via %s signature",graftOffset/graftStride,match?"geometry":"section-draw");}
+        if(match||drawSignature){graftBuffer=vb;graftBuffer->AddRef();graftBufferLastSeenFrame=renderFrameSerial;graftOffset=47050u*graftStride;InterlockedExchange(&logged,1);preparedShapeReady=false;constraintSolverReady=false;shapeDirty=true;ApplyShape();Log("graft buffer solidly connected at vertex %u via %s signature",graftOffset/graftStride,match?"geometry":"section-draw");}
       }
     }
     if(vb==graftBuffer&&type==D3DPT_TRIANGLELIST)CaptureNecklaceBodyPose(dev,start,count);

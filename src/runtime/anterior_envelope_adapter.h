@@ -8,9 +8,7 @@ static bool AnteriorEnvelopeEnabled(){
 static V3 PDEnvelopeRadii(){
  V3 radius{};
  for(int s=0;s<2;s++){
-  radius.x=max(radius.x,max(PDSkinSupport(s,{1,0,0}).x,-PDSkinSupport(s,{-1,0,0}).x));
-  radius.y=max(radius.y,max(PDSkinSupport(s,{0,1,0}).y,-PDSkinSupport(s,{0,-1,0}).y));
-  radius.z=max(radius.z,max(PDSkinSupport(s,{0,0,1}).z,-PDSkinSupport(s,{0,0,-1}).z));
+  V3 extent=PDSkinExtents(s);radius.x=max(radius.x,extent.x);radius.y=max(radius.y,extent.y);radius.z=max(radius.z,extent.z);
  }return radius;
 }
 static bool PDAnteriorOwnsContact(V3 point,V3 rodToLobe,float radius){

@@ -19,7 +19,17 @@ $pin=Get-Content -LiteralPath (Join-Path $repo 'dependencies/base.lock.json') -R
 $production=Get-Content -LiteralPath (Join-Path $build 'provenance.json') -Raw | ConvertFrom-Json
 $native=Get-Content -LiteralPath $NativeEvidence -Raw | ConvertFrom-Json
 $candidate=Join-Path $build 'd3d9.dll'
-if($production.schema -ne 'wolverine.production-build/1' -or $production.dirtySourceIncluded -or $production.privateFactoryIncluded -or $production.sandboxInputHooksIncluded -or $production.sandboxWorldOriginIncluded){throw 'Only a clean production runtime can be installed here.'}
+$cleanSource=$production.schema -eq 'wolverine.production-build/1' -and !$production.dirtySourceIncluded
+$listedSource=$production.schema -eq 'wolverine.production-build/2' -and $production.sourceMode -eq 'commit-plus-hashed-overlays' -and $production.unrelatedDirtySourceIncluded -eq $false
+if((!$cleanSource -and !$listedSource) -or $production.privateFactoryIncluded -ne $false -or $production.sandboxInputHooksIncluded -ne $false -or $production.sandboxWorldOriginIncluded -ne $false){throw 'Only an identified production runtime without private test hooks can be installed here.'}
+if($listedSource){
+ if(!$production.sourceIdentity -or $native.sourceIdentity -ne $production.sourceIdentity){throw 'Native evidence does not identify the exact production overlays.'}
+ if(@($production.sourceFiles).Count -lt 1){throw 'Frozen production source manifest missing.'}
+ foreach($entry in $production.sourceFiles){
+  $sourcePath=[IO.Path]::GetFullPath((Join-Path $build $entry.path))
+  if(!$sourcePath.StartsWith($build.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or (Hash $sourcePath) -ne $entry.sha256){throw 'Frozen production source changed or escaped the build directory.'}
+ }
+}
 if((Hash $candidate) -ne $production.runtimeSHA256 -or $production.baseCommit -ne $pin.commit){throw 'Production runtime or Base pin mismatch.'}
 if($native.sourceCommit -ne $production.sourceCommit -or $native.baseCommit -ne $production.baseCommit -or !$native.nativeGameplayObserved -or !$native.completeSampledMatrix -or $native.reportedDrawRejections -ne 0){throw 'Matching sampled native source evidence is required.'}
 if(!$native.fullAttachmentGatePassed -and !$Development){throw 'Full attachment acceptance is incomplete. Only an explicitly selected development installation can proceed, retaining the accepted runtime.'}

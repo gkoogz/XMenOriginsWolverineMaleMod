@@ -4,9 +4,7 @@
 // bounded rear recovery only in the separately tested combined candidate.
 static bool AnteriorBodyEnabled(){return true;}
 static V3 PDAnteriorBodyExtents(int s){
- return {max(PDSkinSupport(s,{1,0,0}).x,-PDSkinSupport(s,{-1,0,0}).x),
-         max(PDSkinSupport(s,{0,1,0}).y,-PDSkinSupport(s,{0,-1,0}).y),
-         max(PDSkinSupport(s,{0,0,1}).z,-PDSkinSupport(s,{0,0,-1}).z)};
+ return PDSkinExtents(s);
 }
 static bool PDAnteriorBodyOwnsContact(int s,V3 a,V3 b,float radius){
  return AnteriorBodyEnabled()&&malemod::physics::AnteriorCapsule(pdPosition[pdBody0+s],a,b,PDAnteriorBodyExtents(s),radius).active;

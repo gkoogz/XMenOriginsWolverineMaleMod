@@ -169,3 +169,11 @@ states. State uses ordinal 1/2/3; invalid ordinals are refused before writing
 the command. Captures require visual review and do not certify campaign,
 every body/LOD or full attachment acceptance. Close the owned run and inspect
 its exit/audio restoration before starting the separate grey-room matrix.
+
+## Production-matched campaign checks
+
+`prepare_production_validation.py --production <identified normal build> --output <fresh private build>` copies that production source and Base pin, then applies the listed sealed-driver insertions only. Build its `build.cmd` and record the DLL hash alongside `provenance-pending.json` before testing. The private DLL must never be installed into retail.
+
+`Open-NativeCampaign.ps1` uses a separate licensed campaign clone, `campaign-assets.json` with relative paths and SHA-256 identities, and an engine-created isolated profile. It verifies the copied assets, disables the room origin override and does not replace the profile. Use `-Continue` after the first fresh campaign start. Close with `Close-NativeSandbox.ps1`. Commands Enter, Attack and Zoom remain inside the sealed child; Enter dismisses observed tutorial prompts. Review actual frames: acknowledged camera commands while a tutorial is paused do not establish multiple-view coverage. Run one native game instance at a time.
+
+`Inspect-CharacterLODs.ps1` inventories skeletal LODs through the licensed package reader. Record the actual package hash and section identities; a floor mesh LOD assertion says nothing about character LOD support.

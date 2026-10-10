@@ -1,3 +1,170 @@
+## October 10 - user accepted the sewn-boundary correction
+
+The user confirmed the installed correction is liked and requested a GitHub
+push. This checkpoint commits the exact installed runtime source overlays and
+Base pin 47023a7, together with the build and focused verification tools.
+The Base pin is published on codex/pouch-cage. The runtime SHA and evidence
+scope below remain unchanged. This is a source push, not a new release package.
+Unrelated experimental working changes remain outside this checkpoint.
+
+## October 10 - sewn boundary and saddle correction installed
+
+Installed production 25ca1204061a0a7c0bcdc7943031d8ac8263a1d12c9b4c588efb64d3339ba3fa
+to C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll; hash verified.
+Base pin 47023a7f53d794cff84f2f423ba6a7d1fb98ec0f. Source identity
+10ea90218b16ac10c5d7ac93fc272fa2bd327b5746172a2aac6064302192c1d7.
+Only shared pouch_cage.hpp changed among 566 compiled inputs.
+The fitter now derives the cage boundary from the actual sewn polygon and
+propagates exact seam detail, replacing the former immediate elliptical base.
+Removed the upper local-radius release responsible for the saddle depression.
+
+Focused source regression passes and fails against the previous oval-base code.
+Reviewed 20 native control cases, 22 orbit/size views, three exposed attachment
+views, 13 selected motion frames and four campaign captures. No fitting rejects.
+Representative room preparation means remained around 2.9-3.1 ms. No new paired
+FPS benchmark is claimed. Room run 20261010-150456-a7043c and campaign run
+20261010-151021-5a10b3 closed; room prior DLL restored; no host input/focus used.
+This is the requested focused development update. Full attachment certification
+is false: exhaustive all-LOD/body-resource/motion combinations were not rerun;
+prior source-identical body evidence is retained separately. No continuous
+collision or campaign reload-cycle claim. Private receipt:
+D:/MaleModBuilds/jockstrap-boundary-20261010/install-evidence.json.
+
+Exact rollback to the rejected 6fb31e30 build is retained at
+C:/Games/X-Men Origins Wolverine/WGame/ModBackups/
+Meridian-development-20261010-151424-022be3/Restore.ps1; the earlier accepted
+9919da09 rollback chain remains intact. Installer verified protected files and
+rollback. Saves/settings/audio preserved. No push or release; canonical main
+remains 68 commits ahead of origin with pre-existing and current working edits.
+User acceptance of the replacement appearance remains separate from this review.
+
+## October 10 - oval attachment and saddle correction in progress
+
+The user rejected installed 6fb31e30: its oval shoulder remained and the upper
+local-radius release introduced a saddle. Previous visual acceptance below is
+superseded for garment shape. The authored seam is already the actual waistband
+arc plus side hems. FitPouchCage replaced its adjacent rows with an ellipse.
+New Base pin 47023a7f53d794cff84f2f423ba6a7d1fb98ec0f instead seeds each cage ray
+from its intersection with the sewn polygon, preserves nonplanar seam detail
+continuously, pins cage row zero, and removes the upper local-radius release.
+A nonelliptical outline regression fails the old code and passes the correction.
+Source identity 10ea90218b16ac10c5d7ac93fc272fa2bd327b5746172a2aac6064302192c1d7:
+565/566 compiled inputs unchanged; only shared pouch_cage.hpp differs.
+Native review and installation remain pending. Private build/evidence directory:
+D:/MaleModBuilds/jockstrap-boundary-20261010. No complete attachment gate claim.
+
+## October 10 - waistband cone correction installed
+
+Installed 6fb31e30af86dd88ec8b32f3d5b7ab0e341a1c48d6477238f5415fc09b6fb4de
+to C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll. Base pin
+add4d255ce9faae485c1f9502e296e132c681b10; source identity
+870e94086e24554186e9d606052d71ad9c36c8ca233aa692b912c848537a9bca.
+Exactly one compiled input changed: shared garments/pouch_cage.hpp.
+Upper-waist rays blend local contact into the original distal envelope,
+allowing a curved waistband transition while retaining the rounded underside.
+Removing the whole envelope made the pouch lumpy and was rejected.
+565 anatomy/physics/material/control/binding inputs remain byte-identical.
+
+Focused acceptance: shared seam/covariance/finite/cadence test, source provenance,
+20 native control cases, 22 views, 3 exposed attachment views and reviewed motion
+samples; original campaign front/side running with tank and pouch. No fitting
+rejections; representative preparation remains around 2.8-3.0 ms. Prior broad
+unchanged-body numerical/LOD evidence retained by source identity, not rerun
+exhaustively. No continuous collision or fresh reload-cycle claim.
+Room run 20261010-143041-fa3d43 and campaign 20261010-143835-02b23a closed.
+Room prior DLL restored. No host input/focus. Private evidence:
+D:/MaleModBuilds/jockstrap-waist-20261010/install-evidence.json.
+
+Exact rollback: C:/Games/X-Men Origins Wolverine/WGame/ModBackups/
+Meridian-development-20261010-144251-69d5b0/Restore.ps1. Prior runtime9919da09
+retained; installer verified rollback and protected saves/settings/audio.
+Canonical c718b1b plus named overlays; Base compatibility pins local. No push
+or release. Existing uncommitted work retained. Other spokes adopt the shared
+pin with their own binding/visual checks.
+
+## October 10 - optimized pre-shaped jockstrap installed
+
+Installed normal runtime 9919da09202c9e339db79a4b38df95eeaa0118055dc121df3759279f8c829cb8
+to C:/Games/X-Men Origins Wolverine/Binaries/d3d9.dll. Canonical c718b1b plus
+named hashed overlays, Base pin 3ee59844520e9e4ca6ad949594df9e6c9b2a297c;
+source identity 37e6b6afca3d61f4b49105fa0197e8bd4bba4f93731821abbaebb327b28672dd.
+Exact rollback: C:/Games/X-Men Origins Wolverine/WGame/ModBackups/
+Meridian-development-20261010-134102-530873/Restore.ps1 (prior ab1f8d8e).
+Installer, installed hash, protected save/settings/audio hashes and rollback
+ValidateOnly passed. No private test hooks in installed DLL.
+
+Pre-shaped cage/local contact, CPU source caching and covered cadence replace
+the expensive walker; covered support damping, coherent minimum Length and
+measured Angle bounds repair visual failures; buffer ownership resets on reload.
+147 static / 540 motion / 480 pulse numerical cases passed. Actual character
+has one supported LOD and both body resources were covered. Required sampled
+attachment gate recorded: 133 room images plus campaign evidence, all 3 states,
+size combinations, extreme mapped angles, orbit and motion. This is sampled
+visual acceptance, not continuous collision or every possible pose proof.
+
+Paired fitting CPU 37.875 -> 2.110 ms (94.43% less, 18x). Final native campaign
+Tank + Jockstrap averaged 32.124 ms / 31.13 FPS over 1,080 active frames at720p.
+Landing, damage, running, death and checkpoint rebind/visibility observed.
+Post-reload movement was not captured before bounded timeout. Room exit0,
+campaign bounded exit124; no owned game remains. Room prior DLL restored.
+The earlier host MEMORY_MANAGEMENT BSOD also occurred October8; cause remains
+unknown and no machine stability fix is claimed. Short reruns completed.
+
+See canonical docs/JOCKSTRAP-PLAYABLE-ACCEPTANCE.md and private evidence
+D:/MaleModBuilds/jockstrap-acceptance-20261010/install-evidence-final.json.
+No commit/push/release. Named overlays and unrelated dirty work retained;
+Wolverine ahead68. Other spokes adopt pinned shared Base with native tests.
+
+## October 10 - pre-shaped pouch implemented; native room measured, full gate pending
+
+Shared Base pouch cage/budget pin c2bf9699646a607e48f272d88eb4d58bc6b2f49d
+replaces the walking/following/retry path in current Wolverine source. Local
+24x17 controls, outward seam winding, rounded interpolation and local sampled
+contact preserve the sewn boundary. Persistent CPU authored geometry avoids
+repeated GPU readback; exact-input support caching and 120 Hz covered contents
+plus alternate-frame fine skin reduce the other dominant costs.
+
+Paired 14-pose replay: optimized walker 37.875 -> cage 2.110 ms, 94.43% less fit
+CPU. Final sealed native run 20261010-114753-6238ec: 22 views, 49 motion samples,
+20 control cases, no fit rejection; settled 25.209 ms / 39.7 FPS over 2,040
+frames at 1280x960. This is private-room cadence, not retail campaign parity.
+72 complete geometry frames remain byte-identical after the CPU buffer change.
+Original material restored after an unlit probe showed later native attenuation;
+no speculative shadow bypass remains. See Base docs/JOCKSTRAP-CAGE-IMPLEMENTATION.md
+and D:/MaleModBuilds/jockstrap-cage-20261010/report/Pouch-comparison.html
+(103 original embedded images, source/hash checks and JavaScript syntax pass;
+browser preview not verified because local URL policy blocked it).
+
+Normal uninstalled DLL: D:/MaleModBuilds/jockstrap-cage-20261010/production-original-lighting/d3d9.dll
+SHA256 2c45bbf6e84f042bb7939b99fa477d6a0d965896ac994260f2d0466832a4b61d.
+Test-only candidate16 SHA256 1e1e020778b47d115cb2c28d2a6f167edeac5d4dd376cde13c01aa64b2ad8c45.
+Normal build uses canonical c718b1b plus named overlays and pinned Base; sealed
+native harness inherits 3fe6ddc/Base608f with named current overlays, separately
+recorded. Full attachment/LOD/campaign/human-feel acceptance remains FALSE;
+contact audit is sampled and excludes the first two sewn display rows. Retail
+ab1f8d8e is unchanged. Final owned child exited 0; room DLL restored to74ec982f,
+no diagnostic request files remain, no host input/focus. No push or release.
+Shared tests/provenance and normal build pass. Full Base verify still fails at
+preexisting motion-header extraction drift; sandbox recipe still reports the
+preexisting sealed_d3d9.hpp hash mismatch. Do not refresh unrelated hashes.
+Compatibility pin is local/unpushed; main working changes remain uncommitted.
+
+## October 10 - completed jockstrap optimization and rejected oval comparison
+
+See Base docs/JOCKSTRAP-OPTIMIZATION-COMPARISON.md and the self-contained report
+D:/MaleModBuilds/jockstrap-audit-fixes-20261010/report/Jockstrap-comparison.html.
+Final paired replay: 139.876 -> 36.044 ms (74.23% less rebuild CPU), identical
+geometry/rejection receipts. Local Base pin bd7c4a77387b3f340c1ee2b3aa4a63300519d922
+plus Wolverine attempt guard and all-call timing are implemented. The separate
+16-section loft takes 1.068 ms but is VISUALLY REJECTED: side views show ribs,
+protruding lobes and excessive maximum-size volume. Do not adopt it.
+Production candidate DLL SHA256 9d23137b8cc279be1152942cc05a31491d6f4854c963762222d4233ff4432262
+is built privately, not installed. Retail remains ab1f8d8e. Relevant tests and
+replay pass; full Base verification still hits prior CMake motion-provenance
+drift. Partial native room comparison is not full attachment/LOD/campaign
+acceptance. Both owned runs closed; no host input/focus. No push or release.
+Compatibility pin is local/unpushed; unrelated working changes are preserved.
+
 ﻿## October 10 - donor and GPU fabric fallbacks rejected
 
 An older donor-driven 80x24 native prototype was fast (1.536 ms Update, .812 ms Draw), but its saved moving-room captures show a hanging flap and exposed center. A corrected private direct-fabric experiment remained a small grey thigh-side patch at about 2.86 ms sampled title Draw. A separate private GPU fabric split reused the game's already posed anatomy buffer, drawing 31,998 covered triangles as cotton and 3,002 as skin. Native front capture in run 20261010-000707-9d5a22 shows a dangling white anatomy-shaped strip without a pouch or waist support. These are rejected visual candidates. Their code and DLLs stay only in D:/MaleModBuilds/jockstrap-cadence-20261009 and D:/MaleModBuilds/jockstrap-cadence-20261010.

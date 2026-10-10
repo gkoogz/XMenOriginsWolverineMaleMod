@@ -3,25 +3,36 @@
 #include "meridian_recipe.h"
 #include "meridian_material.h"
 #include "meridian_state_audit.h"
+#include "meridian_attempt.h"
 #include <malemod/garments/meridian_clearance.hpp>
 #include <malemod/garments/meridian_rig.hpp>
-#include <malemod/garments/meridian_continuity.hpp>
-#include <malemod/garments/meridian_follow.hpp>
-#include <malemod/garments/taut_contact.hpp>
+#include <malemod/garments/pouch_cage.hpp>
 namespace MeridianAdapter {
 namespace M=malemod::garments::meridian;
 static_assert(MeridianRecipe::contractRevision==6,"Meridian geometry/binding contract mismatch");
 static IDirect3DVertexBuffer9* vb=nullptr;
 static IDirect3DIndexBuffer9* ib=nullptr,*uncovered=nullptr;
 static bool ready=false;
-static M::SurfaceContinuity continuity;
-static M::SurfaceFollower follower;
-static std::vector<unsigned> followCertificates;
-static std::vector<unsigned> repairCertificates;
-static std::vector<unsigned> interiorCertificates;
-static std::vector<M::Face> interiorFaces;
 static LONG drawn=-3,prepared=-3;
 static unsigned drawnPass=~0u;
+static MeridianAttemptGate attemptGate;
+static unsigned long long preparationEpoch=0;
+// Include rejected attempts and duplicate-hook input sampling in CPU cost.
+// Fixed windows avoid allocating or sorting on every render call.
+struct PreparationTimer {
+ std::chrono::steady_clock::time_point start=std::chrono::steady_clock::now();
+ LONG frame;bool success=false,duplicate=false;const char* stage="inputs";
+ explicit PreparationTimer(LONG f):frame(f){}
+ ~PreparationTimer(){
+  static double samples[120]{},sum=0,peak=0;static unsigned count=0,failed=0,duplicates=0;
+  double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+  samples[count]=ms;sum+=ms;peak=(std::max)(peak,ms);failed+=!success&&!duplicate;duplicates+=duplicate;
+  if(++count==120){double sorted[120];std::copy(samples,samples+120,sorted);std::sort(sorted,sorted+120);
+   Log("Meridian preparation allCalls=120 rejected=%u duplicateHooks=%u mean=%.4fms p95=%.4fms p99=%.4fms max=%.4fms lastFrame=%ld lastStage=%s",failed,duplicates,sum/120,sorted[113],sorted[118],peak,frame,stage);
+   count=failed=duplicates=0;sum=peak=0;
+  }
+ }
+};
 static std::vector<JockstrapAdapter::RenderVertex> vertices;
 struct Sample {M::Binding binding;M::Vec donor[3];};
 static std::vector<Sample> posed;
@@ -51,9 +62,9 @@ static void CaptureRenderMesh(){
 static void CheckFollowEpoch(){
  static float controls[9]{};static int state=-1,scene=-2;static unsigned long long epoch=~0ull;bool changed=state!=physicsState||scene!=anatomyScene||epoch!=clothingEpoch;
  for(unsigned k=0;k<9;k++){float value=k<7?sliderUI[k]:(k==7?hangUI:glansUI);changed|=controls[k]!=value;controls[k]=value;}
- state=physicsState;scene=anatomyScene;epoch=clothingEpoch;if(changed){follower.Reset();followCertificates.clear();interiorCertificates.clear();}
+ state=physicsState;scene=anatomyScene;epoch=clothingEpoch;if(changed){++preparationEpoch;attemptGate.Reset();}
 }
-static void Release(){for(auto* p:{ib,uncovered})if(p)p->Release();ib=uncovered=nullptr;if(vb)vb->Release();vb=nullptr;for(auto& t:sectionTarget){if(t)t->Release();t=nullptr;}MeridianMaterial::Release();continuity.Reset();follower.Reset();followCertificates.clear();repairCertificates.clear();interiorCertificates.clear();ready=false;drawn=prepared=-3;drawnPass=~0u;}
+static void Release(){for(auto* p:{ib,uncovered})if(p)p->Release();ib=uncovered=nullptr;if(vb)vb->Release();vb=nullptr;for(auto& t:sectionTarget){if(t)t->Release();t=nullptr;}MeridianMaterial::Release();attemptGate.Reset();++preparationEpoch;ready=false;drawn=prepared=-3;drawnPass=~0u;}
 static void Update(const unsigned char* body){
  if(!Active()||!body)return;
  CheckFollowEpoch();
@@ -64,7 +75,7 @@ static void Update(const unsigned char* body){
    if(id>=nrCount)throw std::runtime_error("Meridian anatomy donor out of range");auto p=nrPositions[id];return {p.x,p.y,p.z};
   };
   posed.resize(MeridianRecipe::sampleCount);vertices.resize(MeridianRecipe::sampleCount);
-  // The walker seeds every interior cloth point. Only the seam, pole, proxy
+  // The small pouch cage seeds every interior cloth point. Seam, pole, proxy
   // controls and trim are donor inputs; retain full raw donors for diagnostics.
   static std::vector<unsigned> sampleIDs; if(sampleIDs.empty()){sampleIDs.assign(std::begin(MeridianRecipe::runtimeSamples),std::end(MeridianRecipe::runtimeSamples));if(CaptureRaw())for(unsigned i=MeridianRecipe::columns;i<MeridianRecipe::clothCount-1;i++)sampleIDs.push_back(i);}
   for(unsigned i:sampleIDs){
@@ -93,7 +104,7 @@ static void Update(const unsigned char* body){
   }
   static unsigned serial=0;static double sum=0,maximum=0;
   double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-began).count();sum+=ms;maximum=(std::max)(maximum,ms);
-  if(++serial%120==1)Log("Meridian update serial=%u vertices=%u triangles=%u mean=%.4fms max=%.4fms directDonors=1 liveClearance=1 clothDynamics=0",serial,MeridianRecipe::count,MeridianRecipe::faceCount,sum/serial,maximum);
+  if(++serial%120==1)Log("Meridian update serial=%u vertices=%u triangles=%u mean=%.4fms max=%.4fms directDonors=1 sampledContact=1 continuousContactCertified=0 clothDynamics=0",serial,MeridianRecipe::count,MeridianRecipe::faceCount,sum/serial,maximum);
  }catch(const std::exception& e){ready=false;Log("Meridian candidate rejected: %s",e.what());}
 }
 // Record only coherent current HDR body/anatomy draws, retaining each actor map.
@@ -145,11 +156,14 @@ static void Draw(IDirect3DDevice9* d){
  const bool frozen=prepared>=0&&DiagnosticRequested("MeridianFreeze.request");
  bool preparedNow=prepared!=renderFrameSerial&&!frozen;
  if(preparedNow){
+ PreparationTimer preparationTimer(renderFrameSerial);
  D3DXMATRIX inverse,maps[3];if(!D3DXMatrixInverse(&inverse,nullptr,reinterpret_cast<D3DXMATRIX*>(sectionLocal[2])))return;
  for(unsigned k=0;k<3;k++)D3DXMatrixMultiply(&maps[k],reinterpret_cast<D3DXMATRIX*>(sectionLocal[k]),&inverse);
  static std::vector<M::Vec> points;points.resize(MeridianRecipe::sampleCount);
  for(unsigned i:MeridianRecipe::runtimeSamples)if(!PoseSample(posed[i],maps,points[i]))return;
  if(CaptureRaw())for(unsigned i=MeridianRecipe::columns;i<MeridianRecipe::clothCount-1;i++)if(!PoseSample(posed[i],maps,points[i]))return;
+ if(!attemptGate.Begin(renderFrameSerial,preparationEpoch,points,MeridianRecipe::runtimeSamples,unsigned(std::size(MeridianRecipe::runtimeSamples)))){preparationTimer.duplicate=true;return;}
+ preparationTimer.stage="supports";
 
  const bool captureRaw=CaptureRaw();
  static unsigned rawCaptures=0;
@@ -166,92 +180,18 @@ static void Draw(IDirect3DDevice9* d){
   for(unsigned h=0;h<6;h++)M::WriteLink(points.data()+MeridianRecipe::proxyRanges[h][0],rings[h],rings[h+1],64);
   M::WriteDome(points.data()+MeridianRecipe::proxyRanges[6][0],rings[6],apex,24,64);
   for(unsigned h=0;h<2;h++){auto c=lobeControls[h];M::WriteOvoid(points.data()+MeridianRecipe::proxyRanges[h+7][0],c[0],c[1],c[2],c[3],c[4],c[5],24,48);}
-  auto chart=M::PrepareAnchoredEnvelope(points,MeridianRecipe::columns,MeridianRecipe::clothCount-1,MeridianRecipe::count,MeridianRecipe::sampleCount-1,apex);
-  auto liveAxis=chart.axis;
-  std::vector<M::Hull> hulls;hulls.reserve(9);
-  for(unsigned h=0;h<9;h++){
-   auto* frame=MeridianRecipe::proxyFrames[h];M::Vec e=M::Unit(M::Sub(points[frame[1]],points[frame[0]])),n=M::Unit(M::Cross(e,M::Sub(points[frame[2]],points[frame[0]]))),v=M::Cross(n,e);
-   auto* range=MeridianRecipe::normalRanges[h];std::vector<M::Vec> normals;normals.reserve(range[1]+2);normals.push_back(liveAxis);normals.push_back(M::Mul(liveAxis,-1));
-   for(unsigned k=0;k<range[1];k++){auto q=MeridianRecipe::supportNormals[range[0]+k];normals.push_back(M::Add(M::Mul(e,q[0]),M::Add(M::Mul(v,q[1]),M::Mul(n,q[2]))));}
-   auto* proxy=MeridianRecipe::proxyRanges[h];M::Hull hull;hull.reserve(normals.size());for(auto normal:normals){normal=M::Unit(normal);float support=h<6?M::LinkSupport(rings[h],rings[h+1],normal):(h==6?M::DomeSupport(rings[6],apex,normal):M::OvoidSupport(lobeControls[h-7],normal));hull.push_back({normal,support+.0002f});}
-   if(h<6){auto a=rings[h],b=rings[h+1];hull.support=[a,b](M::Vec n){return M::LinkSupport(a,b,n)+.0002f;};}
-   else if(h==6){auto rim=rings[6];hull.support=[rim,apex](M::Vec n){return M::DomeSupport(rim,apex,n)+.0002f;};}
-   else{std::array<M::Vec,6> controls;std::copy(lobeControls[h-7],lobeControls[h-7]+6,controls.begin());hull.support=[controls](M::Vec n){return M::OvoidSupport(controls.data(),n)+.0002f;};}
-   hulls.push_back(std::move(hull));
-  }
-  const auto raw=points;std::vector<M::Vec> anchors;
-  if(DiagnosticRequested("MeridianGeometry.request")){
-   CaptureAnatomyContactTrace();
-   char path[MAX_PATH]{};SiblingPath(path,"MeridianContact.bin");FILE* file=nullptr;
-   if(!fopen_s(&file,path,"wb")&&file){fwrite(raw.data(),sizeof(raw[0]),raw.size(),file);fclose(file);}
-  }
-  for(unsigned k=0;k<10;k++)anchors.push_back(points[k*MeridianRecipe::columns/10]);
-  for(auto ring:rings)anchors.push_back(ring.center);
-  for(auto& lobe:lobeControls)anchors.push_back(M::Mul(M::Add(lobe[0],lobe[1]),.5f));anchors.push_back(apex);
-  std::vector<M::FollowFrame> followRig;
-  for(auto ring:rings)followRig.push_back({ring.center,M::Mul(ring.u,ring.radius),M::Mul(ring.v,ring.radius),M::Mul(M::Cross(ring.u,ring.v),ring.radius)});
-  for(auto& lobe:lobeControls)followRig.push_back({M::Mul(M::Add(lobe[0],lobe[1]),.5f),M::Mul(M::Sub(lobe[2],lobe[3]),.5f),M::Mul(M::Sub(lobe[4],lobe[5]),.5f),M::Mul(M::Sub(lobe[0],lobe[1]),.5f)});
-  M::WrapReceipt receipt{};bool wrapped=false,certified=false,followedThisFrame=false;
-  if(interiorFaces.empty())M::MovableClothFaces(MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,MeridianRecipe::columns,MeridianRecipe::clothCount,interiorFaces);
-  auto refitInterior=[&](){return !interiorFaces.empty()&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,interiorFaces.data(),unsigned(interiorFaces.size()),hulls,interiorCertificates);};
-  static unsigned attempts=0,wraps=0,transported=0,uncertified=0,followed=0;
-  ++attempts;
-  bool moved=follower.Move(points,followRig,MeridianRecipe::columns);
-  certified=moved&&M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates);
-  if(certified){++followed;followedThisFrame=true;}else{
-  points=raw;
-  std::vector<M::Hull> chartHulls;for(const auto& hull:hulls)chartHulls.push_back(chart.Transform(hull));
-  std::vector<M::Hull> coverHulls{M::ConvexCover(chartHulls,liveAxis,.04f)};
-  auto toChart=[&](){for(unsigned i=0;i<MeridianRecipe::clothCount;i++)points[i]=chart.Forward(points[i]);};
-  auto fromChart=[&](){for(unsigned i=0;i<MeridianRecipe::clothCount;i++)points[i]=chart.Inverse(points[i]);};
-  try{
-   toChart();
-   try{M::FitSeam(points,MeridianRecipe::columns,points[MeridianRecipe::clothCount-1],liveAxis,chartHulls,.12f,6.f);}
-   catch(const std::exception& e){
-    // The fallback keeps the raw sewn edge fixed. A failed fit cannot be
-    // repaired by walking or refitting only its interior, so avoid that
-    // full-surface work on a pose that cannot produce a certified garment.
-    ++uncertified;
-    if(attempts%120==1)Log("Meridian fixed seam rejected frame=%ld: %s",renderFrameSerial,e.what());
-    return;
-   }
-   std::vector<M::Vec> taut;float padding=0;
-   receipt=M::WalkCertifiedTautEnvelope(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,chartHulls,liveAxis,.04f,&padding,&taut);
-   for(unsigned i=0;i<MeridianRecipe::clothCount;i++)taut[i]=chart.Inverse(taut[i]);
-   fromChart();
-   if(!M::WithinMeridianSampling(points,taut,MeridianRecipe::columns,MeridianRecipe::rows))throw std::runtime_error("Contact correction exceeds physical sampling spacing");
-   for(unsigned i=0;i<MeridianRecipe::columns;i++){auto delta=M::Sub(points[i],raw[i]);if(M::Dot(delta,delta)>36.f)throw std::runtime_error("Sewn edge exceeds physical repair allowance");}
-   if(!M::CertifyFollowedSurface(points,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,followCertificates))throw std::runtime_error("Physical-space chart certificate failed");
-   continuity.Remember(points,raw,anchors,MeridianRecipe::columns,MeridianRecipe::clothCount);
-   follower.Remember(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothCount);
-   wrapped=certified=true;++wraps;
-  }catch(const std::exception& e){
-   // Failed triangle projection cannot become render geometry. Reconstruct
-   // from the current pose instead of distorting a transported old chart.
-   points=raw;
-   try{toChart();M::WalkMeridians(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::rowHeights,coverHulls,liveAxis,.04f);fromChart();}
-   catch(const std::exception&){points=raw;if(!follower.Move(points,followRig,MeridianRecipe::columns))continuity.Transport(points,anchors,MeridianRecipe::columns);}
-   ++transported;
-   certified=M::RefitFollowedSurface(points,MeridianRecipe::columns,MeridianRecipe::clothCount,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,repairCertificates);
-   if(!certified){++uncertified;if(attempts%120==1)Log("Meridian rejected uncertified display frame=%ld: %s",renderFrameSerial,e.what());return;}
-   continuity.Remember(points,raw,anchors,MeridianRecipe::columns,MeridianRecipe::clothCount);follower.Remember(points,raw,followRig,MeridianRecipe::columns,MeridianRecipe::clothCount);
-   if(attempts%120==1)Log("Meridian chart fallback frame=%ld transported=%d certified=%d: %s",renderFrameSerial,continuity.Ready(),certified,e.what());
-  }
-  }
-  // A whole-triangle-certified follower already starts from the accepted
-  // material surface. Local fairing here would rewalk thousands of faces on
-  // every rendered pose and can discard the follower's material coordinates.
-  if(!wrapped&&!followedThisFrame)M::FairMeridianReversals(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::clothFaces,MeridianRecipe::clothFaceCount,hulls,4);
+  const auto raw=points;
+  preparationTimer.stage="pouch-cage";
+  auto cage=M::FitPouchCage(points,MeridianRecipe::columns,MeridianRecipe::rows,MeridianRecipe::count,MeridianRecipe::sampleCount-1,apex,.12f,16);
+  if(renderFrameSerial%120==0)Log("Pouch cage sections=%u samples=%u length=%.4f radius=%.4f continuousContactCertified=0",cage.sections,cage.samples,cage.length,cage.maxRadius);
   std::vector<M::Vec> seamDelta(MeridianRecipe::columns);
   for(unsigned i=0;i<MeridianRecipe::columns;i++)seamDelta[i]=M::Sub(points[i],raw[i]);
-  if(attempts%120==1)Log("Meridian continuity attempts=%u wrapped=%u followed=%u transported=%u uncertified=%u frame=%ld",attempts,wraps,followed,transported,uncertified,renderFrameSerial);
   for(unsigned i=MeridianRecipe::clothCount;i<MeridianRecipe::aliasStart;i++){auto f=MeridianRecipe::trimFollowers[i-MeridianRecipe::clothCount];points[i]=M::Add(points[i],M::Mul(M::Add(M::Mul(seamDelta[f.a],1-f.fraction),M::Mul(seamDelta[f.b],f.fraction)),f.weight));}
   for(unsigned row=0;row<MeridianRecipe::rows;row++){unsigned alias=MeridianRecipe::aliasStart+row;points[alias]=points[row*MeridianRecipe::columns];vertices[alias].uv[0]=1;vertices[alias].uv[1]=float(row)/MeridianRecipe::rows;for(float& c:vertices[alias].color)c=1;}
   for(unsigned i=0;i<MeridianRecipe::count;i++){for(unsigned k=0;k<3;k++){vertices[i].p[k]=points[i][k];vertices[i].n[k]=0;}if(i<MeridianRecipe::clothCount){vertices[i].uv[0]=float(i%MeridianRecipe::columns)/MeridianRecipe::columns;vertices[i].uv[1]=float(i/MeridianRecipe::columns)/MeridianRecipe::rows;for(float& c:vertices[i].color)c=1;}}
   for(auto f:MeridianRecipe::faces){auto n=M::Cross(M::Sub(points[f[1]],points[f[0]]),M::Sub(points[f[2]],points[f[0]]));for(auto id:f)for(unsigned k=0;k<3;k++)vertices[id].n[k]+=n[k];}
   for(unsigned row=0;row<MeridianRecipe::rows;row++){unsigned alias=MeridianRecipe::aliasStart+row,original=row*MeridianRecipe::columns;for(unsigned k=0;k<3;k++){float n=vertices[alias].n[k]+vertices[original].n[k];vertices[alias].n[k]=vertices[original].n[k]=n;}}
   for(unsigned i=0;i<MeridianRecipe::count;i++){auto n=M::Unit({vertices[i].n[0],vertices[i].n[1],vertices[i].n[2]});for(unsigned k=0;k<3;k++)vertices[i].n[k]=n[k];}
-  if(wrapped&&renderFrameSerial%120==0)Log("Meridian live clearance frame=%ld passes=%u minimum=%.6f correction=%.4f",renderFrameSerial,receipt.iterations,receipt.minimumSeparation,receipt.maximumDisplacement);
  }catch(const std::exception& e){static LONG reported=-1000;if(renderFrameSerial-reported>60){reported=renderFrameSerial;Log("Meridian live pose rejected frame=%ld: %s",renderFrameSerial,e.what());static unsigned dumps=0;if(CaptureRaw()&&dumps++<3){char path[MAX_PATH]{};SiblingPath(path,"MeridianRejectedPose.bin");FILE* file=nullptr;if(!fopen_s(&file,path,"wb")&&file){fwrite(points.data(),sizeof(points[0]),points.size(),file);fclose(file);}}}return;}
  for(unsigned i=0;i<MeridianRecipe::count;i++){
   auto& v=vertices[i];v.color[0]=0;v.color[1]=v.color[2]=v.color[3]=1;
@@ -260,8 +200,10 @@ static void Draw(IDirect3DDevice9* d){
    v.uv[0]=float(index%col)/(col-1);v.uv[1]=M::bandMaterialRows[(index/col)%7];v.color[0]=1;
   }else if(i>=MeridianRecipe::clothCount&&i<MeridianRecipe::aliasStart){v.color[0]=2;v.uv[0]=points[i][0]*.1f;v.uv[1]=points[i][2]*.1f;}
  }
- void* raw=nullptr;if(FAILED(vb->Lock(0,0,&raw,D3DLOCK_DISCARD)))return;memcpy(raw,vertices.data(),MeridianRecipe::count*sizeof(vertices[0]));if(FAILED(vb->Unlock()))return;
+ preparationTimer.stage="upload";
+ void* raw=nullptr;if(FAILED(vb->Lock(0,0,&raw,D3DLOCK_DISCARD))){attemptGate.Reset();return;}memcpy(raw,vertices.data(),MeridianRecipe::count*sizeof(vertices[0]));if(FAILED(vb->Unlock())){attemptGate.Reset();return;}
  prepared=renderFrameSerial;
+ preparationTimer.success=true;
  CaptureRenderMesh();
  }
  auto audit=MeridianStateSnapshot(d);
