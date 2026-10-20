@@ -1,4 +1,4 @@
-param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[string]$StateDirectory=(Join-Path $env:LOCALAPPDATA 'MaleMod/WolverineSandbox'))
+param([string]$Workspace='D:/MaleMod/Work/wolverine/sandbox',[string]$StateDirectory='D:/MaleMod/Work/wolverine/state/WolverineSandbox')
 $ErrorActionPreference='Stop'
 $source=Join-Path (Resolve-Path -LiteralPath $Workspace).Path 'owned-game'
 $state=[IO.Path]::GetFullPath($StateDirectory)

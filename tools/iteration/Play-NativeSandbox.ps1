@@ -1,6 +1,6 @@
 param(
- [string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',
- [string]$StateDirectory=(Join-Path $env:LOCALAPPDATA 'MaleMod/WolverineSandbox'),
+ [string]$Workspace='D:/MaleMod/Work/wolverine/sandbox',
+ [string]$StateDirectory='D:/MaleMod/Work/wolverine/state/WolverineSandbox',
  [switch]$ValidateOnly
 )
 $ErrorActionPreference='Stop'

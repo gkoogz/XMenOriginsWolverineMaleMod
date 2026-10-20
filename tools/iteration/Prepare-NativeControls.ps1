@@ -1,4 +1,4 @@
-param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004')
+param([string]$Workspace='D:/MaleMod/Work/wolverine/sandbox')
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path -LiteralPath $Workspace).Path
 $exe=Join-Path $root 'owned-game/Binaries/Wolverine.exe'

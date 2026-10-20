@@ -1,4 +1,4 @@
-param([string]$Workspace='E:/MaleModBuilds/wolverine-sandbox-capability-20261004',[ValidateRange(20,1800)][int]$Seconds=600,[switch]$AcceptanceControls,[switch]$Active,[switch]$TitleOnly,[switch]$Continue,[switch]$NoSound,[ValidateRange(640,3840)][int]$RenderWidth=640,[ValidateRange(480,2160)][int]$RenderHeight=480)
+param([string]$Workspace='D:/MaleMod/Work/wolverine/sandbox',[ValidateRange(20,1800)][int]$Seconds=600,[switch]$AcceptanceControls,[switch]$Active,[switch]$TitleOnly,[switch]$Continue,[switch]$NoSound,[ValidateRange(640,3840)][int]$RenderWidth=640,[ValidateRange(480,2160)][int]$RenderHeight=480)
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path -LiteralPath $Workspace).Path
 $exe=Join-Path $root 'owned-game/Binaries/Wolverine.exe'
