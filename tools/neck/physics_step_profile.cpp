@@ -5,8 +5,10 @@ int main(int argc,char** argv){
  const int state=argc>2?atoi(argv[2]):2;
  const float size=argc>3?(float)atof(argv[3]):85.f;
  const float width=argc>4?(float)atof(argv[4]):50.f;
+ const bool covered=argc>5&&atoi(argv[5])!=0;
  for(float dt:{1.f/60.f,1.f/45.f,1.f/30.f,1.f/20.f}){
   if(!RapheInit(state,size))return 1;
+  if(covered)SetJockstrapStyle(1);
   sliderUI[2]=width;ApplyControlMapping();shapeDirty=true;ApplyShape();
   char path[MAX_PATH]{};FILE* capture=nullptr;
   if(argc>1){sprintf_s(path,"%s-%.0f.bin",argv[1],dt*1000);fopen_s(&capture,path,"wb");}

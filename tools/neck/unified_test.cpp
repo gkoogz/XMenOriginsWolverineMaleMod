@@ -16,22 +16,32 @@ static void Snapshot(const char* label){
 }
 static bool Run(){
  using namespace UnifiedCollar;unsigned cases=0;char label[100];
- for(int state=0;state<3;state++)for(float size:{25.f,50.f,85.f,100.f}){
+ for(int state=0;state<3;state++)for(float size:{1.f,25.f,50.f,75.f,100.f}){
   CHECK(RapheInit(state,size));throbMode=0;sliderUI[1]=100;
-  for(float width:{25.f,50.f,95.f,100.f}){
+  for(float width:{1.f,25.f,50.f,75.f,100.f}){
    sliderUI[2]=width;ApplyControlMapping();shapeDirty=true;ApplyShape();CHECK(CheckUnified());sprintf_s(label,"static-%d-%.0f-%.0f",state,size,width);Snapshot(label);cases++;
   }
  }
+ for(int state=0;state<3;state++)for(float size:{1.f,50.f,100.f})for(float angle:{1.f,25.f,75.f,100.f}){
+  CHECK(RapheInit(state,size));throbMode=0;sliderUI[2]=size;sliderUI[4]=angle;
+  ApplyControlMapping();shapeDirty=true;ApplyShape();CHECK(CheckUnified());sprintf_s(label,"angle-%d-%.0f-%.0f",state,size,angle);Snapshot(label);cases++;
+ }
+ // Combined lower endpoints include the formerly extrapolated short length.
+ for(int state=0;state<3;state++)for(float size:{1.f,50.f,100.f})for(float length:{0.f,1.f,25.f,50.f}){
+  CHECK(RapheInit(state,size));sliderUI[1]=length;sliderUI[2]=sliderUI[3]=size;
+  ApplyControlMapping();shapeDirty=true;ApplyShape();CHECK(CheckUnified());
+  sprintf_s(label,"combined-%d-%.0f-%.0f",state,size,length);Snapshot(label);cases++;
+ }
  printf("PASS %u static controls: finite geometry, normalized weights, protected exterior, exact weld constraints\n",cases);
- for(int state=0;state<3;state++){
-  CHECK(RapheInit(state,85));throbMode=0;sliderUI[1]=100;sliderUI[2]=95;ApplyControlMapping();shapeDirty=true;ApplyShape();
+ for(int covered=0;covered<2;covered++)for(int state=0;state<3;state++){
+  CHECK(RapheInit(state,85));SetJockstrapStyle(covered);throbMode=0;sliderUI[1]=100;sliderUI[2]=95;ApplyControlMapping();shapeDirty=true;ApplyShape();
   std::vector<double> times,collar;unsigned startBuilds=builds;
   for(int f=0;f<90;f++){
    float t=f/60.f;UpdateConstraintSolver(1.f/60,sinf(t*4)*.3f,cosf(t*3)*.3f);
    double begin=PerfClock();ApplyShape();times.push_back(PerfClock()-begin);collar.push_back(solveMS);CHECK(CheckUnified());
-   if(f%30==0||f==89){sprintf_s(label,"motion-%d-%d",state,f);Snapshot(label);}
+   if(f%30==0||f==89){sprintf_s(label,"motion-%d-%d-%d",covered,state,f);Snapshot(label);}
   }
-  std::sort(times.begin(),times.end());std::sort(collar.begin(),collar.end());printf("PASS state %d: 90 frames, full surface median %.3f ms p95 %.3f ms, collar median %.3f ms, rebuilds %u\n",state,times[45],times[85],collar[45],builds-startBuilds);
+  std::sort(times.begin(),times.end());std::sort(collar.begin(),collar.end());printf("PASS covered %d state %d: 90 frames, full surface median %.3f ms p95 %.3f ms, collar median %.3f ms, rebuilds %u\n",covered,state,times[45],times[85],collar[45],builds-startBuilds);
  }
  for(int pulse:{1,3})for(float size:{85.f,100.f}){
   CHECK(RapheInit(2,size));sliderUI[1]=100;sliderUI[2]=size==85?95.f:100.f;throbMode=pulse;ApplyControlMapping();shapeDirty=true;ApplyShape();unsigned count=builds;std::vector<double> times;

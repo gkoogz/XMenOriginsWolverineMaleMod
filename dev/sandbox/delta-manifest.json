@@ -96,10 +96,6 @@
       "lfSHA256": "35071eb8ff0620e22675a5e4d8e8f153eeb73311e1c0e3861a75f882fbcdec80"
     },
     {
-      "path": "tools/iteration/Set-NativeSandboxInput.ps1",
-      "lfSHA256": "fd5d47f871518cc801ff87559d9b809e4ad83319178dfb0b7721aac2695ef47e"
-    },
-    {
       "path": "tools/iteration/Start-NativeSandbox.ps1",
       "lfSHA256": "de115a35b0dfa32a5b30d7e1df7ab08dba9675113db86b4e2c18c2039d1a070e"
     },
@@ -122,10 +118,6 @@
     {
       "path": "tools/iteration/Stage-MeridianLighting.ps1",
       "lfSHA256": "882c7905f304daf6d563a7e7b967671c764b764765f294f95419258ab967d9dd"
-    },
-    {
-      "path": "tools/iteration/Test-MeridianCandidate.ps1",
-      "lfSHA256": "a0ccf5f61db00182fdf6ace4adb925bd66efce766fa7c8124ded44ce98ec0cea"
     },
     {
       "path": "tools/iteration/anterior_recovery_fixture.cpp",
@@ -190,6 +182,50 @@
     {
       "path": "tools/iteration/Test-TankWardrobe.ps1",
       "lfSHA256": "4197dc0f247c5e974a727991c4089e55efe039eb595b43a932b42dde78e6d33d"
+    },
+    {
+      "path": "tools/iteration/meridian_attempt_test.cpp",
+      "lfSHA256": "c932221baa878dd0cb528336eff6e5adeaa3053eaebdcf888d9e2ac45dd4fa15"
+    },
+    {
+      "path": "tools/iteration/write_pouch_comparison.py",
+      "lfSHA256": "59e372c2238a9f3c90de0e5d284fc2683f695822485d038b870919a86e3bd99b"
+    },
+    {
+      "path": "tools/iteration/Read-SharedSandboxLog.ps1",
+      "lfSHA256": "84c8ede0b1cf1660b628c11717e8ff9b9f9216a5b22adade17aa35cb018f0415"
+    },
+    {
+      "path": "tools/iteration/Test-MeridianCandidate.ps1",
+      "lfSHA256": "d5006364bb1e80c7c96727126e3d8cd8d4a9822621237b833f1464a2ea21b14a"
+    },
+    {
+      "path": "tools/iteration/Compare-PouchViews.ps1",
+      "lfSHA256": "bfce41b42c59ed811d46cd9cf82788a6b829d1d8c9618c5af79a656650632510"
+    },
+    {
+      "path": "tools/iteration/Test-PouchCageMotion.ps1",
+      "lfSHA256": "bc3c2c44e3dcc32d0ffbb05bf89a8c458c3f0bf47e365d4ec8387ea115c04a85"
+    },
+    {
+      "path": "tools/iteration/Set-NativeSandboxInput.ps1",
+      "lfSHA256": "937cdb39a794c01a696493a72b3e3966e9bedbe562441c87309c8664f05493ea"
+    },
+    {
+      "path": "tools/iteration/prepare_pouch_loft.py",
+      "lfSHA256": "689a8e69ec885f7997cbcab88206f9fc0bde18ca2de7a021f16c2ef8629e92d0"
+    },
+    {
+      "path": "tools/iteration/prepare_pouch_production.py",
+      "lfSHA256": "3f453e5a8a0eeea26d78fcc8f88a4e7adb5db502d80c3d8c24e7e654d7b06521"
+    },
+    {
+      "path": "tools/iteration/test_skin_extents_cache.py",
+      "lfSHA256": "804460ea5cb1dd671d25973190a7310b66f3886088cfad2f1a69d8e47b892ab7"
+    },
+    {
+      "path": "tools/iteration/write_pouch_cage_report.py",
+      "lfSHA256": "7277a52dab887742698959b9dd6103e8baf133973a3bab699a6ebbe1dc65d019"
     }
   ],
   "retailAssetsShipped": false,
