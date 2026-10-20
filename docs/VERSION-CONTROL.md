@@ -1,6 +1,6 @@
 # Local repository workflow
 
-Canonical checkout: C:/Users/Administrator/Documents/Codex/2026-09-28/hello-https-github-com-gkoogz-xmenoriginswolverinemalemod/work/installed-baseline-20260929
+Canonical checkout: D:/MaleMod/XMenOriginsWolverineMaleMod
 Remote: https://github.com/gkoogz/XMenOriginsWolverineMaleMod
 Working branch: main, tracking origin/main. Authentication uses the signed-in GitHub CLI; no access tokens are stored in project files. Git author identity is the account's GitHub no-reply address.
 
@@ -35,3 +35,4 @@ Beta2 packages approved16affd49/Base99ff runtime; main preserves later source
 cloth work on Base421a786 as developmental. Do not replace the runtime with
 main merely because Git is clean. Rebuild/test and verify native acceptance
 first. Developer sandbox lives only in Git, excluded from uploaded releases.
+

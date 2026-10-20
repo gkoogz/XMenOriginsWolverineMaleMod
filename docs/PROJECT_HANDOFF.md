@@ -1,3 +1,7 @@
+## October 20 - storage consolidation
+
+Canonical repositories now live under D:/MaleMod; all generated/private working data belongs in D:/MaleMod/Work. Read docs/STORAGE-LAYOUT.md before generating output. Current source is backed up on GitHub branch codex/storage-consolidation-20261020. Historical backup images, preview games and diagnostic banks were explicitly retired by the user; old evidence paths below are historical, not retained files. No new runtime was installed by this storage operation.
+
 ## October 10 - user accepted the sewn-boundary correction
 
 The user confirmed the installed correction is liked and requested a GitHub
@@ -1824,3 +1828,4 @@ resolution and validated previous-chart reuse before proxy-render optimizations.
 Runtime, settings and rollback were not changed by this source/profiling audit.
 The local recipe extensions and diagnostics are pending Git publication; do not
 claim a fresh remote clone contains them until committed/pushed.
+
